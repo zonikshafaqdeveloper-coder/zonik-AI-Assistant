@@ -1,0 +1,389 @@
+@extends('web.layouts.app')
+@section('content')
+
+<style>
+.pagination {
+    flex-wrap: wrap;
+}
+.pagination .page-item {
+    margin: 3px;
+}
+.buy-buttonss{
+    display: flex
+;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    height: 30px;
+    position: absolute;
+    right: -3px;
+    padding: 7px 11px;
+    background-color: #a558c8;
+    width: 30px;
+    font-size: 25px;
+    color: #fff;
+    margin-top: -37px;
+    border-radius: 50px;
+}
+
+@media (max-width: 768px) {
+    .modal-dialog {
+        margin: 10px; /* Optional: Add margin for small screens */
+    }
+
+    .modal-header {
+        padding: 10px;
+    }
+
+    .modal-footer {
+        padding: 15px;
+    }
+
+    .filter-name-div {
+        padding: 10px;
+    }
+
+    .modal-content {
+        padding: 15px;
+    }
+
+    .label {
+        font-size: 14px;
+    }
+}
+
+
+    .nav-link.active {
+        background: #a558c7 !important;
+        color: #fff !important;
+    }
+
+    .modal-w1 {
+        width: 50% !important;
+    }
+
+    .filter-main.div {
+        background: #fff;
+        border-radius: 20px;
+        height: 540px;
+        overflow-y: auto;
+        margin: 0 24px 24px;
+    }
+
+    .filter-div {
+        padding: 20px 40px 20px 40px !important;
+        border-radius: 24px !important;
+        box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+    }
+
+    .filter-name {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        font-size: 14px !important;
+    }
+
+    .fs-14 {
+        font-size: 14px !important;
+        font-weight: 500;
+    }
+
+    .filter-name-div {
+        background: #f0f0f0;
+        margin-top: 15px;
+        border-radius: 24px;
+        margin-bottom: 15px;
+        overflow-y: scroll;
+    }
+
+    .break-line {
+        font-size: 0;
+        width: 100%;
+        border-top: 1px solid #ebeb;
+    }
+
+    .p-15 {
+        padding: 15px;
+    }
+
+    .scrollable-div {
+        height: 450px;
+        /* Adjust height as needed */
+        overflow: auto;
+        /* Enable scrolling */
+        -ms-overflow-style: none;
+        /* IE and Edge */
+        scrollbar-width: none;
+        /* Firefox */
+    }
+
+    .scrollable-div::-webkit-scrollbar {
+        display: none;
+        /* Hide the scrollbar in webkit browsers */
+    }
+
+    .contact-div {
+        border-radius: 24px;
+        box-shadow: 0 1px 4px rgba(28, 28, 28, .06);
+        display: flex;
+        border: 1px solid #d6d6d6;
+        background-color: #e3e7e8;
+        padding-top: 16px;
+        height: 140px;
+        width: 100%;
+    }
+
+    .conact-icon {
+        background-size: contain;
+        width: 80px;
+        height: 86px;
+        background-repeat: no-repeat;
+        background-position-y: center;
+        margin-left: 16px;
+        /* transform: translateY(14px); */
+    }
+
+    .form-content {
+        display: flex;
+        margin-left: 16px;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .form-comtent1 {
+        color: #363636;
+        font-weight: 500;
+        line-height: 35px;
+    }
+
+    .mr-16 {
+        margin-right: 16px;
+    }
+
+    .pt-50 {
+        padding-top: 50px;
+    }
+
+    .pb-20 {
+        padding-bottom: 20px;
+    }
+
+
+    .d-sm-none {
+        display: block
+    }
+
+    @media (max-width: 767px) {
+        .contact-div {
+            display: block;
+            height: auto;
+            text-align: center;
+        }
+
+        .form-content {
+            display: block;
+            text-align: center;
+
+        }
+
+        .d-sm-none {
+            display: none
+        }
+    }
+
+
+    @media (max-width: 768px) {
+        .f-content h6 {
+            font-size: 12px;
+        }
+
+      .buy-buttonss{
+            width: 25px;
+        font-size: x-large;
+        margin-left: 1rem;
+        margin-top: 0px;
+        height: 24px;
+        /* position: absolute; */
+        border-radius: 50%;
+        right: 55px;
+    
+    }   
+     
+     
+    
+    .border-red {
+        font-weight: 500 !important;
+        margin-top: 2px;
+        margin-bottom: -37px;
+        border: 1px solid #a558c8;
+        padding: 5px;
+        text-align: center;
+        border-radius: 5px;
+        font-size: 11px;
+        height: 22px;
+        position: absolute;
+    }
+
+        .newimagecss {
+        width: 300%;
+        height: 142px;
+        border-radius: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+     .col-sm-5{
+        width: 33%;
+        font-size: 10px;
+    }
+
+     /*.boxbtncss{*/
+     /*       font-size: 10px;*/
+     /*       width: 45px;*/
+     /*   }*/
+     /*   .loosbtncss{*/
+     /*       font-size: 10px;*/
+     /*   width: 57px;*/
+     /*   margin-left: -3.45rem;*/
+     /*   }*/
+    }
+
+
+@media (max-width: 768px) {
+    .modal.fade .modal-dialog {
+        max-height: 90vh; /* Limits the modal height */
+        margin: 0 auto; /* Centers the modal */
+    }
+
+    .modal-content {
+        max-height: fit-content; /* Ensures the content does not exceed modal height */
+        overflow-y: auto; /* Enables vertical scrolling if content overflows */
+    }
+
+    .filter-name-div {
+        max-height: fit-content; /* Restricts the height of the content */
+        overflow-y: auto; /* Allows scrolling within this section */
+        padding-bottom: 15px; /* Adds some space at the bottom */
+    }
+
+    .modal-footer {
+        position: sticky; /* Keeps footer fixed at the bottom of the modal */
+        bottom: 0;
+        background-color: #fff; /* Matches modal background */
+        z-index: 10;
+        padding: 10px;
+    }
+}
+
+    
+</style>
+<div class="container mt-5 mb-5">
+
+
+<form action="{{ route('productlist') }}" method="GET" class="mb-4">
+    <div class="input-group shadow-sm" style="border-radius: 12px; overflow: hidden;">
+        <span class="input-group-text bg-white border-0">
+            <i class="fa fa-search text-secondary"></i>
+        </span>
+        <input type="text" name="search" value="{{ $searchTerm }}" 
+            class="form-control border-0"
+            placeholder="Search products...">
+        <button class="btn btn-primary px-4" style="border-radius: 0 12px 12px 0;" type="submit">
+            Search
+        </button>
+    </div>
+</form>
+
+
+ 
+@if($searchTerm)
+    <div class="row">
+        <div class="col-md-12">
+            <h2>
+                {{ $data->total() }} products found for 
+                <span class="text-primary">"{{ $searchTerm }}"</span>
+            </h2>
+        </div>
+    </div>
+@else
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="text-primary">Product List</h2>
+        </div>
+    </div>
+@endif
+
+
+
+    {{-- Product List --}}
+    <div class="row mt-4">
+        @foreach ($data as $product)
+            @if ($product->image !== '1718876959.jpg')
+                <div class="col-md-3 mb-4">
+                    <div class="product-box-4 br">
+
+                        <div class="product-image product-image-2">
+                            <a href="#">
+                                <img src="/uploads/{{ $product->image }}" class="img-fluid" alt="">
+                            </a>
+                        </div>
+
+                        <div class="product-detail">
+                            <a @if (Auth::user()) href="{{ route('product-details', $product->id) }}" @endif>
+                                <h5 class="name text-title">{{ $product->product_name }}</h5>
+                            </a>
+
+                            <h5 class="price price-p">Pack of {{ $product->product_quantity }}</h5>
+
+                            @if (Auth::user())
+                                {{-- Buttons (same as your search UI) --}}
+                                <div>
+                                    <input type="hidden" name="quantity" id="quantityInput">
+                                    <div class="quantity">
+                                        <div class="row g-1 mt-2 mb-3">
+                                            <div class="col-md-5 col-sm-5">
+                                                <div class="box-btn boxbtncss"
+                                                    onclick="updateQuantity('BOX', {{ $product->id }})">
+                                                    BOX
+                                                </div>
+                                                <div class="border-red 24-pcs">
+                                                    {{ $product->carton_size ?? 0 }} PCS
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-5 col-sm-5">
+                                                <div class="loose-btn loosbtncss"
+                                                    onclick="updateQuantity('LOOSE', {{ $product->id }})">
+                                                    LOOSE
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-5 col-sm-5">
+                                                <button onclick="submit()" type="button"
+                                                    class="add-button addcart-button btn buy-buttonss text-light">
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
+                        </div>
+                    </div>
+                </div>
+            @endif
+        @endforeach
+    </div>
+
+    {{-- Pagination --}}
+   <div class="pagination-wrapper d-flex justify-content-center mt-4">
+    {{ $data->links('vendor.pagination.custom') }}
+</div>
+
+</div>
+
+@endsection

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    body {
+        font-family: DejaVu Sans, sans-serif;
+        font-size: 12px;
+        color: #000;
+    }
+    .header {
+        display: flex;
+        align-items: center;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .logo {
+        width: 100px;
+    }
+    .company {
+        margin-left: auto;
+        text-align: right;
+    }
+    .title {
+        text-align: center;
+        font-size: 16px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    th, td {
+        border: 1px solid #000;
+        padding: 6px;
+        text-align: center;
+    }
+    th {
+        background: #f1f1f1;
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <img src="{{ public_path('frontweb/assests/images/Adobe Express - file.png') }}" class="logo">
+    <div class="company">
+        <strong>Infigourmet networks private limited.</strong><br>
+        Purchase Order
+    </div>
+</div>
+
+<div class="title">PURCHASE ORDER</div>
+
+<p>
+    <strong>PO No:</strong> {{ $po->purchase_order_number }}<br>
+    <strong>Date:</strong> {{ $po->created_at->format('d-m-Y') }}
+</p>
+
+<p>
+    <strong>Vendor:</strong> {{ $po->vendor->name ?? '' }}<br>
+    <strong>Location:</strong> {{ $po->location ?? '' }}<br>
+    <strong>GST No:</strong> {{ $po->vendor->gst_number ?? ''}}
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Rate</th>
+            <th>Tax %</th>
+            <th>Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($po->items as $i => $item)
+        <tr>
+            <td>{{ $i+1 }}</td>
+            <td style="text-align:left">{{ $item->product->product_name }}</td>
+            <td>{{ $item->quantity }}</td>
+            <td>{{ number_format($item->vendor_price,2) }}</td>
+            <td>{{ $item->row_tax }}%</td>
+            <td>{{ number_format($item->amount,2) }}</td>
+        </tr>
+    @endforeach
+    </tbody>
+</table>
+
+<table style="margin-top:15px; width:100%; border-collapse:collapse;">
+    <tr>
+        <td style="border:1px solid #000; padding:6px;"><strong>Subtotal</strong></td>
+        <td style="border:1px solid #000; padding:6px; text-align:right;">
+            {{ number_format($po->subtotal_basic, 2) }}
+        </td>
+    </tr>
+
+    <tr>
+        <td style="border:1px solid #000; padding:6px;"><strong>Total Tax</strong></td>
+        <td style="border:1px solid #000; padding:6px; text-align:right;">
+            {{ number_format($po->tax_total, 2) }}
+        </td>
+    </tr>
+
+    <tr>
+        <td style="border:1px solid #000; padding:6px;">
+            <strong>Discount ({{ number_format($po->product_discount ?? 0, 2) }}%)</strong>
+        </td>
+        <td style="border:1px solid #000; padding:6px; text-align:right;">
+            {{ number_format((($po->subtotal_basic + $po->tax_total) * ($po->product_discount ?? 0) / 100), 2) }}
+        </td>
+    </tr>
+
+    <tr>
+        <td style="border:1px solid #000; padding:6px;"><strong>Delivery Charges</strong></td>
+        <td style="border:1px solid #000; padding:6px; text-align:right;">
+            {{ number_format($po->delivery_charges ?? 0, 2) }}
+        </td>
+    </tr>
+
+    <tr>
+        <td style="border:1px solid #000; padding:6px;"><strong>Grand Total</strong></td>
+        <td style="border:1px solid #000; padding:6px; text-align:right;">
+            <strong>{{ number_format($po->grand_total, 2) }}</strong>
+        </td>
+    </tr>
+</table>
+
+
+
+<br><br>
+
+<table style="width:100%; border:none;">
+<tr>
+    <td style="border:none; text-align:center;">
+        _______________________<br>
+        Prepared By
+    </td>
+    <td style="border:none; text-align:center;">
+        _______________________<br>
+        Approved By
+    </td>
+</tr>
+</table>
+
+</body>
+</html>

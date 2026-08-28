@@ -1,0 +1,136 @@
+.row {
+    display: flex;
+    /*width: 100%;*/
+}
+
+.col-md-6 {
+    width: 50%;
+    box-sizing: border-box;
+    padding: 10px;
+}
+
+/* Base table */
+.table-bordered {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* Cells */
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #000;
+    /* Border style */
+    padding: 8px;
+    /* Adjust padding as needed */
+    text-align: left;
+    /* Align text left */
+}
+
+/* Remove this – it destroys layout */
+/*
+.table-bordered td,
+.table-bordered th {
+    max-width: 40px;
+}
+*/
+
+.table-bordered td,
+.table-bordered th {
+    border: 1px solid #2c2c2c;
+    border-collapse: collapse;
+    margin: 0;
+    /*max-width: 40px;*/
+    padding: 0 5px;
+    white-space: normal;
+    /* Allow text to wrap */
+    word-wrap: break-word;
+    /* Break long words */
+}
+
+
+/* Header styling */
+.table-bordered th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+/* Paragraph spacing */
+.table-bordered p {
+    margin: 5px 0;
+}
+
+/* Span bold */
+.table-bordered span {
+    font-weight: bold;
+}
+
+/* Container spacing */
+.container1 {
+    margin-right: 25px;
+}
+
+/* Font sizing */
+* {
+    font-size: 9px;
+}
+
+@media only screen and (min-width: 1024px) {
+    * {
+        font-size: 10px;
+    }
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1023px) {
+    * {
+        font-size: 9px;
+    }
+}
+
+@media only screen and (max-width: 767px) {
+    * {
+        font-size: 10px;
+    }
+}
+
+h4 {
+    margin: 0;
+}
+.w-full {
+    width: 100%;
+}
+.w-half {
+    width: 33.33%;
+}
+.margin-top {
+    margin-top: 1.25rem;
+}
+.footer {
+    font-size: 0.875rem;
+    padding: 1rem;
+    background-color: rgb(241 245 249);
+}
+table {
+    width: 100%;
+    border-spacing: 0;
+}
+table.products {
+    font-size: 0.875rem;
+}
+table.products tr {
+    background-color: #b26ad3;
+}
+table.products th {
+    color: #ffffff;
+    padding: 0.5rem;
+}
+table tr.items {
+    background-color: rgb(241 245 249);
+}
+table tr.items td {
+    padding: 0.5rem;
+}
+.total {
+    text-align: right;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,38 @@
+# Local configuration and secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Installed dependencies
+**/vendor/
+**/node_modules/
+
+# Laravel runtime data
+z_project/storage/logs/*
+z_project/storage/framework/cache/data/*
+z_project/storage/framework/sessions/*
+z_project/storage/framework/views/*
+z_project/storage/fonts/*
+z_project/bootstrap/cache/*.php
+z_project/public/uploads/
+z_project/public/uploads.*/
+z_project/public/*_debug_log.txt
+
+# Test and editor artifacts
+**/.phpunit.result.cache
+**/.idea/
+**/.vscode/
+
+# Backups, archives, and database dumps
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.gz
+*.bz2
+*.7z
+*.sql
+
+# OS-generated files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,506 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+.select2-container .select2-selection--single {
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    background-color: #e9ecef !important;
+    opacity: 1 !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 44px !important;
+    padding-left: 12px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 44px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__clear{
+    display:none;
+}
+</style>
+
+<div class="page-body">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 my-5">
+                <div class="col-sm-12 m-auto">
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="card-header-2 mb-3">
+                                <h3>Edit Quotation — {{ $quotation->quotation_number }}</h3>
+                            </div>
+
+                            <form>
+                                <input type="hidden" id="quotation_id" value="{{ $quotation->id }}">
+
+                                <div class="row">
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Outlet Name <span class="text-danger">*</span></label>
+                                        <select id="lead_customer_id" class="form-control select2">
+                                            <option value="">Select Outlet</option>
+                                            @foreach($leadCustomers as $lead)
+                                                <option value="{{ $lead->id }}" {{ $quotation->lead_customer_id == $lead->id ? 'selected' : '' }}>
+                                                    {{ $lead->outlet_name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Customer Name</label>
+                                        <input type="text" id="customer_name" class="form-control" value="{{ $quotation->leadCustomer->customer_name }}" readonly>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Mobile Number</label>
+                                        <input type="text" id="mobile_number" class="form-control" value="{{ $quotation->leadCustomer->mobile_number }}" readonly>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Address</label>
+                                        <input type="text" id="address" class="form-control" value="{{ $quotation->leadCustomer->address }}" readonly>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Payment Term</label>
+                                        <input type="text" id="payment_term" class="form-control" value="{{ $quotation->leadCustomer->payment_term }}" readonly>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Quotation Date <span class="text-danger">*</span></label>
+                                        <input type="date" id="quotation_date" class="form-control" value="{{ $quotation->quotation_date }}">
+                                    </div>
+
+                                </div>
+
+                                <hr class="my-4">
+                                <h4 class="mb-3">Quotation Products</h4>
+
+                                <div class="table-responsive">
+                                    <table class="table table-bordered align-middle" id="quotationTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width:4%">Sr</th>
+                                                <th style="width:16%">Product Name</th>
+                                                <th style="width:9%">Brand</th>
+                                                <th style="width:9%">Category</th>
+                                                <th style="width:9%">Cost Per Item</th>
+                                                <th style="width:9%">Sale Price (Basic)</th>
+                                                <th style="width:8%">Profit Margin %</th>
+                                                <th style="width:9%">Customer Price</th>
+                                                <th style="width:9%">Total Saving %</th>
+                                                <th style="width:10%">Last GRN Date</th>
+                                                <th style="width:8%" class="text-center">
+                                                    <button type="button" class="btn btn-sm" style="background:#e97457;color:#fff;" id="addRowBtn">+ Add</button>
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody id="quotationBody">
+                                            @foreach($quotation->items as $index => $item)
+                                            <tr data-existing-product-id="{{ $item->product_id }}">
+                                                <td class="sr">{{ $index + 1 }}</td>
+                                                <td>
+                                                    <select class="form-control product-select select2" data-selected="{{ $item->product_id }}">
+                                                        <option value="{{ $item->product_id }}" selected
+                                                            data-brand="{{ $item->brand }}"
+                                                            data-category="{{ $item->category }}"
+                                                            data-cost="{{ $item->cost_per_item }}"
+                                                            data-sale-price="{{ $item->sale_price_basic }}"
+                                                            data-last-grn="{{ $item->last_grn_date }}">
+                                                            {{ $item->product->product_name ?? 'Unknown Product' }}
+                                                        </option>
+                                                    </select>
+                                                </td>
+                                                <td><input type="text" class="form-control brand" value="{{ $item->brand }}" readonly></td>
+                                                <td><input type="text" class="form-control category" value="{{ $item->category }}" readonly></td>
+                                                <td><input type="text" class="form-control cost-per-item" value="{{ number_format($item->cost_per_item, 2) }}" readonly></td>
+                                                <td><input type="number" class="form-control sale-price-basic" step="0.01" min="0" value="{{ number_format($item->sale_price_basic, 2) }}"></td>
+                                                <td><input type="text" class="form-control profit-margin" value="{{ $item->profit_margin }}%" readonly></td>
+                                                <td><input type="number" class="form-control customer-price" step="0.01" min="0" value="{{ $item->customer_price }}"></td>
+                                                <td><input type="text" class="form-control total-saving" value="{{ $item->total_saving_percent }}%" readonly></td>
+                                                <td><input type="text" class="form-control last-grn-date" value="{{ $item->last_grn_date ?? 'No GRN Yet' }}" readonly></td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm remove-row" style="background:red;color:#fff;">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="row mt-4">
+                                    <div class="col-md-12 text-end">
+                                        <button type="button" id="updateQuotationBtn" class="btn btn-lg" style="background:#e97457;color:#fff;">
+                                            Update Quotation
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+let PRODUCT_CACHE = [];
+let PRODUCT_MAP = {};
+
+function buildProductMap() {
+    PRODUCT_MAP = {};
+    PRODUCT_CACHE.forEach(p => { PRODUCT_MAP[p.id] = p; });
+}
+
+function initSelect2($context) {
+    $context.find('.product-select').each(function () {
+        if ($(this).hasClass('select2-hidden-accessible')) {
+            $(this).select2('destroy');
+        }
+        $(this).select2({ width: '100%', allowClear: true, dropdownParent: $('#quotationTable') });
+    });
+}
+
+function buildDropdownOptions() {
+    let options = `<option value="">Search Product</option>`;
+    PRODUCT_CACHE.forEach(p => {
+        options += `
+            <option value="${p.id}"
+                data-brand="${p.brand ?? ''}"
+                data-category="${p.category ?? ''}"
+                data-cost="${p.cost_per_item ?? 0}"
+                data-sale-price="${p.sale_price_loose_pcs ?? 0}"
+                data-last-grn="${p.last_grn_date ?? ''}">
+                ${p.product_name}
+            </option>`;
+    });
+    return options;
+}
+
+function markProductUnavailable(productId, $excludeSelect) {
+    if (!productId) return;
+    $('.product-select').not($excludeSelect).each(function () {
+        const $opt = $(this).find(`option[value="${productId}"]`);
+        if ($opt.length && !$opt.prop('disabled')) {
+            $opt.prop('disabled', true);
+        }
+    });
+}
+
+function markProductAvailable(productId) {
+    if (!productId) return;
+    $('.product-select').each(function () {
+        const $opt = $(this).find(`option[value="${productId}"]`);
+        if ($opt.length) {
+            $opt.prop('disabled', false);
+        }
+    });
+}
+
+function updateSr() {
+    $('#quotationTable tbody .sr').each(function (i) { $(this).text(i + 1); });
+}
+
+function getSelectedProductIds() {
+    let selected = [];
+    $('.product-select').each(function () {
+        let val = $(this).val();
+        if (val) selected.push(val);
+    });
+    return selected;
+}
+
+function addNewRow() {
+    const tableBody = $('#quotationBody');
+    const rowCount = tableBody.children().length + 1;
+
+    const $newRow = $(`
+        <tr>
+            <td class="sr">${rowCount}</td>
+            <td><select class="form-control product-select select2">${buildDropdownOptions()}</select></td>
+            <td><input type="text" class="form-control brand" readonly></td>
+            <td><input type="text" class="form-control category" readonly></td>
+            <td><input type="text" class="form-control cost-per-item" readonly></td>
+            <td><input type="number" class="form-control sale-price-basic" step="0.01" min="0"></td>
+            <td><input type="text" class="form-control profit-margin" readonly></td>
+            <td><input type="number" class="form-control customer-price" step="0.01" min="0"></td>
+            <td><input type="text" class="form-control total-saving" readonly></td>
+            <td><input type="text" class="form-control last-grn-date" readonly></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm remove-row" style="background:red;color:#fff;"><i class="fa fa-trash"></i></button>
+            </td>
+        </tr>
+    `);
+
+    tableBody.append($newRow);
+
+    getSelectedProductIds().forEach(id => {
+        $newRow.find(`.product-select option[value="${id}"]`).prop('disabled', true);
+    });
+
+    initSelect2($newRow);
+    updateSr();
+    return $newRow;
+}
+
+function calculateProfitMargin($row) {
+    const cost = parseFloat($row.find('.cost-per-item').val()) || 0;
+    const salePrice = parseFloat($row.find('.sale-price-basic').val()) || 0;
+
+    let marginText = '';
+    if (cost > 0 && salePrice > 0) {
+        const margin = ((salePrice - cost) / cost) * 100;
+        marginText = margin.toFixed(2) + '%';
+    }
+    $row.find('.profit-margin').val(marginText);
+}
+
+function calculateTotalSaving($row) {
+    const salePrice = parseFloat($row.find('.sale-price-basic').val()) || 0;
+    const customerPrice = parseFloat($row.find('.customer-price').val()) || 0;
+
+    let savingText = '';
+    if (salePrice > 0 && customerPrice > 0) {
+        const saving = ((customerPrice - salePrice) / salePrice) * 100;
+        savingText = saving.toFixed(2) + '%';
+    }
+    $row.find('.total-saving').val(savingText);
+}
+
+$(document).ready(function () {
+
+    $('#lead_customer_id').select2({ width: '100%', allowClear: true });
+
+    // Load full product cache; for EXISTING rows we keep their server-rendered
+    // <option> as-is (already has correct data-* attrs) so nothing flickers,
+    // we just swap in the full searchable list on top of it.
+    fetch("{{ route('products.for-quotation') }}")
+        .then(res => res.json())
+        .then(products => {
+            PRODUCT_CACHE = products;
+            buildProductMap();
+
+            $('.product-select').each(function () {
+                const $sel = $(this);
+                const preSelected = $sel.data('selected');
+
+                let options = buildDropdownOptions();
+                $sel.html(options);
+
+                if (preSelected) {
+                    $sel.val(preSelected);
+                }
+            });
+
+            // Disable products that are already used in other rows
+            const usedIds = getSelectedProductIds();
+            $('.product-select').each(function () {
+                const $sel = $(this);
+                const myVal = $sel.val();
+                usedIds.forEach(id => {
+                    if (id !== myVal) {
+                        $sel.find(`option[value="${id}"]`).prop('disabled', true);
+                    }
+                });
+            });
+
+            initSelect2($(document));
+        })
+        .catch(err => console.error('Failed to load products:', err));
+
+    $('#addRowBtn').on('click', function () { addNewRow(); });
+
+    $('#lead_customer_id').on('select2:select select2:clear', function () {
+
+        const leadId = $(this).val();
+
+        $('#customer_name, #mobile_number, #address, #payment_term').val('');
+
+        if (!leadId) return;
+
+        fetch(`/admin/lead-customer-details/${leadId}`)
+            .then(res => res.json())
+            .then(data => {
+                $('#customer_name').val(data.customer_name ?? '');
+                $('#mobile_number').val(data.mobile_number ?? '');
+                $('#address').val(data.address ?? '');
+                $('#payment_term').val(data.payment_term ?? '');
+            });
+    });
+
+    const tableBody = $('#quotationBody');
+
+    tableBody.on('change', '.product-select', function () {
+
+        const $row = $(this).closest('tr');
+        const $select = $(this);
+        const productId = $select.val();
+        const previousId = $select.data('prev-selected') || $row.data('existing-product-id') || null;
+
+        if (previousId && String(previousId) !== String(productId)) {
+            markProductAvailable(previousId);
+        }
+
+        if (!productId) {
+            $row.find('.brand, .category, .cost-per-item, .sale-price-basic, .profit-margin, .customer-price, .total-saving, .last-grn-date').val('');
+            $select.data('prev-selected', null);
+            return;
+        }
+
+        const p = PRODUCT_MAP[productId];
+        if (!p) return;
+
+        $row.find('.brand').val(p.brand || '');
+        $row.find('.category').val(p.category || '');
+        $row.find('.cost-per-item').val(parseFloat(p.cost_per_item || 0).toFixed(2));
+        $row.find('.sale-price-basic').val(parseFloat(p.sale_price_loose_pcs || 0).toFixed(2));
+        $row.find('.last-grn-date').val(p.last_grn_date || 'No GRN Yet');
+        $row.find('.customer-price').val('');
+        $row.find('.total-saving').val('');
+
+        calculateProfitMargin($row);
+
+        markProductUnavailable(productId, $select);
+        $select.data('prev-selected', productId);
+        $row.removeData('existing-product-id');
+
+        if ($row.is(':last-child')) {
+            addNewRow();
+        }
+    });
+
+    tableBody.on('input', '.sale-price-basic', function () {
+        const $row = $(this).closest('tr');
+        calculateProfitMargin($row);
+        calculateTotalSaving($row);
+    });
+
+    tableBody.on('input', '.customer-price', function () {
+        const $row = $(this).closest('tr');
+        calculateTotalSaving($row);
+    });
+
+    tableBody.on('click', '.remove-row', function () {
+
+        if (tableBody.children().length === 1) {
+            Swal.fire({ icon: 'warning', title: 'Action Not Allowed', text: 'At least one product row is required.' });
+            return;
+        }
+
+        const $row = $(this).closest('tr');
+        const productId = $row.find('.product-select').val();
+
+        if (productId) {
+            markProductAvailable(productId);
+        }
+
+        $row.remove();
+        updateSr();
+    });
+
+});
+
+function buildQuotationPayload() {
+
+    let items = [];
+
+    $('#quotationBody tr').each(function () {
+        const $row = $(this);
+        const $select = $row.find('.product-select');
+        const productId = $select.val();
+        if (!productId) return;
+
+        const p = PRODUCT_MAP[productId] || {};
+
+        items.push({
+            product_id            : productId,
+            brand                  : p.brand || '',
+            category                : p.category || '',
+            cost_per_item           : parseFloat($row.find('.cost-per-item').val()) || 0,
+            sale_price_basic        : parseFloat($row.find('.sale-price-basic').val()) || 0,
+            profit_margin           : parseFloat($row.find('.profit-margin').val()) || 0,
+            customer_price          : parseFloat($row.find('.customer-price').val()) || 0,
+            total_saving_percent    : parseFloat($row.find('.total-saving').val()) || 0,
+            last_grn_date           : p.last_grn_date || null,
+        });
+    });
+
+    return {
+        lead_customer_id : $('#lead_customer_id').val(),
+        quotation_date   : $('#quotation_date').val(),
+        items            : items,
+    };
+}
+
+$('#updateQuotationBtn').on('click', function () {
+
+    const id = $('#quotation_id').val();
+    const payload = buildQuotationPayload();
+
+    if (!payload.lead_customer_id) {
+        Swal.fire({ icon: 'warning', title: 'Outlet Required', text: 'Please select an outlet.' });
+        return;
+    }
+
+    if (!payload.quotation_date) {
+        Swal.fire({ icon: 'warning', title: 'Date Required', text: 'Please select a quotation date.' });
+        return;
+    }
+
+    if (payload.items.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'No Products', text: 'Please add at least one product.' });
+        return;
+    }
+
+    const hasNoCustomerPrice = payload.items.some(i => i.customer_price < 0);
+    if (hasNoCustomerPrice) {
+        Swal.fire({ icon: 'warning', title: 'Customer Price Required', text: 'Please enter customer price for all products.' });
+        return;
+    }
+
+    Swal.fire({
+        title: 'Updating Quotation...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    fetch(`/admin/quotations/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Something went wrong');
+        return data;
+    })
+    .then(data => {
+        Swal.fire('Success', data.message, 'success').then(() => {
+            window.location.href = data.redirect_url;
+        });
+    })
+    .catch(err => {
+        Swal.fire('Error', err.message, 'error');
+    });
+});
+</script>
+
+@endsection

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>Select Outlet - Zonik</title>
+<style>
+  :root{
+    --blue:#2f5ede;
+    --blue-dark:#2347c4;
+    --blue-light:#eef2ff;
+    --blue-border:#c7d4fb;
+    --navy:#14213d;
+    --text-gray:#6b7280;
+    --border:#e5e7eb;
+    --bg:#f7f8fa;
+    --card-bg:#ffffff;
+    --gray-badge:#eef0f3;
+    --gray-badge-text:#8a8f98;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:var(--bg);
+  }
+
+  .phone{
+    width:100%;
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--bg);
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ============ HEADER ============ */
+  .app-header{
+    background:#fff;
+    border-bottom:1px solid var(--border);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  .header-left{display:flex; align-items:center; gap:10px;}
+  .hamburger{
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding:4px 2px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:4px;
+    flex-shrink:0;
+  }
+  .hamburger span{width:22px; height:2.5px; background:var(--navy); border-radius:2px;}
+
+  .brand{display:flex; flex-direction:column; justify-content:center; line-height:1.15;}
+  .brand img{height:20px; width:auto; display:block;}
+  .brand .tagline{font-size:11px; font-weight:600; color:var(--text-gray); margin-top:3px; letter-spacing:0.2px; white-space:nowrap;}
+
+  .header-right{display:flex; align-items:center; gap:10px; flex-shrink:0;}
+  .icon-btn{
+    position:relative;
+    width:40px; height:40px;
+    border-radius:50%;
+    border:1.5px solid var(--border);
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    text-decoration:none;
+    flex-shrink:0;
+  }
+  .badge{
+    position:absolute;
+    top:-6px; right:-6px;
+    background:#e02424;
+    color:#fff;
+    font-size:10.5px;
+    font-weight:700;
+    min-width:18px;
+    height:18px;
+    border-radius:9px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 4px;
+    border:2px solid #fff;
+    line-height:1;
+  }
+
+  /* ============ PAGE HEADING ============ */
+  .page-heading{padding:22px 20px 6px;}
+  .page-heading h1{font-size:24px; font-weight:800; color:var(--navy);}
+  .page-heading p{font-size:14px; color:var(--text-gray); margin-top:4px;}
+
+  /* ============ OUTLET LIST ============ */
+  .outlet-list{padding:16px 20px 8px; display:flex; flex-direction:column; gap:14px;}
+
+  .outlet-card{
+    background:var(--card-bg);
+    border:1.5px solid var(--border);
+    border-radius:16px;
+    padding:16px;
+    position:relative;
+  }
+  .outlet-card.selected{
+    background:var(--blue-light);
+    border-color:var(--blue);
+  }
+  .outlet-card.inactive{
+    opacity:0.72;
+  }
+
+  .outlet-top{display:flex; gap:12px;}
+  .outlet-icon{
+    width:52px; height:52px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .outlet-info{flex:1; min-width:0;}
+  .outlet-name-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .outlet-name{font-size:16px; font-weight:800; color:var(--navy);}
+  .outlet-location{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:12.5px;
+    color:var(--text-gray);
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .outlet-meta{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:13.5px;
+    color:var(--text-gray);
+    margin-top:6px;
+  }
+  .outlet-meta svg{flex-shrink:0;}
+
+  .outlet-bottom{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:14px;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .status-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:20px;
+  }
+  .status-badge.current{
+    background:#fff;
+    color:var(--blue);
+    border:1px solid var(--blue-border);
+  }
+  .status-badge.inactive{
+    background:var(--gray-badge);
+    color:var(--gray-badge-text);
+  }
+
+  .outlet-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:13.5px;
+    font-weight:700;
+    padding:10px 18px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+    text-decoration:none;
+    white-space:nowrap;
+  }
+  .outlet-btn.select{
+    background:#fff;
+    color:var(--blue);
+    border:1.5px solid var(--blue);
+  }
+  .outlet-btn.selected{
+    background:var(--blue);
+    color:#fff;
+  }
+  .outlet-btn.disabled{
+    background:var(--gray-badge);
+    color:var(--gray-badge-text);
+    cursor:not-allowed;
+    border:1.5px solid var(--border);
+  }
+
+  /* push button to the right when there's no status badge on the left */
+  .outlet-bottom.end{justify-content:flex-end;}
+
+  /* ============ ADD OUTLET ============ */
+  .add-outlet-card{
+    margin:6px 20px 20px;
+    border:1.5px dashed var(--blue-border);
+    border-radius:16px;
+    background:var(--blue-light);
+    padding:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .add-outlet-left{display:flex; align-items:center; gap:12px; min-width:0;}
+  .add-outlet-icon{
+    width:52px; height:52px;
+    border-radius:50%;
+    background:#fff;
+    border:1px solid var(--blue-border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    position:relative;
+  }
+  .add-outlet-icon .plus-badge{
+    position:absolute;
+    bottom:-2px; right:-2px;
+    width:18px; height:18px;
+    border-radius:50%;
+    background:var(--blue);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:2px solid #fff;
+  }
+  .add-outlet-text h3{font-size:14.5px; font-weight:800; color:var(--navy);}
+  .add-outlet-text p{font-size:12px; color:var(--text-gray); margin-top:2px; line-height:1.4;}
+
+  .add-outlet-btn{
+    background:var(--blue);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    padding:11px 16px;
+    font-size:13.5px;
+    font-weight:700;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+    text-decoration:none;
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+
+  /* ============ EMPTY STATE ============ */
+  .empty-state{
+    margin:40px 20px;
+    text-align:center;
+    color:var(--text-gray);
+  }
+  .empty-state svg{margin-bottom:14px;}
+  .empty-state h3{font-size:16px; font-weight:700; color:var(--navy); margin-bottom:6px;}
+  .empty-state p{font-size:13.5px; line-height:1.5;}
+
+  /* ============ BOTTOM NAV ============ */
+  .bottom-nav{
+    margin-top:auto;
+    background:#fff;
+    border-top:1px solid var(--border);
+    display:flex;
+    justify-content:space-around;
+    padding:10px 6px 12px;
+    position:sticky;
+    bottom:0;
+  }
+  .nav-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    font-size:11px;
+    font-weight:600;
+    color:var(--text-gray);
+    text-decoration:none;
+  }
+  .nav-item.active{color:var(--blue);}
+  
+  .notif-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 2998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s ease;
+}
+.notif-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.notif-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 100%;
+    max-width: 400px;
+    background: #ffffff;
+    z-index: 2999;
+    transform: translateX(100%);
+    transition: transform .32s cubic-bezier(.16,1,.3,1);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 40px rgba(15,23,42,0.10);
+}
+.notif-panel.open {
+    transform: translateX(0);
+}
+
+.notif-panel-header {
+    padding: 22px 24px 18px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-shrink: 0;
+    border-bottom: 1px solid #f1f2f4;
+}
+.notif-panel-header h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px;
+    letter-spacing: -0.3px;
+}
+.notif-panel-sub {
+    font-size: 12.5px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+.notif-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 2px;
+}
+
+.notif-mark-all {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #5b5bf0;
+    background: #f2f1fe;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s;
+}
+.notif-mark-all:hover { background: #e6e4fd; }
+
+.notif-close-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #f4f5f7;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background .15s;
+}
+.notif-close-btn:hover { background: #e9eaed; }
+.notif-close-btn svg { width: 14px; height: 14px; color: #64748b; }
+
+.notif-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    background: #fafbfc;
+}
+
+.notif-day-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #a3aab7;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    padding: 18px 24px 8px;
+}
+
+.notif-list {
+    list-style: none;
+    padding: 0 12px;
+    margin: 0;
+}
+
+.notif-item {
+    display: flex;
+    gap: 13px;
+    padding: 14px 12px;
+    background: transparent;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background .15s;
+    margin-bottom: 2px;
+}
+.notif-item:hover { background: #f1f3f6; }
+.notif-item.unread { background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+.notif-item.unread:hover { background: #fdfdfe; }
+
+.notif-item.unread::after {
+    content: '';
+    position: absolute;
+    top: 16px;
+    right: 12px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5b5bf0;
+}
+
+.notif-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.notif-icon.customer { background: #eef0ff; color: #4338ca; }
+.notif-icon.order     { background: #e8f8f0; color: #0d9354; }
+.notif-icon.payment   { background: #fef1e8; color: #c2540c; }
+.notif-icon.default   { background: #f1f2f4; color: #64748b; }
+
+.notif-body { flex: 1; min-width: 0; padding-right: 14px; }
+.notif-text {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #1e293b;
+    line-height: 1.45;
+    margin-bottom: 3px;
+}
+.notif-item:not(.unread) .notif-text {
+    font-weight: 400;
+    color: #475569;
+}
+.notif-time {
+    font-size: 11.5px;
+    color: #a3aab7;
+}
+
+.notif-empty {
+    text-align: center;
+    padding: 90px 32px 40px;
+}
+.notif-empty-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #eef0ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    color: #5b5bf0;
+}
+.notif-empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 5px;
+}
+.notif-empty-desc {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+.notif-panel-body::-webkit-scrollbar { width: 6px; }
+.notif-panel-body::-webkit-scrollbar-thumb { background: #d8dce2; border-radius: 3px; }
+.notif-panel-body::-webkit-scrollbar-track { background: transparent; }
+
+body.notif-open {
+    overflow: hidden;
+}
+
+</style>
+</head>
+<body>
+
+<div class="phone">
+
+  <!-- ============ HEADER ============ -->
+  <div class="app-header">
+    <div class="header-left">
+      <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand">
+        <img src="{{ asset('frontweb/assests/images/mobile-logo-1.png') }}" alt="Zonik">
+        <div class="tagline">B2B Food Supply</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="#" class="icon-btn" aria-label="Notifications" id="notifBellBtn">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#14213d" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="badge notif-badge">{{ $notificationCount > 99 ? '99+' : $notificationCount }}</span>
+      </a>
+      <a href="{{ route('profile') }}" class="icon-btn" aria-label="Account">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#14213d" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      </a>
+    </div>
+  </div>
+  
+  
+ <div class="notif-backdrop" id="notifBackdrop"></div>
+
+<div class="notif-panel" id="notifPanel">
+
+    <div class="notif-panel-header">
+    <div>
+        <h3>Notifications</h3>
+        <p class="notif-panel-sub">Stay on top of your account activity</p>
+    </div>
+    <div class="notif-header-actions">
+        <button type="button" class="notif-mark-all" id="markAllReadBtn">Mark all read</button>
+        <button type="button" class="notif-close-btn" id="notifCloseBtn" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+    <div class="notif-panel-body">
+
+        @php
+            $allNotifications = auth()->user()?->notifications ?? collect();
+        @endphp
+
+        @if($allNotifications->isEmpty())
+
+            <div class="notif-empty">
+                <div class="notif-empty-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </div>
+                <div class="notif-empty-title">You're all caught up</div>
+                <div class="notif-empty-desc">No notifications right now — new updates will show up here.</div>
+            </div>
+
+        @else
+
+            <ul class="notif-list" id="notifList">
+                @php $lastDateLabel = null; @endphp
+
+                @foreach($allNotifications as $notification)
+                    @php
+                        $tag = $notification->data['tag'] ?? 'default';
+                        $isUnread = is_null($notification->read_at);
+                        $createdAt = $notification->created_at;
+
+                        $dateLabel = $createdAt->isToday()
+                            ? 'Today'
+                            : ($createdAt->isYesterday() ? 'Yesterday' : $createdAt->format('d M Y'));
+
+                        $iconClass = match(strtolower($tag)) {
+                            'customer' => 'customer',
+                            'order'    => 'order',
+                            'payment'  => 'payment',
+                            default    => 'default',
+                        };
+
+                        $iconSvg = match($iconClass) {
+                            'customer' => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+                            'order'    => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+                            'payment'  => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+                            default    => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>',
+                        };
+                    @endphp
+
+                    @if($dateLabel !== $lastDateLabel)
+                        <li class="notif-day-label">{{ $dateLabel }}</li>
+                        @php $lastDateLabel = $dateLabel; @endphp
+                    @endif
+
+                    <li class="notif-item {{ $isUnread ? 'unread' : '' }}" data-id="{{ $notification->id }}">
+                        <div class="notif-icon {{ $iconClass }}">
+                            {!! $iconSvg !!}
+                        </div>
+                        <div class="notif-body">
+                            <div class="notif-text">{{ $notification->data['data'] ?? 'Notification' }}</div>
+                            <div class="notif-time">{{ $createdAt->diffForHumans() }}</div>
+                        </div>
+                    </li>
+
+                @endforeach
+            </ul>
+
+        @endif
+
+    </div>
+</div> 
+
+  <!-- ============ PAGE HEADING ============ -->
+  <div class="page-heading">
+    <h1>Select Outlet</h1>
+    <p>Choose the outlet you want to order for</p>
+  </div>
+
+  <!-- ============ OUTLET LIST ============ -->
+  @php
+  
+    $iconPalette = [
+      ['bg' => '#dbe6ff', 'fg' => '#2f5ede'], // blue
+      ['bg' => '#ffe6d6', 'fg' => '#e2711d'], // orange
+      ['bg' => '#d9f4e6', 'fg' => '#1f9d63'], // green
+      ['bg' => '#ece3fb', 'fg' => '#7c4fd6'], // purple
+    ];
+  @endphp
+
+  <div class="outlet-list">
+    @forelse($outlets as $index => $outlet)
+      @php
+        $isCurrent = isset($currentOutletId) && (string) $currentOutletId === (string) $outlet->id;
+        $isVerified = $outlet->verified_status === 'verified';
+        $colors = $iconPalette[$index % count($iconPalette)];
+      @endphp
+
+      <div class="outlet-card {{ $isCurrent ? 'selected' : '' }} {{ !$isVerified ? 'inactive' : '' }}">
+        <div class="outlet-top">
+          <div class="outlet-icon" style="background:{{ $colors['bg'] }};">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{ $colors['fg'] }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l1.5-5h15L21 9"/>
+              <path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/>
+              <path d="M5 9v10h14V9"/>
+              <path d="M9 19v-6h6v6"/>
+            </svg>
+          </div>
+
+          <div class="outlet-info">
+            <div class="outlet-name-row">
+              <div class="outlet-name">{{ $outlet->outlet_name }}</div>
+              <div class="outlet-location">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ac" stroke-width="2"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                {{ $outlet->location }}
+              </div>
+            </div>
+
+            <div class="outlet-meta">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1ac" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+              Manager: {{ $outlet->name }}
+            </div>
+            <div class="outlet-meta">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1ac" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              Mobile: {{ $outlet->mobile_number }}
+            </div>
+          </div>
+        </div>
+
+        <div class="outlet-bottom {{ !$isCurrent && $isVerified ? 'end' : '' }}">
+          @if($isCurrent)
+            <span class="status-badge current">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2f5ede" stroke-width="3"><path d="M5 12l4 4L19 6"/></svg>
+              Current Outlet
+            </span>
+            <button class="outlet-btn selected" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M5 12l4 4L19 6"/></svg>
+              Selected
+            </button>
+
+          @elseif($isVerified)
+            <a href="{{ route('web.outlet.choose', ['id' => $outlet->id]) }}" class="outlet-btn select">
+              Select Outlet
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2f5ede" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+
+          @else
+            <span class="status-badge inactive">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8f98" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Pending Verification
+            </span>
+            <button class="outlet-btn disabled" disabled>Inactive</button>
+          @endif
+        </div>
+      </div>
+    @empty
+      <div class="empty-state">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#c7d4fb" stroke-width="1.5" style="margin:0 auto;"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/><path d="M5 9v10h14V9"/></svg>
+        <h3>No outlets yet</h3>
+        <p>Add your first outlet below to start placing orders.</p>
+      </div>
+    @endforelse
+  </div>
+
+  <!-- ============ ADD NEW OUTLET ============ -->
+  <div class="add-outlet-card">
+    <div class="add-outlet-left">
+      <div class="add-outlet-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f5ede" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l1.5-5h15L21 9"/>
+          <path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/>
+          <path d="M5 9v10h14V9"/>
+        </svg>
+        <span class="plus-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+      </div>
+      <div class="add-outlet-text">
+        <h3>Add New Outlet</h3>
+        <p>Create a new outlet to manage orders separately</p>
+      </div>
+    </div>
+    <a href="" class="add-outlet-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+      Add Outlet
+    </a>
+  </div>
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <div class="bottom-nav">
+    <a href="" class="nav-item">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>
+      Home
+    </a>
+    <a href="" class="nav-item">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2h6l1 4H8z"/><path d="M4 6h16l-1.5 14h-13z"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+      Orders
+    </a>
+    <a href="" class="nav-item">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>
+      Offers
+    </a>
+    <a href="" class="nav-item">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Price List
+    </a>
+    <a href="" class="nav-item active">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      Account
+    </a>
+  </div>
+
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  function toggleSidebar(){
+    console.log('toggle sidebar');
+  }
+</script>
+<script>
+$(document).ready(function () {
+
+    const csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+    function openPanel() {
+        $('#notifPanel').addClass('open');
+        $('#notifBackdrop').addClass('open');
+        $('body').addClass('notif-open');
+        markAllRead();
+    }
+
+    function closePanel() {
+        $('#notifPanel').removeClass('open');
+        $('#notifBackdrop').removeClass('open');
+        $('body').removeClass('notif-open');
+    }
+
+    function markAllRead() {
+        $.ajax({
+            url: '/home/updateNotification',
+            type: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+            success: function (response) {
+                updateBadge(response.notificationCount);
+                $('.notif-item.unread').removeClass('unread');
+            },
+            error: function (xhr, status, error) {
+                console.error('Error updating notification:', error);
+            }
+        });
+    }
+
+    function updateBadge(count) {
+        const displayCount = count > 99 ? '99+' : count;
+        $('.notif-badge').text(displayCount);
+    }
+
+    
+    $('#notifBellBtn').on('click', function (e) {
+        e.preventDefault();
+        openPanel();
+    });
+
+    $('#notifCloseBtn').on('click', function () {
+        closePanel();
+    });
+
+    $('#notifBackdrop').on('click', function () {
+        closePanel();
+    });
+
+    $('#markAllReadBtn').on('click', function () {
+        markAllRead();
+        closePanel();
+    });
+
+    $(document).on('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closePanel();
+        }
+    });
+
+});
+</script>
+
+
+</body>
+</html>

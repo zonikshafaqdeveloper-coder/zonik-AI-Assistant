@@ -1,0 +1,1213 @@
+/*-----------------------------------------------------------------------------------
+
+ Template Name: Fastkart_1.0
+ Template URI: themes.pixelstrap.com/Fastkart
+ Description: This is Ecommerce website
+ Author: Pixelstrap
+ Author URI: https://themeforest.net/user/pixelstrap
+
+ ----------------------------------------------------------------------------------- */
+
+// 01. Image to background js
+// 02. Shop Page Grid Setting Js
+// 03. Footer function js
+// 04. mobile menu active class js
+// 05. btn-cart open close js
+// 06. quantity js
+// 07. Tap to Top js
+// 08. User Dashboard Left Sidebar Show js
+// 09. Tooltip js
+// 10. Cookie Bar js
+// 11. Image To Background js
+// 12. search box function Js
+// 13. Wishlist Js
+// 14. Loader Js
+// 15. header Dropdown Js
+// 16. Add to Cart Show Js
+// 17. active class Js
+// 18. Scroll down header fix js
+// 19. setting - option open js
+// 20. user-dashboard profile change js
+// 21. Wishlist box remove js
+// 22. Category Box js
+// 23. remove notication bar js
+// 24. category box js
+
+
+$(document).ready(function() {
+    // CSRF token setup for AJAX requests
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': $('input[name="_token"]').val()
+        }
+    });
+
+    // Handle cart form submission
+    $('#cart-form').submit(function(event) {
+        event.preventDefault(); // Prevent default form submission
+
+        $.ajax({
+            // url: '{{ route('cart.create') }}',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                // Handle success response
+                console.log(response);
+                // Optionally, update the UI or show a success message
+            },
+            error: function(xhr, status, error) {
+                // Handle error response
+                console.error(xhr.responseText);
+                // Optionally, show an error message
+            }
+        });
+    });
+
+
+   
+});
+
+  $(document).ready(function() {
+        $(document).on('submit', '.remove-offer-form', function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            var serializedData = $(this).serialize();
+
+            // Extract product_id value
+            var productId = $(this).find('input[name="product_id"]').val();
+            console.log(productId); // This will print the product_id value
+
+            $.ajax({
+                url: 'https://zonik.in/offer/delete/' + productId,
+                method: 'POST',
+                data: serializedData,
+                success: function(response) {
+                    redirectToPriceCount('cart', 'true');
+                },
+                error: function(xhr, status, error) {
+                    console.error(xhr.responseText);
+                }
+            });
+        });
+        
+       
+    });
+
+//first  Function to activate tab and update local storage
+function activateTabAndUpdateStorage(tabButtonId, tabContentId, localStorageKey) {
+    activateTab(tabButtonId, tabContentId); // Activate the tab
+
+    // Reset all localStorage keys to 'false'
+    const keys = ['activateCart', 'offerListCount', 'quoteCounts', 'pricelist', 'offerList'];
+    keys.forEach(key => localStorage.setItem(key, 'false'));
+
+    // Set the active key to 'true'
+    localStorage.setItem(localStorageKey, 'true');
+}
+
+// Event listener for the Enquiry tab button
+$('#v-pills-enquiry-tab').on('click', function() {
+    activateTabAndUpdateStorage('v-pills-enquiry-tab', 'v-pills-enquiry', 'quoteCounts');
+});
+
+// Event listener for the Offer tab button
+$('#v-pills-offer-tab').on('click', function() {
+    activateTabAndUpdateStorage('v-pills-offer-tab', 'v-pills-offer', 'offerListCount');
+});
+
+// Event listener for the Reoffer tab button
+$('#v-pills-offer-tab2').on('click', function() {
+    activateTabAndUpdateStorage('v-pills-offer-tab2', 'v-pills-offer2', 'offerList');
+});
+
+// Event listener for the Price tab button
+$('#v-pills-price-tab').on('click', function() {
+    activateTabAndUpdateStorage('v-pills-price-tab', 'v-pills-price', 'pricelist');
+});
+
+// Event listener for the Rejected tab button
+$('#v-pills-rejected-tab').on('click', function() {
+    activateTabAndUpdateStorage('v-pills-rejected-tab', 'v-pills-rejected', 'activateCart');
+});
+
+function activateTab(tabButtonId, tabContentId) {
+    const tabButton = document.getElementById(tabButtonId);
+    const tabContent = document.getElementById(tabContentId);
+
+    if (tabButton && tabContent) {
+        // Deactivate all tabs and contents first
+        deactivateAllTabs();
+
+        // Activate the selected tab and content
+        tabButton.classList.add('active');
+        tabButton.setAttribute('aria-selected', 'true');
+        tabContent.classList.add('active', 'show');
+
+        const dropdownToggle = document.getElementById('v-pills-offer-dropdown-toggle');
+        const dropdownParent = tabButton.closest('.dropdown');
+        if (dropdownParent && dropdownToggle) {
+            dropdownParent.classList.add('active');
+            dropdownToggle.classList.add('active'); // Highlight the toggle
+        }
+    }
+}
+
+// Deactivate all tabs and content
+function deactivateAllTabs() {
+    document.querySelectorAll('.nav-link').forEach(tab => {
+        tab.classList.remove('active');
+        tab.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.tab-pane').forEach(content => {
+        content.classList.remove('active', 'show');
+    });
+    document.querySelectorAll('.dropdown').forEach(dropdown => {
+        dropdown.classList.remove('active');
+    });
+}
+
+// Automatically activate the tab based on localStorage after page load
+document.addEventListener('DOMContentLoaded', function () {
+    // Define the localStorage key-map for tabs
+    const localStorageKeyMap = {
+        'activateCart': ['v-pills-rejected-tab', 'v-pills-rejected'],
+        'offerListCount': ['v-pills-offer-tab', 'v-pills-offer'],
+        'offerList': ['v-pills-offer-tab2', 'v-pills-offer2'],
+        'quoteCounts': ['v-pills-enquiry-tab', 'v-pills-enquiry'],
+        'pricelist': ['v-pills-price-tab', 'v-pills-price']
+    };
+
+    let activated = false; // Flag to check if a tab was activated
+
+    // Deactivate all tabs first to ensure no tab is selected initially
+    deactivateAllTabs();
+
+    // Check localStorage for any active tab key and activate the corresponding tab
+    for (const [key, [tabButtonId, tabContentId]] of Object.entries(localStorageKeyMap)) {
+        if (localStorage.getItem(key) === 'true') {
+            activateTab(tabButtonId, tabContentId); // Activate the tab
+            activated = true;
+            break; // Stop once the correct tab is activated
+        }
+    }
+
+    // If no tab was activated, set a default tab (you can choose any tab here)
+    if (!activated) {
+        // Set 'quoteCounts' tab as default if no value is found in localStorage
+        activateTab('v-pills-enquiry-tab', 'v-pills-enquiry');
+    }
+});
+
+
+
+
+
+function redirectToQuotesList(activateCart) {
+    localStorage.setItem('activateCart', activateCart);
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('pricelist', 'false');
+    localStorage.setItem('offerList', 'false');
+    window.location.href = '/quoteslist';
+}
+
+
+// function redirectToQuote(cart, activateCart) {
+//     localStorage.setItem(cart, activateCart);
+//     localStorage.setItem('activateCart', cart === 'activateCart' ? activateCart : 'false');
+//     localStorage.setItem('offerListCount', cart === 'offerListCount' ? activateCart : 'false');
+//     localStorage.setItem('quoteCounts', cart === 'quoteCounts' ? activateCart : 'false');
+//     localStorage.setItem('pricelist', cart === 'pricelist' ? activateCart : 'false');
+//     localStorage.setItem('offerList', cart === 'offerList' ? activateCart : 'false');
+//     window.location.href = '/quoteslist';
+// }
+
+function redirectToQuote(cart, activateCart) {
+    // Clear all previous selections
+    localStorage.setItem('activateCart', 'false');
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('offerList', 'false');
+
+    // Set the correct cart as active
+    localStorage.setItem(cart, activateCart);
+
+    // Redirect to the quotes list page
+    window.location.href = '/quoteslist';
+}
+
+
+
+
+function redirectnewToQuote(cart, activateCart) {
+    localStorage.setItem(cart, activateCart);
+    localStorage.setItem('activateCart', cart === 'activateCart' ? activateCart : 'false');
+    localStorage.setItem('offerListCount', cart === 'offerListCount' ? activateCart : 'false');
+    localStorage.setItem('quoteCounts', cart === 'quoteCounts' ? activateCart : 'false');
+    localStorage.setItem('pricelist', cart === 'pricelist' ? activateCart : 'false');
+    localStorage.setItem('offerList', cart === 'offerList' ? activateCart : 'false');
+    
+    // Redirect to the quotes list page and add a hash to directly go to the enquiry section
+    window.location.href = '/quoteslist#enquiryCart';
+}
+
+
+function redirectToNewQuotesList(activateCart) {
+    
+    localStorage.setItem('activateCart', activateCart);
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('pricelist', 'false');
+    localStorage.setItem('offerList', 'false');
+    
+    window.location.href = '/quoteslist#OderCart';
+}
+
+function redirectToNewPriceCount(cart, activateCart) {
+    
+    localStorage.setItem('pricelist', activateCart);
+    localStorage.setItem('activateCart', 'false');
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('offerList', 'false');
+ 
+    window.location.href = '/quoteslist#priceCart';
+}
+
+function redirectToOfferCount(cart, activateCart) {
+    localStorage.setItem('offerList', activateCart);
+    localStorage.setItem('activateCart', 'false');
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('pricelist', 'false');
+    window.location.href = '/quoteslist';
+}
+
+
+function redirectToPriceCount(cart, activateCart) {
+    localStorage.setItem('pricelist', activateCart);
+    localStorage.setItem('activateCart', 'false');
+    localStorage.setItem('offerListCount', 'false');
+    localStorage.setItem('quoteCounts', 'false');
+    localStorage.setItem('offerList', 'false');
+    window.location.href = '/quoteslist';
+}
+
+const tabs = [
+    { key: "pricelist", scrollKey: "scrollPosition" },
+    { key: "offerListCount", scrollKey: "scrollPositionOfferListCount" },
+    { key: "offerList", scrollKey: "scrollPositionOfferList" }
+];
+
+window.addEventListener("beforeunload", function () {
+    tabs.forEach(tab => {
+        if (localStorage.getItem(tab.key) === "true") {
+            localStorage.setItem(tab.scrollKey, window.scrollY);
+        } else {
+            localStorage.removeItem(tab.scrollKey);
+        }
+    });
+});
+
+
+
+document.addEventListener("DOMContentLoaded", function () {
+    const targetPage = "/quoteslist"; // Target page where scroll should be stored
+    const scrollPositionKey = "scrollPosition_quoteslist"; // Unique key for this page
+
+    if (window.location.pathname === targetPage) {
+        // Restore scroll position if available
+        const storedScroll = sessionStorage.getItem(scrollPositionKey);
+        if (storedScroll !== null && !isNaN(storedScroll)) {
+            window.scrollTo(0, parseInt(storedScroll, 10));
+        }
+
+        // Save scroll position before page unload
+        function saveScrollPosition() {
+            sessionStorage.setItem(scrollPositionKey, window.scrollY);
+        }
+
+        window.addEventListener("beforeunload", saveScrollPosition);
+        document.querySelectorAll("form").forEach(form => {
+            form.addEventListener("submit", saveScrollPosition);
+        });
+
+    } else {
+        // Clear stored scroll position when navigating away from quoteslist
+        sessionStorage.removeItem(scrollPositionKey);
+    }
+});
+
+
+
+
+
+
+
+function removeCartItem(cartId) {
+    if (cartId) {
+        $.ajax({
+            url: '/cart/remove',
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            data: {
+                cart_id: cartId
+            },
+            success: function (response) {
+                redirectToQuotesList('true');
+            },
+            error: function (error) {
+                console.log(error);
+            }
+        });
+    }
+}
+$(document).ready(function () {
+    $('#pincodenotfound').text('');
+
+    function fetchPincodeData() {
+        $.ajax({
+            url: 'https://zonik.in/getpincode',
+            type: 'GET',
+            dataType: 'json',
+            success: function (response) {
+                $('#pincodeList').empty();
+                if (response.length > 0) {
+                    response.forEach(function (pincode) {
+                        $('#pincodeList').append(`<option value="${pincode.pincode}">${pincode.location} - ${pincode.pincode} </option>`);
+                    });
+                } else {
+                    $('#pincodeList').empty();
+                    $('#pincodenotfound').text('Delivery unavailable for this location');
+                }
+            },
+
+            error: function (xhr, status, error) {
+                console.error(xhr.responseText);
+            }
+        });
+    }
+
+
+
+    fetchPincodeData();
+
+    $('#pincodeInput').on('input', function () {
+        var searchTerm = $(this).val().trim().toLowerCase();
+        var matchFound = false;
+
+        if (searchTerm.length === 0) {
+            fetchPincodeData();
+        } else {
+            $('#pincodeList option').each(function () {
+                var pincodeValue = $(this).val().toLowerCase();
+                if (pincodeValue.includes(searchTerm)) {
+                    $(this).show();
+                    matchFound = true;
+                    $('#pincodenotfound').text('');
+                } else {
+                    $(this).hide();
+                }
+            });
+
+            if (!matchFound) {
+                $('#pincodeList').empty();
+                $('#pincodenotfound').text('Delivery unavailable for this location');
+            }
+        }
+    });
+});
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.innerHTML = `
+        .toast-top-right:hover .toast-success,
+        .toast-top-right:hover .toast-error {
+            display: none !important;
+            opacity: 0 !important;
+        }
+    `;
+    document.getElementsByTagName('head')[0].appendChild(style);
+});
+
+
+
+
+// $(document).ready(function () {
+//     $('.search_list').hide();
+
+//     // Hide .search_list when clicking outside of it
+//     $(document).on('click', function (event) {
+//         if (!$(event.target).closest('.search_list, .search').length) {
+//             $('.search_list').hide().html('');
+//         }
+//     });
+
+//     // Debounce function to limit the rate of AJAX calls
+//     function debounce(func, delay) {
+//         let debounceTimer;
+//         return function() {
+//             const context = this;
+//             const args = arguments;
+//             clearTimeout(debounceTimer);
+//             debounceTimer = setTimeout(() => func.apply(context, args), delay);
+//         };
+//     }
+
+//     $('.search').on('keyup', debounce(function () {
+//         var query = $(this).val().trim(); // Trim whitespace from the query
+//         searchQuery(query);
+//     }, 300)); // Adjust delay as needed
+
+//     function searchQuery(query) {
+//         if (query.length <= 0) {
+//             $('.search_list').hide().html('');
+//             return;
+//         }
+
+//         executeSearch(query);
+//     }
+
+//     function executeSearch(searchQuery) {
+//         $.ajax({
+//             url: "https://zonik.in/search",
+//             type: "GET",
+//             data: {
+//                 'search': searchQuery
+//             },
+//             success: function (data) {
+//                 if (data == 'No results') {
+//                     searchFallback(searchQuery);
+//                 } else {
+//                     $('.search_list').show().html(data);
+//                 }
+//             },
+//             error: function() {
+//                 $('.search_list').hide().html('');
+//             }
+//         });
+//     }
+
+//     function searchFallback(query) {
+//         var fallbackQuery = query.slice(0, -1);
+//         if (fallbackQuery.length > 0) {
+//             executeSearch(fallbackQuery);
+//         } else {
+//             $('.search_list').html('No results').show();
+//         }
+//     }
+// });
+
+$(document).ready(function () {
+    let debounceTimer;
+    let isSearching = false;
+
+    $('.search_list').hide(); // Initially hide search results
+
+    $('.search').on('keyup', function (event) {
+        const query = $(this).val().trim();
+
+        if (event.key === "Enter" && query.length > 0) {
+            window.location.href = "https://zonik.in/search/" + encodeURIComponent(query);
+            return;
+        }
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            performSearch(query);
+        }, 300);
+    });
+
+    function performSearch(query) {
+        if (isSearching || query.length === 0) {
+            $('.search_list').hide();
+            return;
+        }
+
+        isSearching = true;
+        $.ajax({
+            url: "https://zonik.in/search",
+            type: "GET",
+            data: { search: query },
+            success: function (data) {
+                isSearching = false;
+
+                if (!data || data.trim() === 'No results') {
+                    handleNoResults(query);
+                } else {
+                    $('.search_list').html(data).show();
+                }
+            },
+            error: function (xhr, status, error) { // Corrected function parameters
+                isSearching = false;
+
+                if (xhr.status === 401 || (xhr.responseURL && xhr.responseURL.includes("/login"))) {
+                    handleLoggedOut();
+                } else {
+                    $('.search_list').html('<li>Unable to retrieve results. Please try again.</li>').show();
+                    console.error("AJAX Error:", xhr.status, error);
+                }
+            }
+        });
+    }
+
+    function handleNoResults(query) {
+        $('.search_list').html('<li>No results found for "' + query + '"</li>').show();
+    }
+
+    function handleLoggedOut() {
+        alert("Session expired. Please log in again.");
+        window.location.href = "https://zonik.in/login";
+    }
+});
+
+
+
+
+
+
+
+
+
+// $(document).ready(function () {
+//     $('.search_list').hide();
+//     $('.search').on('keyup', function () {
+//         var query = $(this).val().trim(); // Trim whitespace from the query
+//         searchQuery(query);
+//     });
+
+//     function searchQuery(query) {
+//         if (query.length <= 0) {
+//             $('.search_list').hide();
+//             return;
+//         }
+
+//         switch (true) {
+//             case query.length >= 3:
+//                 executeSearch(query.slice(-3));
+//                 break;
+//             case query.length == 2:
+//                 executeSearch(query.slice(-2));
+//                 break;
+//             case query.length == 1:
+//                 executeSearch(query);
+//                 break;
+//             default:
+//                 $('.search_list').hide();
+//         }
+//     }
+
+//     function executeSearch(searchQuery) {
+//         $.ajax({
+//             url: "https://zonik.in/search",
+//             type: "GET",
+//             data: {
+//                 'search': searchQuery
+//             },
+//             success: function (data) {
+//                 if (data == 'No results') {
+//                     searchFallback(searchQuery);
+//                 } else {
+//                     $('.search_list').show();
+//                     $('.search_list').html(data);
+//                 }
+//             }
+//         });
+//     }
+
+//     function searchFallback(query) {
+//         var fallbackQuery = query.slice(0, -1);
+//         if (fallbackQuery.length > 0) {
+//             executeSearch(fallbackQuery);
+//         } else {
+//             $('.search_list').html('No results');
+//             $('.search_list').show();
+//         }
+//     }
+// });
+
+
+$('#pincodeInput').on('input', function () {
+    var searchTerm = $(this).val().trim().toLowerCase();
+    var matchFound = false;
+
+    if (searchTerm.length === 0) {
+        fetchPincodeData();
+    } else {
+        $('#pincodeList option').each(function () {
+            var pincodeValue = $(this).val().toLowerCase();
+            if (pincodeValue.includes(searchTerm)) {
+                $(this).show();
+                matchFound = true;
+                $('#pincodenotfound').text('');
+            } else {
+                $(this).hide();
+            }
+        });
+
+        if (!matchFound) {
+            $('#pincodeList').empty();
+            $('#pincodenotfound').text('Delivery unavailable for this location');
+
+        }
+    }
+});
+(function ($) {
+    "use strict";
+    /*=====================
+    01. Image to background js
+    ==========================*/
+    $(".bg-top").parent().addClass("b-top");
+    $(".bg-bottom").parent().addClass("b-bottom");
+    $(".bg-center").parent().addClass("b-center");
+    $(".bg-left").parent().addClass("b-left");
+    $(".bg-right").parent().addClass("b-right");
+    $(".bg_size_content").parent().addClass("b_size_content");
+    $(".bg-img").parent().addClass("bg-size");
+    $(".bg-img.blur-up").parent().addClass("blur-up lazyload");
+    $(".bg-img").each(function () {
+        var el = $(this),
+            src = el.attr("src"),
+            parent = el.parent();
+
+        parent.css({
+            "background-image": "url(" + src + ")",
+            "background-size": "cover",
+            "background-position": "center",
+            "background-repeat": "no-repeat",
+            display: "block",
+        });
+
+        el.hide();
+    });
+
+    /*=====================
+    02. Shop Page Grid Setting Js
+    ==========================*/
+    $(".grid-option li").on("click", function () {
+        $(this).addClass('active').siblings().removeClass('active');
+    });
+    $(".grid-option .grid-btn").on("click", function () {
+        $(".product-list-section").removeClass("list-style");
+    });
+    $(".grid-option .list-btn").on("click", function () {
+        $(".product-list-section").addClass("list-style");
+    });
+    $('.three-grid').on('click', function (e) {
+        $(".product-list-section").removeClass("row-cols-xxl-5 row-cols-xxl-4 row-cols-xl-3 row-cols-lg-2 row-cols-md-3 row-cols-2 list-style").addClass("row-cols-xl-3 row-cols-lg-2 row-cols-md-3 row-cols-2");
+    });
+    $('.grid-btn').on('click', function (e) {
+        $(".product-list-section").removeClass("row-cols-xxl-5 row-cols-xxl-4 row-cols-xl-3 row-cols-lg-2 row-cols-md-3 row-cols-2 list-style").addClass("row-cols-xxl-4 row-cols-xl-3 row-cols-lg-2 row-cols-md-3 row-cols-2");
+    });
+    $('.five-grid').on('click', function (e) {
+        $(".product-list-section").removeClass("list-style").addClass("row-cols-xxl-5 row-cols-xl-3 row-cols-lg-2 row-cols-md-3 row-cols-2");
+    });
+    var contentwidth = $(window).width();
+    if (contentwidth < "1199") {
+        $(".grid-options ul .grid-btn").addClass("active");
+    }
+    if (contentwidth < "1399") {
+        $(".grid-options ul .three-grid").addClass("active");
+    }
+})(jQuery);
+
+/*=====================
+    03. Footer function js
+==========================*/
+var contentwidth = $(window).width();
+if (contentwidth < "576") {
+    $(".footer-title h4").append(
+        '<span class="according-menu float-end"><i class="fa-solid fa-angle-down"></i></span>'
+    );
+    $(".footer-title").on("click", function () {
+        $(".footer-title")
+            .removeClass("active")
+            .find("span")
+            .replaceWith(
+                '<span class="according-menu float-end"><i class="fa-solid fa-angle-down"></i></span>'
+            );
+        $(".footer-contact, .footer-contain").slideUp("normal");
+        if ($(this).next().is(":hidden") == true) {
+            $(this).addClass("active");
+            $(this)
+                .find("span")
+                .replaceWith(
+                    '<span class="according-menu float-end"><i class="fas fa-chevron-up"></i></span>'
+                );
+            $(this).next().slideDown("normal");
+        } else {
+            $(this)
+                .find("span")
+                .replaceWith(
+                    '<span class="according-menu float-end"><i class="fa-solid fa-angle-down"></i></span>'
+                );
+        }
+    });
+    $(".footer-contact, .footer-contain").hide();
+} else {
+    $(".footer-contact, .footer-contain").show();
+}
+
+/*=====================
+  04. mobile menu active class js
+   ==========================*/
+$(document).ready(function () {
+    $('.mobile-menu ul li a').click(function () {
+        $('li a').removeClass("active");
+        $(this).addClass("active");
+    });
+
+
+
+
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const selectedUserId = localStorage.getItem('selectedUserId');
+    if (selectedUserId) {
+        selectOutlet(selectedUserId);
+    }
+});
+
+function selectOutlet(userId) {
+    localStorage.setItem('selectedUserId', userId);
+    $("#rowData" + userId).prop("checked", true);
+    $(".checkout-btn").prop("disabled", false);
+    $("#selectedRowData").val(JSON.stringify({ userId: userId }));
+}
+
+function redirectToCheckout() {
+    // Your redirect logic here
+}
+
+
+function redirectToCheckout() {
+    var selectedRowData = JSON.parse($("#selectedRowData").val());
+    var datewisecheckout = localStorage.getItem('datewisecheckout');
+    var couponCode = $('.couponCode').val();
+    localStorage.removeItem('floatValue');
+    $.ajax({
+        url: 'https://zonik.in/update-cart-discount/' + couponCode, // Adjust the URL as needed
+        type: 'GET',
+        success: function (response) {
+            // Check if the discount was updated successfully
+            if (response.success) {
+                // Redirect to checkout page
+                window.location.href = '/checkout/' + selectedRowData.userId;
+            } else {
+                // Handle error response if needed
+                console.error(response.message);
+            }
+        },
+        error: function (xhr, status, error) {
+            // Handle error response
+            console.error(error);
+        }
+    });
+    window.location.href = 'checkout/' + selectedRowData.userId;
+}
+
+
+/*=====================
+  05. btn-cart open close js
+   ==========================*/
+$(document).ready(function () {
+    setTimeout(function () {
+        $('.toast').fadeOut();
+    }, 3500);
+    $('.button-item').on("click", function () {
+        $('.item-section').addClass("active");
+    });
+
+    $('.close-button').on("click", function () {
+        $('.item-section').removeClass("active");
+    });
+
+    $('.btn-cart').on("click", function () {
+        setTimeout(function () {
+            $('.item-section').addClass("active")
+        }, 1500);
+        setTimeout(function () {
+            $('.item-section').removeClass('active');
+        }, 5000);
+    });
+});
+
+setTimeout(function () {
+    $('.toast').fadeOut();
+}, 2500);
+
+/*=====================
+  06. quantity js
+   ==========================*/
+$('.qty-box .quantity-right-plus').on('click', function () {
+    var $qty = $(this).parents(".qty-box").find(".input-number");
+    var currentVal = parseInt($qty.val(), 10);
+    if (!isNaN(currentVal)) {
+        $qty.val(currentVal + 0);
+    }
+});
+$('.qty-box .quantity-left-minus').on('click', function () {
+    var $qty = $(this).parents(".qty-box").find(".input-number");
+    var currentVal = parseInt($qty.val(), 10);
+    if (!isNaN(currentVal) && currentVal > 0) {
+        $qty.val(currentVal - 0);
+    }
+});
+
+$(document).ready(function () {
+    $('#filterOrders').change(function () {
+        var selectedOption = $(this).val();
+        $.ajax({
+            url: '/fetch-orders',
+            method: 'GET',
+            data: { filter: selectedOption },
+            success: function (response) {
+                $('#orderContainer').empty();
+                response.OrderData.forEach(function (order) {
+                    var orderStatus = (order.payment_status == 'paid') ? 'Paid' : 'Unpaid';
+                    var deliveryStatus = (new Date(order.delivery_date) <= new Date()) ? 'DELIVERED' : 'DISPATCHED';
+                    var orderHtml = `
+                    <div class="col-md-6 mb-4">
+                        <div class="order-card">
+                            <div class="inner-h inner-h1 justify-content-between">
+                                <div class="inner-h2">
+                                    <img src="/frontweb/assests/images/checkout.png" class="inner-h-img">
+                                    <div class="inner-h-left">
+                                        <p>Delivered on ${order.delivery_date}</p>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 d-flex align-item-center justify-content-end">
+                                    <h6 class="inner-h-right1" style="background-color: ${(deliveryStatus === 'DELIVERED') ? 'rgb(235, 255, 239); color: rgb(58, 183, 87); border: 1px solid rgb(163, 240, 181);' : 'rgb(235, 255, 239); color: rgb(17, 145, 153); border: 1px solid rgb(182, 222, 224);'}">${deliveryStatus}</h6>
+                                    <h6 class="inner-h-right2" style="background-color: ${(order.payment_status === 'paid') ? 'rgb(229, 243, 243); color: rgb(17, 145, 153); border: 1px solid rgb(182, 222, 224);' : 'rgb(229, 243, 243); color: rgb(153, 17, 17); border: 1px solid rgb(250, 171, 171);'}">${orderStatus}</h6>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-column justify-content-between p-4 h-100 pointer">
+                                <div class="d-flex align-items-center justify-content-between mb-4">
+                                    <div class="d-flex align-item-center">
+                                        <img src="{{ asset('frontweb/assests/images/paper-bag.png') }}" class="inner-h-img" alt="">
+                                        <p><strong>Order Item Count:</strong> ${order.order_items_count}</p>
+                                    </div>
+
+                                    <div class="d-flex align-item-center">
+                                        <img src="{{ asset('frontweb/assests/images/rupee.png') }}" class="inner-h-img" alt="">
+                                        <p><span>Price :</span> ₹ ${order.total_discount_value}</p>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between mb-4">
+                                    <div class="d-flex align-item-center flex-column">
+                                        <div>
+                                            <h4 class="fw-800">Order ID : ${order.id}</h4>
+                                        </div>
+                                        <div>
+                                            <p>Ordered ${order.created_at}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-item-center">
+                                        <h4 class="fw-800 text-danger"><span>View Order <i class="fa-solid fa-angle-right"></i></span></h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+
+                    // Append orderHtml to orderContainer
+                    $('#orderContainer').append(orderHtml);
+                });
+
+            },
+            error: function (xhr, status, error) {
+                console.error(error);
+            }
+        });
+    });
+});
+
+
+/*=====================
+  07. Tap to Top js
+   ==========================*/
+$(document).ready(function () {
+    $(window).scroll(function () {
+        if ($(this).scrollTop() > 50) {
+            $('.back-to-top').fadeIn();
+        } else {
+            $('.back-to-top').fadeOut();
+        }
+    });
+    // scroll body to 0px on click
+    $('.back-to-top').click(function () {
+        $('body,html').animate({
+            scrollTop: 0
+        }, 400);
+        return false;
+    });
+});
+
+/*=====================
+   08. User Dashboard Left Sidebar Show Js
+   ==========================*/
+$(".left-dashboard-show").click(function () {
+    $(".bg-overlay, .dashboard-left-sidebar").addClass("show");
+});
+$(".close-button, .bg-overlay, .user-nav-pills .nav-item .nav-link").click(function () {
+    $(".bg-overlay, .dashboard-left-sidebar").removeClass("show");
+});
+
+/*=====================
+   09. Tooltip Js
+   ==========================*/
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+})
+
+/*=====================
+   10. Cookie Bar Js
+   ==========================*/
+$(".ok-button").click(function () {
+    $(".cookie-bar-box").addClass("hide");
+});
+
+/*=====================
+   11. Image To Background Js
+   ==========================*/
+$(".bg-top").parent().addClass("b-top");
+$(".bg-bottom").parent().addClass("b-bottom");
+$(".bg-center").parent().addClass("b-center");
+$(".bg-left").parent().addClass("b-left");
+$(".bg-right").parent().addClass("b-right");
+$(".bg_size_content").parent().addClass("b_size_content");
+$(".bg-img").parent().addClass("bg-size");
+$(".bg-img.blur-up").parent().addClass("blur-up lazyload");
+$(".bg-img").each(function () {
+    var el = $(this),
+        src = el.attr("src"),
+        parent = el.parent();
+
+    parent.css({
+        "background-image": "url(" + src + ")",
+        "background-size": "cover",
+        "background-position": "center",
+        "background-repeat": "no-repeat",
+        display: "block",
+    });
+
+    el.hide();
+});
+
+/*=====================
+   12. search box function Js
+   ==========================*/
+$(".search-box").on("click", function () {
+    $(this).closest(".rightside-box").find(".search-full").addClass("open");
+});
+$(window).on("load resize", function () {
+    // open searchbox
+    $(".search-type").on("click", function () {
+        $(this).parents(".search-full").addClass("show");
+    });
+
+    // close seach
+    $(".close-search").on("click", function () {
+        $(this).closest(".rightside-box").find(".search-full").removeClass("open");
+    });
+});
+
+/*=====================
+   13. Wishlist Js
+   ==========================*/
+$(".notifi-wishlist").on("click", function () {
+    $.notify({
+        icon: "fa fa-check",
+        title: "Success!",
+        message: "Item Successfully added in wishlist",
+    }, {
+        element: "body",
+        position: null,
+        type: "info",
+        allow_dismiss: true,
+        newest_on_top: false,
+        showProgressbar: true,
+        placement: {
+            from: "top",
+            align: "right",
+        },
+        offset: 20,
+        spacing: 10,
+        z_index: 1031,
+        delay: 5000,
+        animate: {
+            enter: "animated fadeInDown",
+            exit: "animated fadeOutUp",
+        },
+        icon_type: "class",
+        template: '<div data-notify="container" class="col-xxl-3 col-lg-5 col-md-6 col-sm-7 col-12 alert alert-{0}" role="alert">' +
+            '<button type="button" aria-hidden="true" class="btn-close" data-notify="dismiss"></button>' +
+            '<span data-notify="icon"></span> ' +
+            '<span data-notify="title">{1}</span> ' +
+            '<span data-notify="message">{2}</span>' +
+            '<div class="progress" data-notify="progressbar">' +
+            '<div class="progress-bar progress-bar-info progress-bar-{0}" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"></div>' +
+            "</div>" +
+            '<a href="{3}" target="{4}" data-notify="url"></a>' +
+            "</div>",
+    });
+});
+
+/*=====================
+   14. Loader Js
+   ==========================*/
+//    document.addEventListener("readystatechange", (event) => {
+//     const readyState = "complete";
+//     if (document.readyState === readyState) {
+//         const loaderEl = document.querySelector(".fullpage-loader");
+//         if (loaderEl) {
+//             loaderEl.classList.add("fullpage-loader--invisible");
+
+//             setTimeout(() => {
+//                 loaderEl.parentNode.removeChild(loaderEl);
+//             }, 100); // Adjust the delay time as needed
+//         } else {
+//             console.error("Error: Loader element not found");
+//         }
+//     }
+// });
+
+
+/*=====================
+    15. header Dropdown Js
+ ==========================*/
+$(".dropdown-menu li a").on('click', function () {
+    var a = $(this).closest("a");
+    var getSampling = a.text();
+    var getImage = a.find('img').attr('src');
+
+    // console.log("src path", getImage);
+    $(this).closest(".dropdown-menu").prev('.dropdown-toggle').find('span').text(getSampling);
+    $(this).closest(".dropdown-menu").prev('.dropdown-toggle').find('img').attr("src", getImage);
+});
+
+/*=====================
+   16. Add to Cart Show Js
+   ==========================*/
+$(".addCart").click(function () {
+    $(".add-cart-box").addClass("show");
+    setTimeout(function () {
+        $(".add-cart-box").removeClass("show");
+    }, 5000);
+});
+$(".add-cart-box .btn-close").click(function () {
+    $(".add-cart-box").removeClass("show");
+});
+
+/*=====================
+   17. active class Js
+   ==========================*/
+$(".product-packege .select-packege li a").click(function () {
+    $("li a").removeClass("active");
+    $(this).addClass("active");
+});
+
+/*=====================
+   18. Scroll down header fix js
+   ==========================*/
+$(window).scroll(function () {
+    if ($(this).scrollTop() > 100) {
+        $('header').addClass('active')
+    } else {
+        $('header').removeClass('active')
+    }
+});
+
+/*=====================
+   19. setting-option open js
+   ==========================*/
+$(".theme-option .setting-box .setting-button").click(function () {
+    $(".theme-setting-2").toggleClass("active");
+    $(this).find("i").toggleClass("fa-xmark");
+});
+
+/*=====================
+   20. user-dashboard profile change js
+   ==========================*/
+function readURL(uploader) {
+    $('.update_img').attr('src',
+        window.URL.createObjectURL(uploader.files[0]));
+};
+
+/*=====================
+   21. Wishlist box remove js
+   ==========================*/
+$(".close_button").click(function () {
+    $(this).closest(".product-box-contain").fadeOut("slow", function () {
+        $(this).closest(".product-box-contain").remove();
+    });
+});
+
+/*=====================
+   22. Category Box js
+   ==========================*/
+$(".mobile-category").click(function () {
+    $(".bg-overlay, .category-dropdown").addClass("show");
+});
+$(".close-button, .bg-overlay").click(function () {
+    $(".bg-overlay, .category-dropdown").removeClass("show");
+});
+
+/*=====================
+   23. remove notication bar js
+   ==========================*/
+$(".close-notification").click(function () {
+    $(".header-notification").addClass("remove");
+});
+
+/*=====================
+    24. category box js
+==========================*/
+var contentwidth = $(window).width();
+if (contentwidth < "767") {
+    $(".onhover-category-list .category-name").append('<span class="according-menu">+</span>');
+    $(".category-name").on("click", function () {
+        $(".category-name")
+            .removeClass("active")
+            .find("span")
+            .replaceWith('<span class="according-menu">+</span>');
+        $(".onhover-category-list .onhover-category-box").slideUp("normal");
+        if ($(this).next().is(":hidden") == true) {
+            $(this).addClass("active");
+            $(this)
+                .find("span")
+                .replaceWith('<span class="according-menu">-</span>');
+            $(this).next().slideDown("normal");
+        } else {
+            $(this)
+                .find("span")
+                .replaceWith('<span class="according-menu">+</span>');
+        }
+    });
+    $(".accordion-box").hide();
+}
+
+/*=====================
+   25. Sidebar Hide & Show Js
+   ==========================*/
+$(".navbar-toggler-icon-2").click(function () {
+    $(".bg-overlay, .sidebar-col").addClass("show");
+});
+$(".bg-overlay").click(function () {
+    $(".bg-overlay, .sidebar-col").removeClass("show");
+});
+
+
+
+

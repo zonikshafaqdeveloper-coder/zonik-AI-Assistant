@@ -1,0 +1,771 @@
+@extends('admin.layouts.appnew')
+@section('content')
+
+@php
+$customersCount = DB::table('customers')->count();
+$productsCount  = DB::table('products')->count();
+$ordersCount    = DB::table('orders')->count();
+$dueAmount      = DB::table('outstanding_statements')->sum('total_due_amount');
+$dueAmountTotal = DB::table('outstanding_statements')
+    ->where('outstanding_date', '>=', date('Y-m-d'))->sum('total_due_amount');
+
+$userIds = DB::table('enquiries')
+    ->where('status', 'submitted')
+    ->orderBy('id')->latest()
+    ->pluck('user_id')->unique()->count();
+
+$userItemsIds = DB::table('enquiries')
+    ->where('status', 'submitted')
+    ->orderBy('id')->latest()->count();
+
+// Enquiry Status chart — direct counts from enquiries table
+$enquiryPending   = DB::table('enquiries')->where('status', 'pending')->count();
+$enquirySubmitted = DB::table('enquiries')->where('status', 'submitted')->count();
+
+// Fallback: if $responsedata keys are missing, build them here too
+if (!isset($responsedata)) { $responsedata = []; }
+if (!isset($responsedata['pending_submitted']))  { $responsedata['pending_submitted']  = $enquiryPending; }
+if (!isset($responsedata['not_responded']))      { $responsedata['not_responded']       = $enquirySubmitted; }
+if (!isset($responsedata['responded']))          { $responsedata['responded']           = 0; }
+@endphp
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ═══════════════════════════════════════
+   LIGHT THEME — page background
+═══════════════════════════════════════ */
+body,
+.container-scroller,
+.page-body-wrapper,
+.main-panel,
+.content-wrapper {
+    background: #f0f2f8 !important;
+}
+
+/* ═══════════════════════════════════════
+   CSS VARIABLES
+═══════════════════════════════════════ */
+:root {
+  --bg:        #f0f2f8;
+  --surface:   #ffffff;
+  --surface2:  #f7f8fc;
+  --border:    rgba(0,0,0,0.07);
+  --borderh:   rgba(0,0,0,0.14);
+  --text:      #1a1f36;
+  --text2:     #4a5568;
+  --muted:     #8a93a8;
+
+  --blue:      #3b82f6;
+  --cyan:      #06b6d4;
+  --green:     #10b981;
+  --violet:    #8b5cf6;
+  --amber:     #f59e0b;
+  --rose:      #f43f5e;
+  --indigo:    #6366f1;
+  --teal:      #14b8a6;
+  --orange:    #f97316;
+
+  --g-blue:    rgba(59,130,246,0.08);
+  --g-cyan:    rgba(6,182,212,0.08);
+  --g-green:   rgba(16,185,129,0.08);
+  --g-violet:  rgba(139,92,246,0.08);
+  --g-amber:   rgba(245,158,11,0.08);
+  --g-rose:    rgba(244,63,94,0.08);
+  --g-indigo:  rgba(99,102,241,0.08);
+  --g-teal:    rgba(20,184,166,0.08);
+}
+
+/* ═══════════════════════════════════════
+   DASHBOARD WRAPPER
+═══════════════════════════════════════ */
+.dash {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text);
+  padding: 24px 28px 48px;
+  background: var(--bg);
+}
+
+/* ── PAGE TOPBAR ── */
+.d-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; padding-bottom: 18px;
+  border-bottom: 2px solid var(--border);
+}
+.d-page-sup {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+}
+.d-page-h1 {
+  font-family: sans-serif; font-weight: 800;
+  font-size: 26px; letter-spacing: -0.6px; margin: 0; color: var(--text);
+}
+.d-topbar-right { display: flex; align-items: center; gap: 12px; }
+.d-date {
+  font-size: 12px; color: var(--muted); font-weight: 500;
+}
+.d-live-pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 16px;
+  background: rgba(16,185,129,0.1);
+  border: 1.5px solid rgba(16,185,129,0.3);
+  border-radius: 100px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  color: #059669;
+}
+.d-live-dot {
+  width: 7px; height: 7px;
+  background: #10b981; border-radius: 50%;
+  box-shadow: 0 0 6px #10b981;
+  animation: livePulse 1.6s ease infinite;
+}
+@keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.65)} }
+
+/* ══════════════════════════════
+   8 STAT CARDS
+══════════════════════════════ */
+.d-stats {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+.sc {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 22px;
+  position: relative; overflow: hidden;
+  opacity: 0; transform: translateY(24px);
+  animation: fadeUp .55s cubic-bezier(.16,1,.3,1) forwards;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), border-color .25s, box-shadow .3s;
+  cursor: default;
+}
+.sc:hover {
+  transform: translateY(-5px) scale(1.012);
+  border-color: var(--borderh);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.09);
+}
+
+/* Stagger */
+.sc:nth-child(1){animation-delay:.04s} .sc:nth-child(2){animation-delay:.09s}
+.sc:nth-child(3){animation-delay:.13s} .sc:nth-child(4){animation-delay:.17s}
+.sc:nth-child(5){animation-delay:.21s} .sc:nth-child(6){animation-delay:.25s}
+.sc:nth-child(7){animation-delay:.29s} .sc:nth-child(8){animation-delay:.33s}
+
+@keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+
+/* Left accent border */
+.sc::after {
+  content:''; position:absolute; top:0; left:0;
+  width:4px; height:100%; border-radius:16px 0 0 16px;
+}
+.sc.s1::after { background: var(--blue); }
+.sc.s2::after { background: var(--cyan); }
+.sc.s3::after { background: var(--violet); }
+.sc.s4::after { background: var(--amber); }
+.sc.s5::after { background: var(--green); }
+.sc.s6::after { background: var(--teal); }
+.sc.s7::after { background: var(--indigo); }
+.sc.s8::after { background: var(--rose); }
+
+/* Hover glow */
+.sc.s1:hover { box-shadow:0 12px 40px rgba(59,130,246,0.15); }
+.sc.s2:hover { box-shadow:0 12px 40px rgba(6,182,212,0.15); }
+.sc.s3:hover { box-shadow:0 12px 40px rgba(139,92,246,0.15); }
+.sc.s4:hover { box-shadow:0 12px 40px rgba(245,158,11,0.15); }
+.sc.s5:hover { box-shadow:0 12px 40px rgba(16,185,129,0.15); }
+.sc.s6:hover { box-shadow:0 12px 40px rgba(20,184,166,0.15); }
+.sc.s7:hover { box-shadow:0 12px 40px rgba(99,102,241,0.15); }
+.sc.s8:hover { box-shadow:0 12px 40px rgba(244,63,94,0.15); }
+
+.sc-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+
+/* Icon bubbles */
+.sc-ico {
+  width:44px; height:44px; border-radius:12px;
+  display:grid; place-items:center; font-size:20px; flex-shrink:0;
+}
+.sc-ico.s1{background:var(--g-blue)}
+.sc-ico.s2{background:var(--g-cyan)}
+.sc-ico.s3{background:var(--g-violet)}
+.sc-ico.s4{background:var(--g-amber)}
+.sc-ico.s5{background:var(--g-green)}
+.sc-ico.s6{background:var(--g-teal)}
+.sc-ico.s7{background:var(--g-indigo)}
+.sc-ico.s8{background:var(--g-rose)}
+
+/* Trend tag */
+.sc-tag {
+  font-size:10px; font-weight:700; padding:3px 10px;
+  border-radius:100px; letter-spacing:.3px; white-space:nowrap;
+}
+.sc-tag.up { background:rgba(16,185,129,0.1); color:#059669; }
+.sc-tag.dn { background:rgba(244,63,94,0.1);  color:#e11d48; }
+.sc-tag.nt { background:rgba(100,116,139,0.1); color:#64748b; }
+
+/* Value */
+.sc-val {
+  font-family:sans-serif; font-weight:800;
+  font-size:30px; letter-spacing:-1px; line-height:1;
+  margin-bottom:5px; color: var(--text);
+}
+/* Label */
+.sc-lbl {
+  font-size:11px; color:var(--muted); font-weight:500;
+  letter-spacing:.4px; text-transform:uppercase; line-height:1.5;
+}
+/* Progress bar */
+.sc-bar { margin-top:14px; height:4px; background:var(--bg); border-radius:100px; overflow:hidden; }
+.sc-bar-f { height:100%; border-radius:100px; width:0%; transition:width 1.8s cubic-bezier(.16,1,.3,1); }
+
+/* ══════════════════════════════
+   SECTION LABELS
+══════════════════════════════ */
+.d-slabel {
+  font-size:10px; font-weight:700; letter-spacing:2px;
+  text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.d-stitle {
+  font-family:'Syne',sans-serif; font-weight:700; font-size:20px;
+  color: var(--text); margin-bottom:16px;
+}
+
+/* ══════════════════════════════
+   CHART GRIDS
+══════════════════════════════ */
+.d-row4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
+.d-row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:10px; }
+
+/* Chart card */
+.cc {
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:16px; overflow:hidden;
+  opacity:0;
+  animation:fadeUp .65s cubic-bezier(.16,1,.3,1) .45s forwards;
+  transition:border-color .25s, box-shadow .3s;
+}
+.cc:hover {
+  border-color:var(--borderh);
+  box-shadow:0 8px 32px rgba(0,0,0,0.08);
+}
+
+.cc-head {
+  padding:14px 18px 12px;
+  border-bottom:1.5px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background: var(--surface2);
+}
+.cc-title {
+  font-family:'Syne',sans-serif; font-weight:700;
+  font-size:13px; color:var(--text); flex:1; min-width:0;
+}
+.cc-type {
+  font-size:9px; font-weight:700; padding:2px 9px;
+  border-radius:100px; background:var(--bg);
+  color:var(--muted); border:1.5px solid var(--border);
+  letter-spacing:.8px; text-transform:uppercase; white-space:nowrap; flex-shrink:0;
+}
+.cc-body { padding:16px 18px 18px; background:var(--surface); }
+
+/* Legend */
+.cc-legend { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+.cc-leg-row {
+  display:flex; align-items:center; gap:9px;
+  font-size:11px; color:var(--text2);
+}
+.cc-leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.cc-leg-name { flex:1; font-weight:500; }
+.cc-leg-pct { font-weight:700; font-family:'Syne',sans-serif; font-size:12px; color:var(--text); }
+
+/* ══════════════════════════════
+   RESPONSIVE
+══════════════════════════════ */
+@media(max-width:1300px){ .d-stats{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:992px) { .d-row4{grid-template-columns:repeat(2,1fr)} .d-row2{grid-template-columns:1fr} }
+@media(max-width:576px) {
+  .d-stats{grid-template-columns:1fr 1fr}
+  .d-row4{grid-template-columns:1fr 1fr}
+  .dash{padding:14px 14px 32px}
+  .sc-val{font-size:24px}
+}
+</style>
+
+<div class="dash">
+
+  {{-- ── PAGE TOPBAR ── --}}
+  <div class="d-topbar">
+    <div>
+      <div class="d-page-sup">Admin · Real-time Overview</div>
+      <h2 class="d-page-h1">Performance Dashboard</h2>
+    </div>
+    <div class="d-topbar-right">
+      <div class="d-date" id="dashDate"></div>
+      <div class="d-live-pill">
+        <div class="d-live-dot"></div>
+        LIVE
+      </div>
+    </div>
+  </div>
+
+  {{-- ══════════════════════════════
+       8 STAT CARDS
+  ══════════════════════════════ --}}
+  <div class="d-stats">
+
+    <div class="sc s1">
+      <div class="sc-top">
+        <div class="sc-ico s1">🛒</div>
+        <span class="sc-tag up">↑ Active</span>
+      </div>
+      <div class="sc-val dc" data-val="{{ $ordersCount }}">0</div>
+      <div class="sc-lbl">Orders This Month</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--blue);width:72%"></div></div>
+    </div>
+
+    <div class="sc s2">
+      <div class="sc-top">
+        <div class="sc-ico s2">📦</div>
+        <span class="sc-tag up">↑ Stocked</span>
+      </div>
+      <div class="sc-val dc" data-val="{{ $productsCount }}">0</div>
+      <div class="sc-lbl">Total Active Products</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--cyan);width:88%"></div></div>
+    </div>
+
+    <div class="sc s3">
+      <div class="sc-top">
+        <div class="sc-ico s3">💳</div>
+        <span class="sc-tag nt">→ Balance</span>
+      </div>
+      <div class="sc-val dm" data-val="{{ $dueAmount }}">0</div>
+      <div class="sc-lbl">Total Payment Balance</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--violet);width:55%"></div></div>
+    </div>
+
+    <div class="sc s4">
+      <div class="sc-top">
+        <div class="sc-ico s4">💰</div>
+        <span class="sc-tag dn">↓ Due</span>
+      </div>
+      <div class="sc-val dm" data-val="{{ $dueAmountTotal }}">0</div>
+      <div class="sc-lbl">Total Outstanding</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--amber);width:43%"></div></div>
+    </div>
+
+    <div class="sc s5">
+      <div class="sc-top">
+        <div class="sc-ico s5">👥</div>
+        <span class="sc-tag up">↑ Growing</span>
+      </div>
+      <div class="sc-val dc" data-val="{{ $customersCount }}">0</div>
+      <div class="sc-lbl">Total Customers</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--green);width:82%"></div></div>
+    </div>
+
+    <div class="sc s6">
+      <div class="sc-top">
+        <div class="sc-ico s6">📈</div>
+        <span class="sc-tag up">↑ Credit</span>
+      </div>
+      <div class="sc-val dm" data-val="{{ $dueAmountTotal }}">0</div>
+      <div class="sc-lbl">Total Credit Amount</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--teal);width:61%"></div></div>
+    </div>
+
+    <div class="sc s7">
+      <div class="sc-top">
+        <div class="sc-ico s7">✅</div>
+        <span class="sc-tag up">↑ Approved</span>
+      </div>
+      <div class="sc-val dc" data-val="{{ $userIds }}">0</div>
+      <div class="sc-lbl">Approved Price List Customers</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--indigo);width:49%"></div></div>
+    </div>
+
+    <div class="sc s8">
+      <div class="sc-top">
+        <div class="sc-ico s8">🗂</div>
+        <span class="sc-tag up">↑ Items</span>
+      </div>
+      <div class="sc-val dc" data-val="{{ $userItemsIds }}">0</div>
+      <div class="sc-lbl">Unique Items in Price List</div>
+      <div class="sc-bar"><div class="sc-bar-f" style="background:var(--rose);width:66%"></div></div>
+    </div>
+
+    {{-- SALES TODAY --}}
+
+    <div class="sc s9">
+  <div class="sc-top">
+    <div class="sc-ico s9">📅</div>
+    <span class="sc-tag up">↑ Today</span>
+  </div>
+ <div class="sc-val dm" data-val="{{ $salesToday ?? 0 }}">
+    ₹{{ number_format($salesToday ?? 0, 2) }}
+</div>
+  <div class="sc-lbl">Today's Sales</div>
+  <div class="sc-bar">
+    <div class="sc-bar-f" style="background:var(--green);width:65%"></div>
+  </div>
+</div>
+
+
+<div class="sc s10">
+  <div class="sc-top">
+    <div class="sc-ico s10">🗓</div>
+    <span class="sc-tag up">↑ Month</span>
+  </div>
+  <div class="sc-val dm" data-val="{{ $salesThisMonth ?? 0 }}">
+    ₹{{ number_format($salesThisMonth ?? 0, 2) }}
+</div>
+  <div class="sc-lbl">Total Month Sales</div>
+  <div class="sc-bar">
+    <div class="sc-bar-f" style="background:var(--blue);width:78%"></div>
+  </div>
+</div>
+
+
+  </div>
+
+  {{-- ══════════════════════════════
+       CHARTS
+  ══════════════════════════════ --}}
+  <div class="d-slabel">Analytics</div>
+  <div class="d-stitle">Charts &amp; Insights</div>
+
+  {{-- Row 1 --}}
+  <div class="d-row4">
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Delivery Status</div>
+        <div class="cc-type">Pie</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="deliveryChart" height="200"></canvas>
+        <div class="cc-legend" id="deliveryLegend"></div>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Enquiry Status</div>
+        <div class="cc-type">Donut</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="enquiryChart" height="200"></canvas>
+        <div class="cc-legend" id="enquiryLegend"></div>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Response Chart</div>
+        <div class="cc-type">Donut</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="responseChart" height="200"></canvas>
+        <div class="cc-legend" id="responseLegend"></div>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Customer Response</div>
+        <div class="cc-type">Bar</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="responseChartData" height="200"></canvas>
+        <div class="cc-legend" id="custLegend"></div>
+      </div>
+    </div>
+
+  </div>
+
+  {{-- Row 2 --}}
+  <div class="d-row2">
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Monthly Sales — Orders</div>
+        <div class="cc-type">Line</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="orderChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-head">
+        <div class="cc-title">Product Expenses — Selling vs Purchase</div>
+        <div class="cc-type">Line</div>
+      </div>
+      <div class="cc-body">
+        <canvas id="monthlySalesChart" height="200"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+</div>{{-- /dash --}}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── LIVE DATE ── */
+  var dEl = document.getElementById('dashDate');
+  if (dEl) {
+    dEl.textContent = new Date().toLocaleString('en-IN', {
+      weekday:'short', month:'short', day:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+  }
+
+  /* ── COUNTER ANIMATION ── */
+  function animCount(el, target, dur) {
+    target = parseFloat(target) || 0;
+    dur = dur || 1600;
+    if (target === 0) { el.textContent = '0'; return; }
+    var s = performance.now();
+    (function tick(ts) {
+      var p = Math.min((ts - s) / dur, 1);
+      var e = 1 - Math.pow(1 - p, 4);
+      el.textContent = Math.round(e * target).toLocaleString('en-IN');
+      if (p < 1) requestAnimationFrame(tick);
+    })(s);
+  }
+
+  document.querySelectorAll('.dc').forEach(function(el) { animCount(el, el.dataset.val, 1600); });
+  document.querySelectorAll('.dm').forEach(function(el) { animCount(el, el.dataset.val, 1900); });
+
+  /* ── PROGRESS BARS ── */
+  setTimeout(function() {
+    document.querySelectorAll('.sc-bar-f').forEach(function(el) {
+      var w = el.style.width; el.style.width = '0%';
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ el.style.width = w; }); });
+    });
+  }, 300);
+
+  /* ── CHART.JS v4 DEFAULTS (light theme) ── */
+  Chart.defaults.color       = '#8a93a8';
+  Chart.defaults.font.family = 'DM Sans, sans-serif';
+  Chart.defaults.font.size   = 11;
+  Chart.defaults.plugins.legend.display = false;
+
+  var TIP = {
+    backgroundColor : '#ffffff',
+    borderColor     : 'rgba(0,0,0,0.1)',
+    borderWidth     : 1,
+    titleColor      : '#1a1f36',
+    bodyColor       : '#4a5568',
+    padding         : 12,
+    cornerRadius    : 10,
+    displayColors   : true,
+    boxWidth        : 9,
+    boxHeight       : 9
+  };
+
+  /* ── LEGEND BUILDER ── */
+  function mkLegend(id, labels, colors, data) {
+    var total = data.reduce(function(a,b){ return a + (b||0); }, 0);
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = labels.map(function(lbl, i) {
+      var pct = total > 0 ? Math.round((data[i]||0) / total * 100) : 0;
+      return '<div class="cc-leg-row">' +
+        '<div class="cc-leg-dot" style="background:' + colors[i] + '"></div>' +
+        '<span class="cc-leg-name">' + lbl + '</span>' +
+        '<span class="cc-leg-pct">' + pct + '%</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  /* ════════════════════════════
+     1. DELIVERY — pie
+  ════════════════════════════ */
+  var dLbls   = {!! json_encode(array_keys($deliverydata)) !!};
+  var dData   = {!! json_encode(array_values($deliverydata)) !!};
+  var dColors = ['#f43f5e','#3b82f6','#10b981','#f59e0b','#8b5cf6','#06b6d4','#14b8a6'];
+
+  new Chart(document.getElementById('deliveryChart'), {
+    type: 'pie',
+    data: {
+      labels: dLbls,
+      datasets: [{ data:dData, backgroundColor:dColors, borderColor:'#fff', borderWidth:3 }]
+    },
+    options: { plugins:{ tooltip:TIP }, animation:{ duration:1100 } }
+  });
+  mkLegend('deliveryLegend', dLbls, dColors, dData);
+
+  /* ════════════════════════════
+     2. ENQUIRY — doughnut (direct DB counts)
+  ════════════════════════════ */
+  var eqLabels = ["Pending","Submitted"];
+  var eqPendingVal   = {{ $enquiryPending }};
+  var eqSubmittedVal = {{ $enquirySubmitted }};
+  var eqData   = [eqPendingVal, eqSubmittedVal];
+  var eqColors = ["#f59e0b","#06b6d4"];
+
+  if (eqPendingVal > 0 || eqSubmittedVal > 0) {
+    new Chart(document.getElementById("enquiryChart"), {
+      type: "doughnut",
+      data: {
+        labels: eqLabels,
+        datasets: [{ data:eqData, backgroundColor:eqColors, borderColor:"#fff", borderWidth:3, borderRadius:5, hoverOffset:10 }]
+      },
+      options: { cutout:"65%", plugins:{ tooltip:TIP }, animation:{ duration:1100 } }
+    });
+    mkLegend("enquiryLegend", eqLabels, eqColors, eqData);
+  } else {
+    document.getElementById("enquiryChart").style.display = "none";
+    document.getElementById("enquiryLegend").innerHTML =
+      '<div style="text-align:center;padding:36px 10px;color:#8a93a8;">' +
+      '<div style="font-size:26px;margin-bottom:8px;">📋</div>' +
+      '<div style="font-size:12px;font-weight:600;">No enquiry data yet</div>' +
+      '</div>';
+  }
+
+  /* ════════════════════════════
+     3. RESPONSE — doughnut
+  ════════════════════════════ */
+  var rLabels = ['Accepted','Rejected','Re-offer'];
+  var rData   = [
+    {{ isset($data['accept'])   ? $data['accept']   : 0 }},
+    {{ isset($data['rejected']) ? $data['rejected'] : 0 }},
+    {{ isset($data['reoffer'])  ? $data['reoffer']  : 0 }}
+  ];
+  var rColors = ['#3b82f6','#f43f5e','#06b6d4'];
+
+  new Chart(document.getElementById('responseChart'), {
+    type: 'doughnut',
+    data: {
+      labels: rLabels,
+      datasets: [{ data:rData, backgroundColor:rColors, borderColor:'#fff', borderWidth:3, borderRadius:5, hoverOffset:10 }]
+    },
+    options: { cutout:'65%', plugins:{ tooltip:TIP }, animation:{ duration:1200 } }
+  });
+  mkLegend('responseLegend', rLabels, rColors, rData);
+
+  /* ════════════════════════════
+     4. CUSTOMER RESPONSE — horizontal bar
+  ════════════════════════════ */
+  var cLabels = ['Responded','Not Responded'];
+  var cData   = [{{ $responsedata['responded'] ?? 0 }}, {{ $responsedata['not_responded'] ?? 0 }}];
+  var cColors = ['#10b981','#94a3b8'];
+
+  new Chart(document.getElementById('responseChartData'), {
+    type: 'bar',
+    data: {
+      labels: cLabels,
+      datasets: [{
+        data: cData,
+        backgroundColor: ['rgba(16,185,129,0.15)','rgba(148,163,184,0.15)'],
+        borderColor: cColors,
+        borderWidth: 2, borderRadius: 8, borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { tooltip: TIP },
+      scales: {
+        x: { grid:{ color:'rgba(0,0,0,0.04)' }, ticks:{ color:'#8a93a8' }, border:{ color:'transparent' } },
+        y: { grid:{ display:false }, ticks:{ color:'#4a5568', font:{ weight:'600' } }, border:{ color:'transparent' } }
+      },
+      animation: { duration:1300 }
+    }
+  });
+  mkLegend('custLegend', cLabels, cColors, cData);
+
+  /* ════════════════════════════
+     5. MONTHLY ORDERS — line
+  ════════════════════════════ */
+  var oCtx  = document.getElementById('orderChart').getContext('2d');
+  var oGrad = oCtx.createLinearGradient(0, 0, 0, 300);
+  oGrad.addColorStop(0, 'rgba(59,130,246,0.2)');
+  oGrad.addColorStop(1, 'rgba(59,130,246,0.0)');
+
+  new Chart(oCtx, {
+    type: 'line',
+    data: {
+      labels: {!! json_encode(array_keys($orderdata)) !!},
+      datasets: [{
+        label: 'Total Orders',
+        data:  {!! json_encode(array_values($orderdata)) !!},
+        borderColor: '#3b82f6', backgroundColor: oGrad,
+        borderWidth: 2.5, fill: true, tension: 0.42,
+        pointBackgroundColor: '#3b82f6', pointBorderColor: '#fff',
+        pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display:true, labels:{ color:'#4a5568', usePointStyle:true, pointStyle:'circle', boxWidth:8, padding:14 } },
+        tooltip: TIP
+      },
+      scales: {
+        x: { grid:{ color:'rgba(0,0,0,0.04)' }, ticks:{ color:'#8a93a8' }, border:{ color:'rgba(0,0,0,0.06)' } },
+        y: { grid:{ color:'rgba(0,0,0,0.04)' }, ticks:{ color:'#8a93a8' }, border:{ color:'rgba(0,0,0,0.06)' }, beginAtZero:true }
+      },
+      animation: { duration:1500 }
+    }
+  });
+
+  /* ════════════════════════════
+     6. PRODUCT EXPENSES — dual line
+  ════════════════════════════ */
+  var eCtx  = document.getElementById('monthlySalesChart').getContext('2d');
+  var sGrad = eCtx.createLinearGradient(0, 0, 0, 300);
+  sGrad.addColorStop(0, 'rgba(59,130,246,0.18)');
+  sGrad.addColorStop(1, 'rgba(59,130,246,0)');
+  var bGrad = eCtx.createLinearGradient(0, 0, 0, 300);
+  bGrad.addColorStop(0, 'rgba(244,63,94,0.18)');
+  bGrad.addColorStop(1, 'rgba(244,63,94,0)');
+
+  new Chart(eCtx, {
+    type: 'line',
+    data: {
+      labels: {!! json_encode(array_keys($monthlyTotalPrices)) !!},
+      datasets: [
+        {
+          label: 'Selling Price',
+          data:  {!! json_encode(array_values($monthlyTotalPrices)) !!},
+          borderColor:'#3b82f6', backgroundColor:sGrad,
+          borderWidth:2.5, fill:true, tension:0.42,
+          pointBackgroundColor:'#3b82f6', pointBorderColor:'#fff',
+          pointBorderWidth:2, pointRadius:4, pointHoverRadius:6
+        },
+        {
+          label: 'Purchase Price',
+          data:  {!! json_encode(array_values($monthlyProductTotalPrices)) !!},
+          borderColor:'#f43f5e', backgroundColor:bGrad,
+          borderWidth:2.5, fill:true, tension:0.42,
+          pointBackgroundColor:'#f43f5e', pointBorderColor:'#fff',
+          pointBorderWidth:2, pointRadius:4, pointHoverRadius:6
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        legend: { display:true, labels:{ color:'#4a5568', usePointStyle:true, pointStyle:'circle', boxWidth:8, padding:20 } },
+        tooltip: TIP
+      },
+      scales: {
+        x: { grid:{ color:'rgba(0,0,0,0.04)' }, ticks:{ color:'#8a93a8' }, border:{ color:'rgba(0,0,0,0.06)' } },
+        y: {
+          grid: { color:'rgba(0,0,0,0.04)' },
+          ticks: { color:'#8a93a8', callback:function(v){ return v>=1000?'₹'+(v/1000).toFixed(0)+'k':'₹'+v; } },
+          border: { color:'rgba(0,0,0,0.06)' }, beginAtZero:true
+        }
+      },
+      animation: { duration:1700 }
+    }
+  });
+
+})();
+</script>
+
+@endsection

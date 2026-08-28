@@ -1,0 +1,522 @@
+<?php
+
+namespace App\Http\Controllers;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use App\Models\OrderItem;
+use App\Models\DeliveryManagement;
+use App\Models\OutstandingStatement;
+use App\Models\KYCDocument;
+use App\Models\Order;
+use App\Models\User;
+use App\Models\OrderNotification;
+use App\Services\SmsService;
+use App\Models\Pincode;
+use App\Models\Payment;
+use Illuminate\Support\Facades\Log;
+use App\Notifications\NewEnqueryRequestCustomerNotification;
+use Illuminate\Support\Facades\DB;
+
+class OrderItemController extends Controller
+{
+    public function index(Request $request,$id)
+    {
+        $orderItems = OrderItem::with('product','order.user')->where('order_id', $id)->get();
+        if ($orderItems->isEmpty()) {
+            DeliveryManagement::where('order_id', $id)
+                ->where('order_id', $id)
+                ->update(['delivery_status' => 'cancelled']);
+        }
+        // dd($orderItems);
+        
+          if ($request->notification_id) {
+        DB::table('order_notifications')
+        ->where('id', $request->notification_id)
+        ->update([
+            'is_read' => 1,
+            'updated_at' => now(),
+        ]);
+}
+
+        return view('admin.orderitem.index', compact('orderItems'));
+    }
+
+    public function updateQuantity(Request $request)
+    {
+        // Validate the input data
+        $request->validate([
+            'order_item_id' => 'required|exists:order_items,id',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        // Find the OrderItem and update the quantity
+        $orderItem = OrderItem::find($request->order_item_id);
+        // dd($orderItem);
+        if ($orderItem) {
+            $orderItem->quantity = $request->quantity;
+            $orderItem->save();
+
+            // Return success response
+            return response()->json(['success' => true]);
+        }
+
+        // Return error response if OrderItem is not found
+        return response()->json(['success' => false], 404);
+    }
+
+    // public function invoice($id)
+    // {
+
+    //     $orderInvoice = OrderItem::with('product')->where('order_id', $id)->get();
+
+
+    //     $pdf = PDF::loadView('admin.invoice.invoice_page1', compact('orderInvoice'));
+    //   return $pdf->stream('invoice.pdf');
+    // }
+
+    public function invoice($id)
+    {
+        $orderInvoice1 = OrderItem::with('product')->where('order_id', $id)->get();
+        $orderInvoice = OrderItem::where('order_id', $id)->get();
+        $orderNoInvoice = OrderItem::where('order_id', $id)->where('in_invoice', 'no')->get();
+
+        $outletIds = $orderInvoice->pluck('order.outlet_id')->unique()->toArray();
+
+        $orders = Order::with('user')->where('id',$id)->get();
+
+        $orderss = KYCDocument::where('user_id', $outletIds)
+      ->get();
+
+
+      $orders = Order::with('user')->orderBy('created_at', 'desc')->get();
+
+        $latestOrderCreatedAt = $orders->first()->created_at;
+
+    // Fetch the last payment excluding specific order_id and created before or at the latest order's creation date
+    $lastpayment = OutstandingStatement::where('created_at', '<=', $latestOrderCreatedAt)
+                                       ->whereNotIn('order_id', [$id])
+                                       ->get(); 
+dd($lastpayment);
+      $pdf = PDF::loadView('admin.invoice.invoice', compact('orderInvoice' ,'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment'));
+      return $pdf->stream('invoice.pdf');
+
+    //    return view('admin.invoice.invoice', compact('orderInvoice' ,'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment'));
+    }
+
+
+     public function deliverycharges($id)
+    {
+        $orderInvoice1 = OrderItem::with('product')->where('order_id', $id)->get();
+        $orderInvoice = OrderItem::where('order_id', $id)->get();
+        $orderNoInvoice = OrderItem::where('order_id', $id)->where('in_invoice', 'no')->get();
+        $outletIds = $orderInvoice->pluck('order.outlet_id')->unique()->toArray();
+        $orders = Order::with('user')->where('id',$id)->get();
+        // dd($orderNoInvoice);
+
+        $orderss = KYCDocument::where('user_id', $outletIds)
+      ->get();
+
+      $orders = Order::with('user')->orderBy('created_at', 'desc')->get();
+      $lastpayment = OutstandingStatement::where('order_id', $id);
+      $pdf = PDF::loadView('admin.invoice.delivery_charges', compact('orderInvoice' ,'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment'));
+
+      return $pdf->stream('delivery_charges.pdf');
+    //   return view('admin.invoice.delivery_charges', compact('orderInvoice' ,'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment'));
+    }
+
+
+
+    public function generateInvoiceAndDeliveryCharges($id)
+    {            $maharashtrian = '';
+        $orderInvoice1 = OrderItem::with('product')->where('order_id', $id)->get();
+        $orderInvoice = OrderItem::where('order_id', $id)->get();
+        // dd($orderInvoice);
+        $orderNoInvoice = OrderItem::where('order_id', $id)->where('in_invoice', 'no')->get();
+        $outletIds = $orderInvoice->pluck('order.outlet_id')->unique()->toArray();
+
+        $orders = Order::with('user')->where('id', $id)->get();
+        $orderss = KYCDocument::whereIn('user_id', $outletIds)->get();
+        $shipping_pincode = $orders->first()->shipping_pincode;
+        $pincodes = Pincode::where('pincode', $shipping_pincode)->get();
+       if($pincodes){
+        $maharashtrian = 'True';
+       }else{
+        $response = file_get_contents("https://api.postalpincode.in/pincode/$shipping_pincode");
+        $data = json_decode($response, true);
+        if($data[0]['PostOffice'][0]['State'] === 'Maharashtra'){
+            $maharashtrian = 'True';
+        }else{
+            $maharashtrian = 'False';
+        }
+       }
+         $latestOrderCreatedAt = $orders->first()->created_at;
+         
+        $order_company = Order::with('user')->where('id', $id)->first();
+        $company_name = User::where('id', $order_company->user_id)
+            ->select('outlet_name')
+            ->first();
+        $company_name1 = $company_name->outlet_name ?? 'N/A';     
+            
+        
+        // dd($company_name);
+
+ 
+        $lastpayment = OutstandingStatement::where('user_id', $outletIds)->where('outstanding_date', '>=',  $latestOrderCreatedAt)->get();
+        $invoiceView = view('admin.invoice.invoice', compact('orderInvoice', 'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment', 'maharashtrian' , 'company_name1'))->render();
+        $deliveryChargesView = view('admin.invoice.delivery_charges', compact('orderInvoice', 'orderss', 'orders', 'orderNoInvoice', 'orderInvoice1', 'lastpayment','maharashtrian'))->render();
+
+        // $pdf = PDF::loadHTML($invoiceView . $deliveryChargesView);
+        $pdf = PDF::loadHTML($invoiceView);
+        return $pdf->stream('combined_invoice_and_delivery_charges.pdf');
+    }
+
+
+
+
+
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'in_invoice' => 'required|in:yes,no',
+        ]);
+        $orderItem = OrderItem::findOrFail($id);
+        $orderItem->update([
+            'in_invoice' => $request->in_invoice,
+        ]);
+
+        return redirect()->back()->with('success', 'Order item updated successfully');
+    }
+
+    public function destroy($id)
+    {
+        $orderItem = OrderItem::findOrFail($id);
+
+        $orderId = $orderItem->order_id;
+        $productPrice = $orderItem->price;
+        $payment = Payment::where('order_id', $orderId)->first();
+        if ($payment) {
+
+            $payment->paid_amount -= $productPrice;
+            $payment->save();
+        }
+
+        $orderItem->delete();
+
+        return response()->json(['message' => 'Order item deleted successfully']);
+    }
+
+
+
+public function acceptOrder(SmsService $smsService, $orderId)
+{
+    try {
+        // Fetch the order with related data
+        $order = Order::with('user', 'items.product')->findOrFail($orderId);
+        
+        
+          $user = User::find($order->user_id); 
+
+        // Check if delivery record exists
+        $delivery = DeliveryManagement::where('order_id', $orderId)->first();
+        if (!$delivery) {
+            Log::error("No delivery record found for order ID {$orderId}.");
+            return response()->json(['error' => 'Delivery record not found'], 404);
+        }
+
+        // Check if shipping pincode exists in database or fetch from API
+        $maharashtrian = 'False'; // Default to False
+        $shipping_pincode = $order->shipping_pincode;
+
+        if ($shipping_pincode) {
+            $pincodeRecord = Pincode::where('pincode', $shipping_pincode)->exists();
+
+            if ($pincodeRecord) {
+                $maharashtrian = 'True';
+            } else {
+                $response = file_get_contents("https://api.postalpincode.in/pincode/$shipping_pincode");
+                $data = json_decode($response, true);
+
+                if (!empty($data[0]['PostOffice'][0]['State']) && $data[0]['PostOffice'][0]['State'] === 'Maharashtra') {
+                    $maharashtrian = 'True';
+                }
+            }
+        }
+
+        // Update delivery status
+        $delivery->delivery_status = 'in_progress';
+        $delivery->save();
+
+        // Set invoice date
+        $order->invoice_date = now();
+
+        // Initialize total calculations
+        $totalAmount = 0;
+        $totalcgstamount = 0;
+        $totalsgstamount = 0;
+        $totaligstamount = 0;
+        $totalcessamount = 0;
+
+        // Loop through order items to calculate values
+        foreach ($order->items ?? [] as $orderItem) {
+            $product = $orderItem->product ?? null;
+            if (!$product) {
+                Log::error("Product not found for order item ID {$orderItem->id} in order {$orderId}");
+                continue;
+            }
+
+            // Calculate pre-tax amount
+            $pretax = (float) $orderItem->quantity * (float) $orderItem->offer_price;
+
+
+            // Determine GST type based on location
+            $cess = 0;
+            if ($maharashtrian === 'False') {
+                // Apply IGST only for outside Maharashtra
+                $igst = $product->igst ?? 0;
+                $sgst = 0;
+                $cgst = 0;
+            } else {
+                // Apply CGST + SGST for Maharashtra
+                $sgst = $product->sgst ?? 0;
+                $cgst = $product->cgst ?? 0;
+                $igst = 0;
+            }
+
+            // Total GST percentage
+            $totalTaxes = $sgst + $cgst + $igst + $cess;
+
+            // Calculate tax amounts
+            $cgstAmount = ($cgst * $pretax) / 100;
+            $sgstAmount = ($sgst * $pretax) / 100;
+            $igstAmount = ($igst * $pretax) / 100;
+            $cessAmount = ($cess * $pretax) / 100;
+
+            // Accumulate total tax amounts
+            $totalcgstamount += $cgstAmount;
+            $totalsgstamount += $sgstAmount;
+            $totaligstamount += $igstAmount;
+            $totalcessamount += $cessAmount;
+
+            // Apply coupon discount if available
+            $couponDiscount = $orderItem->coupon_discount ?? 0;
+
+            // Calculate correct total amount
+            $totalAmount += $pretax + $cgstAmount + $sgstAmount + $igstAmount + $cessAmount - $couponDiscount;
+        }
+
+        // Save Total Amount in `total_discount_value`
+        $order->total_discount_value = $totalAmount;
+        $order->save();
+
+        Log::info("Order ID {$orderId} updated: Total Discount Value (Total Amount) = ₹{$totalAmount}");
+
+        // Notify customer
+        $notificationMessage = "Your order (ID: {$order->order_id}) is now in progress. Your total amount after discount is ₹" . number_format($totalAmount, 2);
+        // $order->user->notify(new NewEnqueryRequestCustomerNotification($order->user->id, $notificationMessage));
+        
+         $user->notify(new NewEnqueryRequestCustomerNotification($user->id, $notificationMessage));
+
+        // Send SMS
+        $data = [
+            'order' => $order,
+            'delivery' => $delivery,
+        ];
+        $smsService->sendOrder($data);
+
+        Log::info("SMS sent to user {$order->user->id} for order {$orderId}.");
+
+        return back()->with('success', 'Order accepted, values updated, and customer notified successfully.');
+
+    } catch (\Exception $e) {
+        Log::error("Error accepting order: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return response()->json(['error' => 'An error occurred while processing the order. ' . $e->getMessage()], 500);
+    }
+}
+
+
+
+
+
+
+        
+
+
+    
+
+    public function cancelOrder($orderId)
+{
+    // Update delivery status to 'cancelled'
+    DeliveryManagement::where('order_id', $orderId)->update(['delivery_status' => 'cancelled']);
+
+    // Find the order
+    $order = Order::find($orderId);
+    if ($order) {
+        // Log the order cancellation action
+        Log::info("Order {$order->order_id} has been cancelled. Delivery status updated.");
+
+        // Construct the notification message
+        $notificationMessage = "Your order (ID: {$order->order_id}) has been cancelled. If you have any questions, please contact support.";
+
+        // Get the logged-in user (the one who canceled the order)
+        $cancelingUser = auth()->user(); // Assuming the user is authenticated
+
+        // Send notification to the customer (user_id is for the customer who placed the order)
+        $customer = User::find($order->user_id); // Get the user (customer) who placed the order
+        if ($customer) {
+            // Send notification to the customer
+            $customer->notify(new NewEnqueryRequestCustomerNotification($customer->id, $notificationMessage));
+
+            // Log the notification action
+            Log::info("Notification sent to user {$customer->id} for cancelled order {$order->order_id}.");
+        } else {
+            // Log error if user is not found
+            Log::error("User not found for order {$order->order_id}. Cannot send cancellation notification.");
+        }
+
+        // Send notification to the admin
+        $adminNotification = new OrderNotification();
+        $adminNotification->user_id = $customer->id;
+        $adminNotification->title = "{$cancelingUser->name} cancelled order {$order->order_id}";
+
+        // Generate URL with order details route
+        $adminNotification->click_url = route('orderitem.details', ['id' => $order->id], false);
+
+        // Save admin notification
+        $adminNotification->save();
+
+        // Log the admin notification
+        Log::info("Admin notification sent: {$cancelingUser->name} cancelled order {$order->order_id}.");
+
+        // Return success response
+        return response()->json(['message' => 'Order cancelled and customer notified successfully']);
+    } else {
+        // If order not found, log the error and return error response
+        Log::error("Order with ID {$orderId} not found.");
+        return response()->json(['error' => 'Order not found'], 404);
+    }
+}
+
+    
+
+
+    public function downloadExcel(Request $request)
+{
+    $startDate = $request->input('startDate');
+    $endDate = $request->input('endDate');
+
+    $payments = Payment::whereBetween('date', [$startDate, $endDate])->get();
+
+    $excelData = [];
+    $headers = [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition' => 'attachment; filename="payments.xlsx"',
+    ];
+    return response()->stream(function () use ($excelData) {
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx(\PhpOffice\PhpSpreadsheet\IOFactory::createWriter(new \PhpOffice\PhpSpreadsheet\Spreadsheet(), 'Xlsx'));
+        $writer->setPreCalculateFormulas(false);
+        $writer->setIncludeCharts(true);
+        $writer->setIncludeCharts(true);
+        $writer->save('php://output');
+    }, 200, $headers);
+}
+
+
+function numberToWords($n) {
+    $n = (float)$n;
+
+    $units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+    $teens = ["Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty"];
+    $tens = ["", "Ten", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    $othersIntl = ["Thousand", "Million", "Billion", "Trillion"];
+
+    $getBelowHundred = function ($n) use ($units, $teens, $tens) {
+        if ($n >= 100) {
+            return "greater than or equal to 100";
+        }
+        if ($n <= 10) {
+            return $units[$n];
+        }
+        if ($n <= 20) {
+            return $teens[$n - 11];
+        }
+        $unit = $n % 10;
+        $ten = (int) ($n / 10);
+        $tenWord = ($ten > 0 ? ($tens[$ten] . " ") : '');
+        $unitWord = ($unit > 0 ? $units[$unit] : '');
+        return $tenWord . $unitWord;
+    };
+
+    $getBelowThousand = function ($n) use ($units, $getBelowHundred) {
+        if ($n >= 1000) {
+            return "greater than or equal to 1000";
+        }
+        $word = $getBelowHundred($n % 100);
+        $hun = (int) ($n / 100);
+        $word = ($hun > 0 ? ($units[$hun] . " Hundred ") : '') . $word;
+        return $word;
+    };
+
+    $word = '';
+    $val;
+    $word2 = '';
+    $val2;
+    $b = explode(".", $n);
+    $n = $b[0];
+    $d = isset($b[1]) ? $b[1] : '';
+    $d = (int) $d;
+    $d = substr($d, 0, 2);
+
+    $val = $n % 1000;
+    $n = (int) ($n / 1000);
+
+    $val2 = (int)$d % 1000;
+
+    $d = (int)($d / 1000);
+
+
+    $word = $getBelowThousand($val);
+    $word2 = $getBelowThousand($val2);
+
+    $othersArr = $othersIntl;
+    $divisor = 1000;
+    $func = $getBelowThousand;
+
+    $i = 0;
+    while ($n > 0) {
+        if ($i == count($othersArr) - 1) {
+            $word = numberToWords($n) . " " . $othersArr[$i] . " " . $word;
+            break;
+        }
+        $val = $n % $divisor;
+        $n = (int) ($n / $divisor);
+        if ($val != 0) {
+            $word = $func($val) . " " . $othersArr[$i] . " " . $word;
+        }
+        $i++;
+    }
+
+    $i = 0;
+    while ($d > 0) {
+        if ($i == count($othersArr) - 1) {
+            $word2 = numberToWords($d) . " " . $othersArr[$i] . " " . $word2;
+            break;
+        }
+        $val2 = $d % $divisor;
+        $d = (int) ($d / $divisor);
+        if ($val2 != 0) {
+            $word2 = $func($val2) . " " . $othersArr[$i] . " " . $word2;
+        }
+        $i++;
+    }
+    if ($word != '') $word = $word . ' Rupees';
+    if ($word2 != '') $word2 = ' And ' . $word2 . ' Paise';
+    return $word . $word2;
+}
+
+
+
+
+
+}
+
+

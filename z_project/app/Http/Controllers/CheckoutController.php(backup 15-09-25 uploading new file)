@@ -1,0 +1,140 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\Cart;
+use App\Models\Pincode;
+use App\Models\OutstandingStatement;
+
+use App\Models\Holiday;
+use App\Models\ZoneProcessing;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
+
+class CheckoutController extends Controller
+{
+    public function index(Request $request, $id)
+    {
+         if (!Auth::check()) {
+        return redirect()->route('homepage')->with('error', 'You are not logged in. Please log in to continue.');
+    }
+        $user = Auth::user();
+        $datewisecheckout = $request->query('datewisecheckout');
+
+        $query = Cart::with('product')->where('user_id', $user->id);
+// dd($query);
+        $holidays  = Holiday::all();
+        if ($datewisecheckout == 'today') {
+            $query->whereDate('created_at', Carbon::today());
+        } elseif ($datewisecheckout == 'yesterday') {
+            $query->whereDate('created_at', Carbon::yesterday());
+
+        } elseif ($datewisecheckout == 'p7days') {
+            $query->whereDate('created_at', '>=', Carbon::now()->subDays(7));
+        }
+        $cart = $query->latest()->get();
+
+        $coupn = Cart::where('user_id', $user->id)->orderBy('id', 'asc')->get();
+        // dd($coupn);
+
+        if ($cart->isEmpty()) {
+            return redirect()->route('homepage')->with('error', 'The requested cart is empty. Please add items to continue.');
+        }
+
+        $outletID = $id;
+        $outstandingData = OutstandingStatement::where('user_id', $id)->get();
+        $totalDueAmount = 0;
+        foreach ($outstandingData as $data) {
+            $totalDueAmount += $data->total_due_amount;
+        }
+
+        $outletData = User::find($id);
+        if (!$outletData) {
+            abort(404, 'User not found');
+        }
+
+        $billingAddress = '';
+        $shippingAddress = '';
+        $mainshippingAddress = '';
+        $mainshippingPincode = '';
+
+        foreach ($outletData->kycdocuments as $kycDocument) {
+            if ($kycDocument->user_id == $outletData->id) {
+                $billingAddress = $kycDocument->billing_address . ' - ' . $kycDocument->billing_pincode;
+                $shippingAddress = $kycDocument->outlet_address . ' - ' . $kycDocument->outlet_pincode;
+                $mainshippingAddress = $kycDocument->outlet_address;
+                $mainshippingPincode = $kycDocument->outlet_pincode;
+                break;
+            }
+        }
+
+        $pincodeData = Pincode::where('pincode', $mainshippingPincode)->first();
+        $zone_id = $pincodeData ? $pincodeData->zone_id : null;
+        // if (!$pincodeData) {
+        //     return redirect()->back()->with('error', 'Service not available on this location.');
+        // }
+        $deliveryOptions = [];
+        if ($zone_id) $pincodeData = Pincode::where('pincode', $mainshippingPincode)->first();
+        $zone_id = $pincodeData ? $pincodeData->zone_id : null;
+        
+        $deliveryOptions = [];
+        if ($zone_id) {
+            $zoneProcessingData = ZoneProcessing::where('id', $zone_id)->first();
+            if ($zoneProcessingData->status != 'Active') {
+                session()->flash('not_servicable', 'Service not available on this location.');
+            }
+            $delivery_time = $zoneProcessingData->delivery_time;
+            $delivery_limit_time = $zoneProcessingData->same_day_timing;
+            $delivery_next_limit_time = $zoneProcessingData->next_day_timing;
+            $startDate = strtotime('+' . $delivery_time . ' days');
+            $daysPrinted = 0;
+        
+            if (($delivery_time == 0 && date('H:i:s') >= $delivery_limit_time) || ($delivery_time > 0 && date('H:i:s') >= $delivery_next_limit_time)) {
+                $startDate = strtotime('+1 day', $startDate);
+            }
+        
+            while ($daysPrinted < 8) {
+                $date = date('Y-m-d', $startDate);
+                $formattedDate = date('F jS, Y', $startDate);
+                $isHoliday = false;
+                foreach ($holidays as $holiday) {
+                    if ($holiday->holiday_date == $date) {
+                        $isHoliday = true;
+                        break;
+                    }
+                }
+        
+                if (!$isHoliday) {
+                    // Format the date to the shorter format (e.g., Dec 17, 2024)
+                    $shortFormattedDate = Carbon::parse($date)->format('M j, Y'); 
+                    
+                    $deliveryOptions[$date] = $shortFormattedDate;
+                    $daysPrinted++;
+                }
+        
+                $startDate = strtotime('+1 day', $startDate);
+            }
+        } else {
+            session()->flash('not_servicable', 'Service not available on this location.');
+            return redirect()->back();
+        }
+
+
+
+
+
+        if ($zone_id) {
+            $bulkDeliverycharges = $zoneProcessingData ? $zoneProcessingData->bulk_delivery_charges : null;
+            $singleDeliverycharges = $zoneProcessingData ? $zoneProcessingData->single_delivery_charges : null;
+            $packingcharges = $zoneProcessingData ? $zoneProcessingData->packing_charge : null;
+            $otherscharges = $zoneProcessingData ? $zoneProcessingData->others_charges : null;
+        }
+
+
+        return view('web.checkout', compact('totalDueAmount','outletID','holidays','outletData','packingcharges','otherscharges','delivery_time', 'cart','datewisecheckout', 'billingAddress', 'shippingAddress', 'mainshippingAddress', 'mainshippingPincode', 'bulkDeliverycharges', 'singleDeliverycharges', 'deliveryOptions', 'zoneProcessingData','coupn'));
+    }
+
+}

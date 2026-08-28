@@ -1,0 +1,246 @@
+@extends('admin.layouts.appnew')
+
+@section('content')
+
+<div class="page-body">
+    <div class="container-fluid page-body-wrapper">
+        <div class="main-panel">
+            <div class="content-wrapper">
+
+                <div class="row">
+                    <div class="col-lg-12 grid-margin stretch-card">
+                        <div class="card">
+
+                            <div class="card-body">
+
+                                {{-- Success Message --}}
+                                @if (session('success'))
+                                    <div class="alert alert-success">
+                                        {{ session('success') }}
+                                    </div>
+                                @endif
+
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h3 class="card-title">Modify Order Quantity</h3>
+
+                                  
+                                </div>
+
+
+                                <div class="table-responsive">
+                                    <table class="table all-package theme-table" id="stockTable">
+
+                                        <thead class="b-shadow">
+<tr>
+<th>Product</th>
+<th>Current Qty</th>
+<th>Available Stock</th>
+<th>Modify</th>
+</tr>
+</thead>
+
+<tbody>
+
+@foreach($orderItems as $item)
+
+<tr>
+
+<td>{{ $item->product->product_name }}</td>
+
+<td>
+<span class="badge bg-primary">
+{{ $item->quantity }}
+</span>
+</td>
+
+<td>
+<span class="stock">
+{{ $item->product->stock->total_stock ?? 0 }}
+</span>
+</td>
+
+<td>
+
+<div class="d-flex align-items-center">
+
+<button class="btn btn-danger btn-sm minus-btn"
+        data-id="{{ $item->id }}">
+-
+</button>
+
+<input type="number"
+class="form-control text-center mx-2 qty-input"
+data-id="{{ $item->id }}"
+data-stock="{{ $item->product->stock->total_stock ?? 0 }}"
+value="{{ $item->quantity }}"
+style="width:80px">
+
+<button class="btn btn-success btn-sm plus-btn"
+        data-id="{{ $item->id }}">
++
+</button>
+
+</div>
+
+</td>
+
+</tr>
+
+@endforeach
+
+</tbody>
+
+</table>
+</div>
+
+<button class="btn btn-primary" id="saveChanges">
+Save Changes
+</button>
+
+          </div> {{-- card-body --}}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+
+$(document).ready(function(){
+
+// INCREASE QTY
+$('.plus-btn').click(function(){
+
+    let id = $(this).data('id');
+    let input = $('.qty-input[data-id="'+id+'"]');
+
+    let current = parseInt(input.val());
+    let stock = parseInt(input.data('stock'));
+
+    if(current >= stock){
+
+        Swal.fire(
+            'Stock Limit',
+            'Cannot exceed available stock ('+stock+')',
+            'warning'
+        );
+
+        return;
+    }
+
+    input.val(current + 1);
+
+});
+
+
+// DECREASE QTY
+$('.minus-btn').click(function(){
+
+    let id = $(this).data('id');
+    let input = $('.qty-input[data-id="'+id+'"]');
+
+    let current = parseInt(input.val());
+
+    if(current <= 1){
+        return;
+    }
+
+    input.val(current - 1);
+
+});
+
+
+// MANUAL INPUT VALIDATION
+$('.qty-input').on('input', function(){
+
+    let val = parseInt($(this).val());
+    let stock = parseInt($(this).data('stock'));
+
+    if(val < 1){
+        $(this).val(1);
+    }
+
+    if(val > stock){
+
+        Swal.fire(
+            'Stock Limit',
+            'Entered quantity exceeds stock ('+stock+')',
+            'error'
+        );
+
+        $(this).val(stock);
+    }
+
+});
+
+});
+
+
+
+</script>
+<script>
+
+$('#saveChanges').click(function(){
+
+    let items = {};
+    let orderId = "{{ $orderItems->first()->order_id }}";
+
+    $('.qty-input').each(function(){
+
+        let orderItemId = $(this).data('id');
+        let qty = $(this).val();
+
+        items[orderItemId] = qty;
+
+    });
+
+    $.ajax({
+
+        url: "{{ route('order.modify.update') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            order_id: orderId,
+            items: items
+        },
+
+        success: function(response){
+
+            if(response.success){
+
+                Swal.fire(
+                    'Success',
+                    response.message,
+                    'success'
+                ).then(() => {
+
+                    location.reload();
+
+                });
+
+            }
+
+        },
+
+        error: function(xhr){
+
+            Swal.fire(
+                'Error',
+                xhr.responseJSON.message,
+                'error'
+            );
+
+        }
+
+    });
+
+});
+
+</script>
+@endsection

@@ -1,0 +1,45 @@
+*   Trying 104.18.40.97:443...
+* Connected to api.phonepe.com (104.18.40.97) port 443 (#0)
+* ALPN, offering h2
+* ALPN, offering http/1.1
+* successfully set certificate verify locations:
+*  CAfile: C:\laragon\etc\ssl\cacert.pem
+*  CApath: none
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+* ALPN, server accepted to use h2
+* Server certificate:
+*  subject: CN=*.phonepe.com
+*  start date: Aug  9 04:10:25 2023 GMT
+*  expire date: Aug  8 04:03:12 2024 GMT
+*  subjectAltName: host "api.phonepe.com" matched cert's "*.phonepe.com"
+*  issuer: C=US; ST=Arizona; L=Scottsdale; O=GoDaddy.com, Inc.; OU=http://certs.godaddy.com/repository/; CN=Go Daddy Secure Certificate Authority - G2
+*  SSL certificate verify ok.
+* Using HTTP2, server supports multi-use
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* Using Stream ID: 1 (easy handle 0x223c6ae2910)
+> POST /apis/hermes/pg/v1/pay HTTP/2
+Host: api.phonepe.com
+accept: */*
+content-type:application/json
+x-verify:e4e6466c99b6bb78a06996b7415c5642531fcc50543f348512d6c2dedd85e4d6###1
+content-length: 422
+
+* We are completely uploaded and fine
+* old SSL session ID is stale, removing
+< HTTP/2 200 
+< date: Mon, 22 Apr 2024 05:16:45 GMT
+< content-type: application/json
+< x-requested-method: POST
+< x-encrypted-response: false
+< x-response-backend-time: 1713763005678
+< x-request-backend-time: 1713763005622
+< x-frame-options: DENY
+< x-content-type-options: nosniff
+< x-xss-protection: 1; mode=block
+< strict-transport-security: max-age=31536000; preload
+< cf-cache-status: DYNAMIC
+< server: cloudflare
+< cf-ray: 878324c1080d2dfc-BOM
+< 
+* Connection #0 to host api.phonepe.com left intact

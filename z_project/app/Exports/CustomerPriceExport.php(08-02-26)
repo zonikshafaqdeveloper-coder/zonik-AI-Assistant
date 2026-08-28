@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Exports;
+
+use App\Models\CustomerPrice;
+use App\Models\User;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Concerns\WithMapping;
+
+class CustomerPriceExport implements FromCollection, WithHeadings, WithMapping, WithTitle
+{
+    protected $customerId;
+    protected $customer;
+
+    public function __construct($customerId)
+    {
+        $this->customerId = $customerId;
+        $this->customer = User::findOrFail($customerId);
+    }
+
+    public function collection()
+    {
+        return CustomerPrice::with('product')
+            ->where('customer_id', $this->customerId)
+            ->get();
+    }
+
+    public function headings(): array
+    {
+        return [
+            'Product Name',
+            'Cost Per Item',
+            'Customer Price',
+            'Profit Margin (%)',
+        ];
+    }
+
+     public function map($row): array
+{
+    $cost  = (float) ($row->product->cost_per_item ?? 0);
+    $price = (float) ($row->product_price ?? 0);
+
+    $margin = 0;
+
+    if ($cost > 0 && $price > 0) {
+        $margin = (($price - $cost) / $cost) * 100;
+    }
+
+    return [
+        $row->product->product_name ?? '',
+        number_format($cost, 2, '.', ''),
+        number_format($price, 2, '.', ''),
+        number_format($margin, 2, '.', '') . '%',
+    ];
+}
+
+    public function title(): string
+    {
+        return 'Price List - ' . $this->customer->name;
+    }
+}

@@ -1,0 +1,405 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<div class="page-body">
+    @php
+    $customersCount = DB::table('customers')->count();
+    $productsCount = DB::table('products')->count();
+    $ordersCount = DB::table('orders')->count();
+    $dueAmount = DB::table('outstanding_statements')->sum('total_due_amount');
+    $dueAmountTotal = DB::table('outstanding_statements')
+    ->where('outstanding_date', '>=', date('Y-m-d'))->sum('total_due_amount');
+
+    $productsCount = DB::table('products')->count();
+
+    $userIds = DB::table('enquiries')
+    ->where('status', 'submitted')
+    ->orderBy('id')
+    ->latest()
+    ->pluck('user_id')
+    ->unique()->count();
+    $userItemsIds = DB::table('enquiries')
+    ->where('status', 'submitted')
+    ->orderBy('id')
+    ->latest()->count();
+    $productsCount = DB::table('products')->count();
+    @endphp
+
+
+    <!-- partial -->
+    <div class="container-fluid page-body-wrapper">
+        <div class="main-panel">
+            <div class="content-wrapper">
+                <div class="row">
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-secondary font-weight-bold">{{ $ordersCount }}</h2>
+                                    <i class="fa fa-cart-arrow-down" aria-hidden="true"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">Orders This Month</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-danger font-weight-bold">{{ $productsCount }}</h2>
+                                    <i class="mdi mdi-refresh mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">Total Active Products</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class=" font-weight-bold" style="color: #a558c8">{{ $dueAmount }}</h2>
+                                    <i class="mdi mdi-file-document-outline mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            {{-- <canvas id="invoices"></canvas>  --}}
+                            <div class="line-chart-row-title">Total Payment Balance</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-warning font-weight-bold">{{ $dueAmountTotal }}</h2>
+                                    <i class="fas fa-money-bill    "></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">Total Outstanding</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-dark font-weight-bold">{{ $productsCount }}</h2>
+                                    <i class="mdi mdi-refresh mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">Total Customer</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-success font-weight-bold">{{ $dueAmountTotal }}</h2>
+                                    <i class="mdi mdi-account-outline mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">Total Credit Amount</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-info font-weight-bold"> {{ $userIds }}</h2>
+                                    <i class="mdi mdi-file-document-outline mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">TOTAL APPROVED PRICE LIST CUSTOMERS</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 grid-margin stretch-card">
+                        <div class="card shadow">
+                            <div class="card-body pb-0">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h2 class="text-primary font-weight-bold">{{ $userItemsIds }}</h2>
+                                    <i class="mdi mdi-folder-outline mdi-18px text-dark"></i>
+                                </div>
+                            </div>
+                            <div class="line-chart-row-title">TOTAL UNIQUE ITEMS IN APPROVED PRICE LIST OVERALL</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="container-fluid">
+                <div class="row my-2">
+                    <div class="col-sm-3 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Delivery Status
+                            </div>
+                            <div class="card-body">
+                                <canvas id="deliveryChart" width="250" height="100"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-3 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Enquiry Status
+                            </div>
+                            <div class="card-body">
+                                <canvas id="enquiryChart" width="400" height="400"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-3 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Response Chart
+                            </div>
+                            <div class="card-body">
+                                <canvas id="responseChart" width="400" height="400"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-3 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Customer Response
+                            </div>
+                            <div class="card-body">
+                                <canvas id="responseChartData" width="400" height="400"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="row my-2">
+                    <div class="col-sm-6 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Monthly Sales
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-area">
+                                    <canvas id="orderChart" width="400" height="200"></canvas>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="col-sm-6 my-2">
+                        <div class="card shadow">
+                            <div class="card-header">
+                                Product Expenses
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-area">
+                                    <canvas id="monthlySalesChart" width="400" height="200"></canvas>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+
+        <script>
+            var ctx = document.getElementById('responseChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'pie'
+                , data: {
+                    labels: ['Accepted', 'Rejected']
+                    , datasets: [{
+                        label: 'Response Results'
+                        , data: [
+                            {{ isset($data['accept']) ? $data['accept'] : 0 }},
+                            {{ isset($data['rejected']) ? $data['rejected'] : 0 }},
+                            {{ isset($data['reoffer']) ? $data['reoffer'] : 0 }}
+                        ]
+
+
+                        , backgroundColor: [
+                            'rgba(78, 115, 223, 1)'
+                            , 'rgba(28, 200, 138, 1)'
+                            , 'rgba(54, 185, 204, 1)'
+                        ]
+                        , borderColor: [
+                            'rgba(75, 192, 192, 1)'
+                            , 'rgba(255, 99, 132, 1)'
+                            , 'rgba(54, 162, 235, 1)'
+                        ]
+                        , borderWidth: 1
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            var ctx = document.getElementById('responseChartData').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'doughnut'
+                , data: {
+                    labels: ['Responded', 'Not Responded']
+                    , datasets: [{
+                        label: 'Response Status'
+                        , data: [
+                            {{ $responsedata['responded'] ?? 0 }},
+                            {{ $responsedata['not_responded'] ?? 0 }}
+                        ]
+
+                        , backgroundColor: [
+                            'rgba(75, 192, 192, 1)', // Color for Responded
+                            'rgba(255, 99, 132, 1)' // Color for Not Responded
+                        ]
+                        , borderColor: [
+                            'rgba(75, 192, 192, 1)'
+                            , 'rgba(255, 99, 132, 1)'
+                        ]
+                        , borderWidth: 1
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            var ctx = document.getElementById('enquiryChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'doughnut'
+                , data: {
+                    labels: ['Pending', 'Submitted']
+                    , datasets: [{
+                        label: 'Response Status'
+                        , data: [
+                            {{ $responsedata['pending_submitted'] ?? 0 }},
+                            {{ $responsedata['not_responded'] ?? 0 }}
+                        ]
+
+                        , backgroundColor: [
+                            'rgba(255, 88, 100, 1)'
+                            , 'rgba(75, 150, 150, 1)'
+                        ]
+                        , borderColor: [
+                            'rgba(255, 88, 100, 1)'
+                            , 'rgba(75, 150, 150, 1)'
+                        ]
+                        , borderWidth: 1
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            var ctx = document.getElementById('deliveryChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'pie'
+                , data: {
+                    labels: {!!json_encode(array_keys($deliverydata)) !!}
+                    , datasets: [{
+                        label: 'Delivery Status'
+                        , data: {!!json_encode(array_values($deliverydata)) !!}
+                        , backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)'
+                            , 'rgba(54, 162, 235, 0.8)'
+                            , 'rgba(255, 206, 86, 0.8)'
+                            , 'rgba(75, 192, 192, 0.8)'
+                            , 'rgba(153, 102, 255, 0.6)'
+                        , ]
+                        , borderColor: [
+                            'rgba(255, 99, 132, 1)'
+                            , 'rgba(54, 162, 235, 1)'
+                            , 'rgba(255, 206, 86, 1)'
+                            , 'rgba(75, 192, 192, 1)'
+                            , 'rgba(153, 102, 255, 1)'
+                        , ]
+                        , borderWidth: 1
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            var ctx = document.getElementById('orderChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'line'
+                , data: {
+                    labels: {!!json_encode(array_keys($orderdata)) !!}
+                    , datasets: [{
+                        label: 'Total Orders'
+                        , data: {!!json_encode(array_values($orderdata)) !!}
+                        , backgroundColor: 'rgba(54, 162, 235, 0.2)'
+                        , borderColor: 'rgba(54, 162, 235, 1)'
+                        , borderWidth: 1
+                        , pointStyle: 'circle'
+                        , pointBackgroundColor: 'rgba(54, 162, 235, 1)'
+                        , pointBorderColor: 'rgba(54, 162, 235, 1)'
+                        , pointBorderWidth: 1
+                        , pointRadius: 5
+                        , pointHoverRadius: 7
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+
+            var ctx = document.getElementById('monthlySalesChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'line'
+                , data: {
+                    labels: {!!json_encode(array_keys($monthlyTotalPrices)) !!}
+                    , datasets: [{
+                        label: 'Total Selling Price'
+                        , data: {!!json_encode(array_values($monthlyTotalPrices)) !!}
+                        , backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                        , borderColor: 'rgba(54, 162, 235, 1)'
+                        , borderWidth: 1
+                    }, {
+                        label: 'Total Purchase Price'
+                        , data: {!!json_encode(array_values($monthlyProductTotalPrices)) !!}
+                        , backgroundColor: 'rgba(255, 99, 132, 0.5)'
+                        , borderColor: 'rgba(255, 99, 132, 1)'
+                        , borderWidth: 1
+                    }]
+                }
+                , options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+        </script>
+
+
+        @endsection

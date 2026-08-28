@@ -1,0 +1,232 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Order;
+use App\Models\Payment;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Carbon\Carbon;
+
+class AccountStatementController extends Controller
+{
+    public function index(Request $request)
+    {
+        $user = $request->user();
+        $outletId = $user->selected_outlet_id;
+
+        $period = $request->input('period', 'last_6_months'); 
+        [$startDate, $endDate] = $this->resolvePeriodRange($period, $request);
+
+        $summary = $this->buildMonthlySummary($outletId, $startDate, $endDate);
+
+        return view('mobile.account-statement', compact('summary', 'period', 'startDate', 'endDate'));
+    }
+
+    /**
+     * AJAX: invoice-level detail for a single month, matching the
+     * "March 2025 - Invoice Details" drill-down panel.
+     */
+    public function monthDetails(Request $request)
+    {
+        $user = $request->user();
+        $outletId = $user->selected_outlet_id;
+
+        $monthKey = $request->input('month');
+        $monthStart = Carbon::parse($monthKey . '-01')->startOfMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+
+        $orders = Order::where('outlet_id', $outletId)
+            ->whereBetween('created_at', [$monthStart, $monthEnd])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $rows = [];
+        $totalAmount = 0;
+        $totalOutstanding = 0;
+
+        foreach ($orders as $order) {
+            $payment = Payment::where('order_id', $order->id)->first();
+            $totalPaid = $payment->total_paid ?? 0;
+            $amount = $order->total_discount_value;
+            $outstanding = max(0, $amount - $totalPaid);
+
+            $status = $outstanding <= 0
+                ? 'Paid'
+                : ($totalPaid > 0 ? 'Partial' : 'Unpaid');
+
+            $rows[] = [
+                'invoice_no'     => $order->order_id,
+                'amount'         => $amount,
+                'delivered_date' => $order->delivery_date ? Carbon::parse($order->delivery_date)->format('d M Y') : '-',
+                'status'         => $status,
+            ];
+
+            $totalAmount += $amount;
+            $totalOutstanding += $outstanding;
+        }
+
+        return response()->json([
+            'month_label'       => $monthStart->format('F Y'),
+            'total_amount'      => $totalAmount,
+            'total_outstanding' => $totalOutstanding,
+            'rows'              => $rows,
+        ]);
+    }
+
+  
+    public function download(Request $request)
+    {
+        $user = $request->user();
+        $outletId = $user->selected_outlet_id;
+
+        $period = $request->input('period', 'last_6_months');
+        [$startDate, $endDate] = $this->resolvePeriodRange($period, $request);
+
+        $summary = $this->buildMonthlySummary($outletId, $startDate, $endDate);
+
+       
+        $monthlyDetails = [];
+
+        foreach ($summary as $monthRow) {
+            $monthStart = Carbon::parse($monthRow['month_key'] . '-01')->startOfMonth();
+            $monthEnd = $monthStart->copy()->endOfMonth();
+
+            $orders = Order::where('outlet_id', $outletId)
+                ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->orderBy('created_at')
+                ->get();
+
+            $invoiceRows = [];
+
+            foreach ($orders as $order) {
+                $payment = Payment::where('order_id', $order->id)->first();
+                $totalPaid = $payment->total_paid ?? 0;
+                $amount = $order->total_discount_value;
+                $outstanding = max(0, $amount - $totalPaid);
+
+                $status = $outstanding <= 0
+                    ? 'Paid'
+                    : ($totalPaid > 0 ? 'Partial' : 'Unpaid');
+
+                $invoiceRows[] = [
+                    'invoice_no'     => $order->order_id,
+                    'invoice_date'   => Carbon::parse($order->created_at)->format('d M Y'),
+                    'delivered_date' => $order->delivery_date ? Carbon::parse($order->delivery_date)->format('d M Y') : '-',
+                    'amount'         => $amount,
+                    'paid'           => $totalPaid,
+                    'outstanding'    => $outstanding,
+                    'status'         => $status,
+                ];
+            }
+
+            $monthlyDetails[] = [
+                'month_label' => $monthRow['month_label'],
+                'total'       => $monthRow['total'],
+                'outstanding' => $monthRow['outstanding'],
+                'status'      => $monthRow['status'],
+                'invoices'    => $invoiceRows,
+            ];
+        }
+
+        $outletData = User::find($outletId);
+
+        $pdf = \PDF::loadView('mobile.account-statement-pdf', [
+            'monthlyDetails' => $monthlyDetails,
+            'outletData'     => $outletData,
+            'startDate'      => $startDate->format('d M Y'),
+            'endDate'        => $endDate->format('d M Y'),
+            'generatedOn'    => now()->format('d M Y, h:i A'),
+        ]);
+
+        $filename = 'account-statement-' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    private function resolvePeriodRange(string $period, Request $request): array
+    {
+        $today = Carbon::now();
+
+        switch ($period) {
+            case 'last_month':
+                return [$today->copy()->subMonthNoOverflow()->startOfMonth(), $today->copy()->subMonthNoOverflow()->endOfMonth()];
+
+            case 'current_month':
+                return [$today->copy()->startOfMonth(), $today->copy()->endOfMonth()];
+
+            case 'last_quarter':
+                $lastQuarterStart = $today->copy()->subQuarter()->firstOfQuarter();
+                return [$lastQuarterStart, $lastQuarterStart->copy()->lastOfQuarter()];
+
+            case 'current_quarter':
+                return [$today->copy()->firstOfQuarter(), $today->copy()->lastOfQuarter()];
+
+            case 'custom':
+                $from = $request->input('from') ? Carbon::parse($request->input('from'))->startOfDay() : $today->copy()->subMonths(6)->startOfMonth();
+                $to = $request->input('to') ? Carbon::parse($request->input('to'))->endOfDay() : $today->copy()->endOfMonth();
+                return [$from, $to];
+
+            case 'last_6_months':
+            default:
+                return [$today->copy()->subMonths(5)->startOfMonth(), $today->copy()->endOfMonth()];
+        }
+    }
+
+    private function buildMonthlySummary($outletId, Carbon $startDate, Carbon $endDate): array
+    {
+        $orders = Order::where('outlet_id', $outletId)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->get();
+
+        $orderIds = $orders->pluck('id');
+
+        $payments = Payment::whereIn('order_id', $orderIds)
+            ->get()
+            ->keyBy('order_id');
+
+        $monthly = [];
+
+        foreach ($orders as $order) {
+            $monthKey = Carbon::parse($order->created_at)->format('Y-m');
+
+            if (!isset($monthly[$monthKey])) {
+                $monthly[$monthKey] = [
+                    'month_key'   => $monthKey,
+                    'month_label' => Carbon::parse($order->created_at)->format('M Y'),
+                    'total'       => 0,
+                    'paid'        => 0,
+                ];
+            }
+
+            $payment = $payments->get($order->id);
+            $totalPaid = $payment->total_paid ?? 0;
+
+            $monthly[$monthKey]['total'] += $order->total_discount_value;
+            $monthly[$monthKey]['paid'] += min($totalPaid, $order->total_discount_value);
+        }
+
+        $summary = [];
+
+        foreach ($monthly as $row) {
+            $outstanding = max(0, $row['total'] - $row['paid']);
+
+            $status = $outstanding <= 0
+                ? 'Paid'
+                : ($row['paid'] > 0 ? 'Partial' : 'Unpaid');
+
+            $summary[] = [
+                'month_key'   => $row['month_key'],
+                'month_label' => $row['month_label'],
+                'total'       => $row['total'],
+                'outstanding' => $outstanding,
+                'status'      => $status,
+            ];
+        }
+
+        // Most recent month first, matching the reference layout
+        usort($summary, fn($a, $b) => strcmp($b['month_key'], $a['month_key']));
+
+        return $summary;
+    }
+}

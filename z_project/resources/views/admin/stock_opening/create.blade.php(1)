@@ -1,0 +1,393 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+td {
+    overflow: hidden;
+}
+
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single {
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    background-color: #e9ecef !important;
+    box-sizing: border-box;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 44px !important;
+    padding-left: 12px !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 44px !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__clear {
+    display: none;
+}
+
+</style>
+<div class="page-body">
+    <div class="container-fluid page-body-wrapper">
+        <div class="main-panel">
+            <div class="content-wrapper">
+
+                <div class="row">
+                    <div class="col-lg-12 grid-margin stretch-card">
+                        <div class="card">
+                            <div class="card-body">
+
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h3 class="card-title mb-0">Add Opening Stock</h3>
+                                    <!-- <a href="{{ route('admin.stock-opening') }}" class="btn btn-secondary">
+                                        Back
+                                    </a> -->
+                                </div>
+
+                            
+
+                                   <div class="table-responsive">
+    <table class="table table-bordered align-middle" id="openingStockTable">
+        <thead class="table-light">
+            <tr>
+                <th style="width:26rem;">Product</th>
+                <th>Batch No</th>
+                <th>Expiry Date</th>
+                <th>Quantity</th>
+                <th>Rack</th>
+                <th>Level</th>
+                <th>Slot</th>
+                <th width="120" class="text-center">
+                    <button type="button" class="btn btn-sm" id="addRow" style="background: #e97457; color: #fff;">
+                        + Add Row
+                    </button>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <select name="items[0][product_id]" class="form-control select2" required>
+                        <option value="">Select Product</option>
+                        @foreach($products as $product)
+                            <option value="{{ $product->id }}">
+                                {{ $product->product_name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </td>
+
+                <td>
+                    <input type="text" name="items[0][batch_no]" class="form-control">
+                </td>
+
+                <td>
+                    <input type="date" name="items[0][expiry_date]" class="form-control">
+                </td>
+
+                <td>
+                    <input type="number" step="0.01" name="items[0][quantity]" 
+                           class="form-control text-end" required>
+                </td>
+
+                {{-- Rack --}}
+                <td>
+                    <select name="items[0][rack_no]" 
+                            class="form-control select2 rack-select" required>
+                        <option value="">Select Rack</option>
+                        @foreach(['A','B','C','D'] as $rack)
+                            <option value="{{ $rack }}">{{ $rack }}</option>
+                        @endforeach
+                    </select>
+                </td>
+
+                {{-- Level --}}
+                <td>
+                    <select name="items[0][level_no]" 
+                            class="form-control select2 level-select" required>
+                        <option value="">Select Level</option>
+                        @for($i = 1; $i <= 9; $i++)
+                            <option value="{{ $i }}">{{ $i }}</option>
+                        @endfor
+                    </select>
+                </td>
+
+                {{-- Slot --}}
+                <td>
+                    <select name="items[0][slot_no]" 
+                            class="form-control select2 slot-select" required>
+                        <option value="">Select Slot</option>
+                        @for($i = 1; $i <= 5; $i++)
+                            <option value="{{ $i }}">{{ $i }}</option>
+                        @endfor
+                    </select>
+                </td>
+
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm remove-row" style="background: red; color: #fff;">
+                       <i class="fa fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="mt-3">
+    <button type="submit"  id="saveOpeningStock" class="btn btn-primary float-end">
+        Save Opening Stock
+    </button>
+</div>
+
+
+                                
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+
+<script>
+let rowIndex = 1;
+
+function initSelect2(context = document) {
+    $(context).find('.select2').select2({
+         width: '100%',
+        placeholder: 'Select',
+        allowClear: true
+    });
+}
+
+$(document).ready(function () {
+    initSelect2();
+});
+
+
+$(document).on('click', '#addRow', function () {
+
+    let row = `
+    <tr>
+        <td>
+            <select name="items[${rowIndex}][product_id]" class="form-control select2 w-100" required>
+                <option value="">Select Product</option>
+                @foreach($products as $product)
+                    <option value="{{ $product->id }}">{{ $product->product_name }}</option>
+                @endforeach
+            </select>
+        </td>
+
+        <td>
+            <input type="text" name="items[${rowIndex}][batch_no]" class="form-control">
+        </td>
+
+        <td>
+            <input type="date" name="items[${rowIndex}][expiry_date]" class="form-control">
+        </td>
+
+        <td>
+            <input type="number" step="0.01" name="items[${rowIndex}][quantity]"
+                   class="form-control text-end" required>
+        </td>
+
+        <td>
+            <select name="items[${rowIndex}][rack_no]" class="form-control select2 w-100" required>
+                <option value="">Select Rack</option>
+                @foreach(['A','B','C','D'] as $rack)
+                    <option value="{{ $rack }}">{{ $rack }}</option>
+                @endforeach
+            </select>
+        </td>
+
+        <td>
+            <select name="items[${rowIndex}][level_no]" class="form-control select2 w-100" required>
+                <option value="">Select Level</option>
+                @for($i = 1; $i <= 9; $i++)
+                    <option value="{{ $i }}">{{ $i }}</option>
+                @endfor
+            </select>
+        </td>
+
+        <td>
+            <select name="items[${rowIndex}][slot_no]" class="form-control select2 w-100" required>
+                <option value="">Select Slot</option>
+                @for($i = 1; $i <= 5; $i++)
+                    <option value="{{ $i }}">{{ $i }}</option>
+                @endfor
+            </select>
+        </td>
+
+        <td class="text-center">
+            <button type="button" class="btn btn-danger btn-sm remove-row">
+                <i class="mdi mdi-delete"></i>
+            </button>
+        </td>
+    </tr>
+    `;
+
+    $('#openingStockTable tbody').append(row);
+
+    // Re-init select2 for new row
+    initSelect2('#openingStockTable tbody tr:last');
+
+    rowIndex++;
+});
+
+// Remove row
+$(document).on('click', '.remove-row', function () {
+
+    let totalRows = $('#openingStockTable tbody tr').length;
+
+    // Do not allow deleting the last row
+    if (totalRows <= 1) {
+        Swal.fire({
+            title: 'Action Not Allowed',
+            text: 'At least one row is required to add opening stock.',
+            icon: 'warning',
+            confirmButtonText: 'OK'
+        });
+        return;
+    }
+
+    // Otherwise remove the row
+    $(this).closest('tr').remove();
+});
+
+$('#saveOpeningStock').on('click', function () {
+
+    let isValid = true;
+    let rackMap = {};
+    let formData = [];
+    let errorMsg = '';
+
+    $('#openingStockTable tbody tr').each(function (index) {
+
+        let product   = $(this).find('[name*="[product_id]"]').val();
+        let batch     = $(this).find('[name*="[batch_no]"]').val();
+        let expiry    = $(this).find('[name*="[expiry_date]"]').val();
+        let qty       = $(this).find('[name*="[quantity]"]').val();
+        let rack      = $(this).find('[name*="[rack_no]"]').val();
+        let level     = $(this).find('[name*="[level_no]"]').val();
+        let slot      = $(this).find('[name*="[slot_no]"]').val();
+
+        // Required validation
+        if (!product || !qty || !rack || !level || !slot) {
+            isValid = false;
+            errorMsg = `Row ${index + 1}: Please fill all required fields.`;
+            return false;
+        }
+
+        if (qty <= 0) {
+            isValid = false;
+            errorMsg = `Row ${index + 1}: Quantity must be greater than 0.`;
+            return false;
+        }
+
+        // Duplicate rack-level-slot validation
+        let rackKey = rack + '-' + level + '-' + slot;
+        if (rackMap[rackKey]) {
+            isValid = false;
+            errorMsg = `Duplicate rack location found: Rack ${rack}, Level ${level}, Slot ${slot}.`;
+            return false;
+        }
+        rackMap[rackKey] = true;
+
+        formData.push({
+            product_id: product,
+            batch_no: batch,
+            expiry_date: expiry,
+            quantity: qty,
+            rack_no: rack,
+            level_no: level,
+            slot_no: slot
+        });
+    });
+
+    if (!isValid) {
+        Swal.fire({
+            title: 'Validation Error',
+            text: errorMsg,
+            icon: 'error',
+            confirmButtonText: 'Fix it'
+        });
+        return;
+    }
+
+    // Confirm before saving
+    Swal.fire({
+        title: 'Confirm Save',
+        text: 'Do you want to save this opening stock?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Save',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+
+        if (result.isConfirmed) {
+
+            $.ajax({
+                url: "{{ route('admin.stock-opening.store') }}",
+                type: "POST",
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    items: formData
+                },
+                beforeSend: function () {
+                    Swal.fire({
+                        title: 'Saving...',
+                        text: 'Please wait while saving opening stock.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                },
+               success: function (response) {
+                Swal.fire({
+                    title: 'Success',
+                    text: response.message,
+                    icon: 'success'
+                }).then(() => {
+                    if (response.redirect_url) {
+                        window.location.href = response.redirect_url;
+                    } else {
+                        location.reload();
+                    }
+                });
+            },
+
+                error: function (xhr) {
+                    Swal.fire({
+                        title: 'Error',
+                        text: xhr.responseJSON?.message || 'Something went wrong while saving.',
+                        icon: 'error'
+                    });
+                }
+            });
+        }
+    });
+});
+
+</script>
+
+
+@endsection
+

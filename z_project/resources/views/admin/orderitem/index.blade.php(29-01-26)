@@ -1,0 +1,433 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+    td{
+        text-transform: capitalize;
+
+    }
+    td:nth-child(9){
+        white-space: nowrap;
+    }
+    .box{
+border: 1px solid #f3f3f3;
+border-collapse: collapse;
+padding: 5px 5px;
+    }
+
+    .box p{
+        margin: 5px auto !important;
+    }
+</style>
+<div class="page-body">
+        <div class="container-fluid page-body-wrapper">
+            <div class="main-panel">
+                <div class="content-wrapper ">
+                    <div class="row">
+                        @if(!$orderItems->isEmpty())
+                        <div class="col-lg-12 grid-margin stretch-card">
+                            <div class="card">
+                                <div class="card-body">
+                                    @if (session('success'))
+                                    <div class="alert alert-success">
+                                        {{ session('success') }}
+                                    </div>
+                                    @endif
+                                    <div class="order-details border p-2">
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Order ID:</strong> {{ $orderItems->first()->order->id }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>User Name:</strong> {{$orderItems->first()->order->user->name }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Order Date:</strong> {{ $orderItems->first()->order->created_at }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Outlet Name:</strong> {{$orderItems->first()->order->user->outlet_name }}</p>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Payment Status:</strong> {{ $orderItems->first()->order->payment_status }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Contact:</strong> {{$orderItems->first()->order->user->mobile_number }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Billing Address:</strong> {{ $orderItems->first()->order->billing_address }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Shipping Address:</strong> {{ $orderItems->first()->order->shipping_address }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" id="stock_table">
+                                            <thead class="b-shadow">
+                                                <tr>
+                                                    <th>Order ID</th>
+                                                    <th>Product Name</th>
+                                                    <th>Price</th>
+                                                    <th style="width:165px;">Quantity</th>
+                                                    <th>Available Stock</th>
+                                                    <th>Profit Margin</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($orderItems as $orderItem)
+                                                @php
+                                                   $availableStock = $orderItem->product->stock->total_stock ?? 0;
+
+       
+                                                    $price = $orderItem->offer_price;
+                                                    $cost  = $orderItem->product->cost_per_item ?? 0;
+
+                                                    if ($cost > 0 && $price > 0) {
+                                                        $margin = (($price - $cost) / $cost) * 100;
+                                                        $marginText = number_format($margin, 2) . ' %';
+                                                    } else {
+                                                        $marginText = '0.00 %';
+                                                    }
+
+                                                @endphp
+                                                <tr>
+                                                    <td>{{ $orderItem->order->id }}</td>
+                                                    <td>{{ $orderItem->product->product_name }}</td>
+                                                    <td>₹{{ $orderItem->price }}</td>
+                                                        <td>
+                                                            <input type="number"
+                                                                class="form-control quantity-input"
+                                                                data-order-item-id="{{ $orderItem->id }}"
+                                                                data-available="{{ $availableStock }}"
+                                                                value="{{ $orderItem->quantity }}"
+                                                                id="quantity_{{ $orderItem->id }}" />
+                                                        </td>
+                                                       <td>
+                                                            <span class="available-stock" data-stock="{{ $orderItem->product->stock->total_stock ?? 0 }}"> {{ $orderItem->product->stock->total_stock ?? 0 }} </span>
+                                                        </td>
+
+                                                        <td>
+                                                            <span>
+                                                                {{ $marginText }}
+                                                            </span>
+                                                        </td>
+
+                                            <td class="text-center">
+                                            <!-- @if($availableStock > 0)
+                                            <a href="{{ route('rack.stock.history', ['product_id' => $orderItem->product->id, 'order_id' => $orderItem->order->id]) }}"
+                                        target="_blank"
+                                        class="btn btn-sm btn-info px-2 py-1 me-1"
+                                        title="View Rack Stock">
+                                            <i class="mdi mdi-eye fs-16"></i>
+                                        </a>
+
+                                            @endif -->
+
+                                            <a href="#" 
+                                            onclick="confirmDelete('{{ $orderItem->id }}')" 
+                                            class="btn btn-sm btn-danger px-2 py-1"
+                                            title="Remove Item">
+                                                <i class="mdi mdi-trash-can-outline fs-16"></i>
+                                            </a>
+                                        </td>
+
+
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <div class="mt-4">
+                                      <button class="btn btn-primary"
+                                        onclick="openPickList('{{ $orderItems->first()->order->id }}')">
+                                        Create Pick List
+                                    </button>
+                                    <button class="btn btn-success" onclick="acceptOrder('{{ $orderItems->first()->order->id }}')">Accept Order</button>
+                                    <button class="btn btn-danger" onclick="cancelOrder('{{ $orderItems->first()->order->id }}')">Cancel Order</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+               @else
+             <div class="row">
+            <div class="col-lg-12  stretch-card">
+                <h2>No Data Found</h2>
+            </div>
+        </div>
+        @endif
+</div></div></div></div></div>
+<script>
+function confirmDelete(orderItemId) {
+    Swal.fire({
+        title: 'Are you sure?',
+        text: 'You are about to delete this order item. This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            deleteOrderItem(orderItemId);
+        }
+    });
+}
+
+function deleteOrderItem(orderItemId) {
+    var token = "{{ csrf_token() }}";
+
+    $.ajax({
+        url: '/delete-order-item/' + orderItemId,
+        type: 'DELETE',
+        data: { _token: token },
+        success: function (response) {
+
+            if (response.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: response.message,
+                    confirmButtonText: 'OK'
+                }).then(() => {
+                    location.reload();
+                });
+
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: response.message || 'Unable to delete order item'
+                });
+            }
+        },
+        error: function (xhr) {
+            let msg = 'Something went wrong while deleting the item';
+
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: msg
+            });
+        }
+    });
+}
+
+
+function acceptOrder(orderId) {
+
+  
+    $.get('/check-pick-list/' + orderId, function (pickRes) {
+
+        if (!pickRes.status) {
+            Swal.fire({
+                title: 'Pick List Issue',
+                text: pickRes.message,
+                icon: 'warning'
+            });
+            return;
+        }
+
+     
+        let hasError = false;
+        let errorItems = [];
+
+        $('#stock_table tbody tr').each(function () {
+            const stock = parseFloat($(this).find('.available-stock').data('stock')) || 0;
+            const quantity = parseFloat($(this).find('.quantity-input').val()) || 0;
+            const productName = $(this).find('td:eq(1)').text().trim();
+
+           
+            if (quantity <= 0) {
+                hasError = true;
+                errorItems.push(`${productName} (Quantity is 0)`);
+            }
+
+           
+            if (quantity > stock) {
+                hasError = true;
+                errorItems.push(`${productName} (Picked ${quantity} > Available ${stock})`);
+            }
+        });
+
+        if (hasError) {
+            Swal.fire({
+                title: 'Stock Validation Failed',
+                html: `
+                    <p>Please correct the following:</p>
+                    <ul style="text-align:left">
+                        ${errorItems.map(i => `<li>${i}</li>`).join('')}
+                    </ul>
+                `,
+                icon: 'warning'
+            });
+            return;
+        }
+
+        
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Pick list is confirmed and stock is valid. Do you want to accept this order?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, accept it',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+
+                var token = "{{ csrf_token() }}";
+
+                $.ajax({
+                    url: '/accept-order/' + orderId,
+                    type: 'POST',
+                    data: { _token: token },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire('Success', response.message, 'success')
+                                .then(() => {
+                                    window.location.href = '{{ route("order.details") }}';
+                                });
+                        } else {
+                            Swal.fire('Error', response.message, 'error');
+                        }
+                    },
+                    error: function () {
+                        Swal.fire('Error', 'Something went wrong while accepting order', 'error');
+                    }
+                });
+            }
+        });
+
+    }).fail(function () {
+        Swal.fire('Error', 'Unable to verify pick list status', 'error');
+    });
+}
+
+
+
+function cancelOrder(orderId) {
+    Swal.fire({
+        title: 'Are you sure?',
+        text: 'This will cancel the order permanently!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Yes, cancel it',
+        cancelButtonText: 'No, keep it'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            var token = "{{ csrf_token() }}";
+
+            $.ajax({
+                url: '/cancel-order/' + orderId,
+                type: 'POST',
+                data: { _token: token },
+                success: function (response) {
+                    if (response.success) {
+                        Swal.fire('Success', response.message, 'success')
+                            .then(() => {
+                                window.location.href = '{{ route("order.details") }}';
+                            });
+                    } else {
+                        Swal.fire('Error', response.message, 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Something went wrong while cancelling order', 'error');
+                }
+            });
+        }
+    });
+}                        
+</script>
+
+<script>
+    $(function() {
+        $("input.quantity-input").on('input', function() {
+            var orderItemId = $(this).data('order-item-id');
+            var newQuantity = $(this).val();
+            // console.log("Order Item ID:", orderItemId);
+            // console.log("New Quantity:", newQuantity); 
+            var csrfToken = $('meta[name="csrf-token"]').attr('content');
+            var formData = {
+                _token: csrfToken,
+                quantity: newQuantity,
+                order_item_id: orderItemId,
+            };
+            $.ajax({
+                url: "{{ route('orderItem.updateQuantity') }}",
+                type: "POST",
+                data: formData,
+                success: function(response) {
+                    // console.log("Server Response:", response);
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX error:', error); 
+                    // console.log("XHR response:", xhr.responseText);
+                }
+            });
+        });
+    });
+</script>
+
+<script>
+$(document).on('input', '.quantity-input', function () {
+
+    const available = parseFloat($(this).data('available')) || 0;
+    let val = parseFloat($(this).val()) || 0;
+
+    if (val < 0) {
+        $(this).val(0);
+        return;
+    }
+
+    if (val > available) {
+        Swal.fire(
+            'Stock Not Available',
+            'Entered quantity exceeds available stock (' + available + ')',
+            'error'
+        );
+        $(this).val(available);
+    }
+});
+</script>
+
+<script>
+ function openPickList(orderId) {
+    window.location.href = '/pick-list-preview/' + orderId;
+}
+
+
+</script>
+@endsection
+

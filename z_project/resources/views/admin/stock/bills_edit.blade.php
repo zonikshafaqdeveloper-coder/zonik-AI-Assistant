@@ -1,0 +1,666 @@
+@extends('admin.layouts.appnew')
+
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<script>
+    window.dbDiscount = {{ $grn->discount_percent ?? 0 }};
+    window.dbTax = {{ $grn->tax_amount ?? 0 }};
+    window.dbdelivery_charges = {{ $grn->delivery_charges ?? 0 }};
+</script>
+
+
+<div class="page-body">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 my-5">
+                <div class="col-sm-12 m-auto">
+                    <div class="card">
+                        <div class="card-body">
+
+                            <h3 class="mb-4">Edit Bill (Before Approval)</h3>
+
+                            {{-- =====================
+                                HEADER
+                            ====================== --}}
+                            <form id="stockEditForm">
+
+                            <input type="hidden" id="vendor_bill_id" value="{{ $bill->id }}">
+                            <input type="hidden" id="stock_receiving_id" value="{{ $grn->id }}">
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Purchase Order <span class="text-danger">*</span></label>
+                                        <input type="text"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->purchase_order_number }}"
+                                               readonly>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                                        <input type="text"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->vendor->name ?? '' }}"
+                                               readonly>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">PO Date <span class="text-danger">*</span></label>
+                                        <input type="date"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->po_date }}"
+                                               readonly>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Receipt Date <span class="text-danger">*</span></label>
+                                        <input type="date"
+                                               class="form-control"
+                                               id="receipt_date"
+                                               value="{{ $grn->receipt_date }}"
+                                               readonly>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Bill Date <span class="text-danger">*</span></label>
+                                        <input type="date"
+                                               class="form-control"
+                                               id="bill_date"
+                                               value="{{ $grn->bill_date }}">
+                                    </div>
+                                    
+                                     <div class="col-md-4">
+            <label class="form-label">Upload Original Bill</label>
+            <input type="file" class="form-control" name="original_bill" id="original_bill">
+            
+    <div class="col-12 mt-2">
+    <div class="d-flex gap-2 flex-wrap">
+
+        {{-- Original Vendor Bill --}}
+        @if(!empty($bill->original_bill))
+            <a href="{{ asset('uploads/stock_bills/' . $bill->original_bill) }}"
+               target="_blank"
+               class="btn btn-sm btn-outline-primary">
+                <i class="fa fa-file-invoice"></i> View Vendor Bill
+            </a>
+        @endif
+
+        {{-- Original Purchase Order --}}
+        @if(!empty($grn->original_bill))
+            <a href="{{ asset('uploads/stock_receiving_bills/' . $grn->original_bill) }}"
+               target="_blank"
+               class="btn btn-sm btn-outline-info">
+                <i class="fa fa-file-alt"></i> View Purchase Order
+            </a>
+        @endif
+
+    </div>
+</div>
+
+        </div>
+                                </div>
+
+                                <hr>
+
+                                {{-- =====================
+                                    ITEMS TABLE
+                                ====================== --}}
+                                <div class="table-responsive">
+                                    <table class="table table-bordered align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Item</th>
+                                                <th>UOM</th>
+                                                <th>Rate</th>
+                                                <th>Free Qty</th>
+                                                <th>PO Qty</th>
+                                                <th>Tax %</th>
+                                                <th>Actual Qty</th>
+                                                <th>Returned Qty</th>
+                                                <th>Return Reason</th>
+                                                <th>To Be Return Qty</th>
+                                                <th>To Be Return Reason</th>
+                                                <th>Short Qty</th> 
+                                                <th>Batch</th>
+                                                <th>Expiry</th>
+                                                <th>MRP</th>
+                                                <th>Amount</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody id="poItemsBody">
+                                            @foreach($grn->items as $index => $item)
+                                            <tr
+                                                data-po-item-id="{{ $item->purchase_order_item_id }}"
+                                                data-product-id="{{ $item->product_id }}"
+                                                data-rate="{{ $item->purchase_rate }}"
+                                                 data-free-qty="{{ $item->free_quantity }}"
+                                                data-po-qty="{{ $item->po_qty }}"
+                                                data-tax="{{ $item->row_tax ?? 0 }}"
+                                                data-original-po-qty="{{ $item->po_qty }}"
+
+                                            >
+                                                <td>{{ $index + 1 }}</td>
+                                                <td>{{ $item->product->product_name ?? '' }}</td>
+                                                <td>{{ $item->product->brands ?? '' }}</td>
+                                                <td>
+                                                    <input type="number" class="form-control purchase-rate"
+                                                           value="{{ $item->purchase_rate }}">
+                                                </td>
+                                                
+                                                <td>
+                                                <span class="free-qty">{{ $item->free_quantity }}</span>
+                                                </td>
+                                
+                                                <td>{{ $item->po_qty }}</td>
+                                                <td>{{ $item->row_tax ?? 0 }}</td>
+
+                                                <td>
+                                                    <input type="number" class="form-control actual-qty"
+                                                           value="{{ $item->actual_qty }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="number" class="form-control returned-qty"
+                                                           value="{{ $item->returned_qty }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="text" class="form-control return-reason"
+                                                           value="{{ $item->return_reason }}">
+                                                </td>
+                                              <td>
+                                                <input type="number"
+                                                        class="form-control to-be-return-qty"
+                                                        value="{{ $item->to_be_return_qty }}">
+                                                </td>
+
+                                                <td>
+                                                <input type="text"
+                                                        class="form-control to-be-return-reason"
+                                                        value="{{ $item->to_be_return_reason }}">
+                                                </td>
+                                                
+                                                 <td>
+                                                    <input type="number"
+                                                        class="form-control short-qty"
+                                                        value="{{ $item->short_qty ?? 0 }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="text" class="form-control batch-no"
+                                                           value="{{ $item->batch_no }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="date" class="form-control expiry-date"
+                                                           value="{{ $item->expiry_date }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="number" class="form-control mrp"
+                                                           value="{{ $item->mrp }}">
+                                                </td>
+                                                
+                                                <!--Add Total amount with GST-->
+                                                 @php
+                                                $basicAmount = $item->actual_qty * $item->purchase_rate;
+                                                $gstAmount = ($basicAmount * ($item->row_tax ?? 0)) / 100;
+                                                $finalAmount = $basicAmount + $gstAmount;
+                                                @endphp
+                                                <td> 
+                                                    <input type="text"
+                                                    class="form-control amount-cell"
+                                                    value="₹ {{ number_format($finalAmount, 2) }}"
+                                                    readonly>
+                                                </td>
+                                                
+                                               <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-danger remove-row">
+                                                        Remove
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {{-- =====================
+                                    TOTALS
+                                ====================== --}}
+                               <div class="row mt-3">
+                                    <div class="col-md-4 offset-md-8">
+                                        <table class="table table-borderless table-sm">
+
+                                            <tr>
+                                                <th class="text-end">Subtotal</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="subTotal">{{ number_format($grn->subtotal, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="text-end">Discount ({{ $grn->discount_percent }}%)</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="discountAmount">
+                                                        {{ number_format(
+                                                            (($grn->subtotal + $grn->tax_amount + $grn->delivery_charges) * $grn->discount_percent / 100),
+                                                            2
+                                                        ) }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+
+
+                                            <tr>
+                                                <th class="text-end">Tax</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="taxAmount">{{ number_format($grn->tax_amount, 2) }}</span>
+                                                </td>
+                                            </tr>
+                                           
+                                            <tr>
+                                                <th class="text-end">Delivery Charges</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="">{{ number_format($grn->delivery_charges, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="text-end">Grand Total</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="grandTotal">{{ number_format($grn->grand_total, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                        </table>
+                                    </div>
+                                </div>
+
+
+                                {{-- =====================
+                                    ACTIONS
+                                ====================== --}}
+                                <div class="row mt-4">
+                                    <div class="col-md-4 offset-md-8 d-grid gap-2">
+                                        <button type="button"
+                                                class="btn btn-primary"
+                                                onclick="submitEdit()">
+                                            Update & Submit
+                                        </button>
+                                        
+                                        <a href="{{route ('admin.stock-receivings.bills')}}" class="btn btn-secondary">Back</a>
+                                        
+
+                                       
+                                    </div>
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- =====================
+    JS (EDIT ONLY)
+====================== --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+window.dbDiscount = {{ $grn->discount_percent ?? 0 }};
+window.dbdelivery_charges = {{ $grn->delivery_charges ?? 0 }};
+
+
+window.currentSubtotal = {{ $grn->subtotal ?? 0 }};
+window.currentTax = {{ $grn->tax_amount ?? 0 }};
+window.currentGrandTotal = {{ $grn->grand_total ?? 0 }};
+</script>
+
+<script>
+function calculateEditTotals() {
+
+    let subtotal = 0;
+    let totalTax = 0;
+
+    $('#poItemsBody tr').each(function () {
+
+        const row = $(this);
+
+        const actualQty = parseFloat(row.find('.actual-qty').val()) || 0;
+        const rate      = parseFloat(row.find('.purchase-rate').val()) || 0;
+        const taxPct    = parseFloat(row.data('tax')) || 0;
+
+        if (actualQty <= 0) return;
+
+        const rowBase = actualQty * rate;
+        const rowTax  = rowBase * taxPct / 100;
+        const rowAmount = rowBase + rowTax;
+        
+        row.find('.amount-cell').val('₹ ' + rowAmount.toFixed(2));
+
+        subtotal += rowBase;
+        totalTax += rowTax;
+    });
+
+    const netAmount = subtotal + totalTax + window.dbdelivery_charges;
+    const discountAmount = (netAmount * window.dbDiscount) / 100;
+    const grandTotal = netAmount - discountAmount;
+    const totalAmount = subtotal + totalTax;
+    $('#tableTotalAmount').text(totalAmount.toFixed(2));
+
+    /* STORE RAW VALUES */
+    window.currentSubtotal = subtotal;
+    window.currentTax = totalTax;
+    window.currentGrandTotal = grandTotal;
+
+    /* UPDATE UI (Formatted only for display) */
+    $('#subTotal').text(subtotal.toFixed(2));
+    $('#taxAmount').text(totalTax.toFixed(2));
+    $('#discountAmount').text(discountAmount.toFixed(2));
+    $('#grandTotal').text(grandTotal.toFixed(2));
+}
+
+</script>
+
+
+<script>
+$(document).on('input', '.actual-qty, .returned-qty, .to-be-return-qty, .short-qty', function () {
+
+    const row = $(this).closest('tr');
+    const productId = row.data('product-id');
+
+    const productRows = $('#poItemsBody tr').filter(function () {
+        return $(this).data('product-id') == productId;
+    });
+
+    const poQty = parseFloat(
+        productRows.first().data('original-po-qty') 
+        || productRows.first().data('po-qty')
+    ) || 0;
+
+    let totalActual = 0;
+    let totalReturned = 0;
+    let totalToBeReturn = 0;
+    let shortqty = 0;
+
+    productRows.each(function () {
+        totalActual     += parseFloat($(this).find('.actual-qty').val()) || 0;
+        totalReturned   += parseFloat($(this).find('.returned-qty').val()) || 0;
+        totalToBeReturn += parseFloat($(this).find('.to-be-return-qty').val()) || 0;
+        shortqty += parseFloat($(this).find('.short-qty').val()) || 0;
+    });
+
+    const totalQty = totalActual + totalReturned + totalToBeReturn + shortqty;
+
+//     if (totalQty > poQty) {
+//         Swal.fire(
+//             'Quantity Overflow',
+//             `Total for this product cannot exceed PO quantity.
+// PO Qty = ${poQty}
+// Entered = ${totalQty}`,
+//             'error'
+//         );
+
+//         $(this).val(0);
+//         return;
+//     }
+
+    calculateEditTotals();
+});
+
+
+
+
+$(document).on('input', '.purchase-rate', function () {
+    calculateEditTotals();
+});
+
+
+$(document).on('click', '.remove-row', function () {
+
+    const rowCount = $('#poItemsBody tr').length;
+
+    if (rowCount <= 1) {
+        Swal.fire(
+            'Action Not Allowed',
+            'At least one item must remain.',
+            'warning'
+        );
+        return;
+    }
+
+    Swal.fire({
+        title: 'Remove item?',
+        text: 'This item will be removed from calculation.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, remove it',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $(this).closest('tr').remove();
+            calculateEditTotals();
+        }
+    });
+});
+</script>
+<script>
+function submitEdit() {
+
+    let productTotals = {};
+    let items = [];
+
+    try {
+
+        $('#poItemsBody tr').each(function () {
+
+            const row = $(this);
+
+            const productId   = row.data('product-id');
+            const productName = row.find('td:nth-child(2)').text().trim();
+            const poQty       = parseFloat(
+                row.data('original-po-qty') || row.data('po-qty')
+            ) || 0;
+
+            const freeqty = parseFloat(row.data('free-qty')) || 0;
+            const actualQtyRaw     = row.find('.actual-qty').val();
+            const returnedQtyRaw   = row.find('.returned-qty').val();
+            const toBeReturnQtyRaw = row.find('.to-be-return-qty').val();
+            const shortQty = parseFloat(row.find('.short-qty').val()) || 0;
+
+            const batchNo    = row.find('.batch-no').val().trim();
+            const expiryDate = row.find('.expiry-date').val();
+            const mrpRaw     = row.find('.mrp').val();
+            const rate       = parseFloat(row.find('.purchase-rate').val()) || 0;
+
+            /* BASIC VALIDATION */
+
+            if (actualQtyRaw === '' || isNaN(actualQtyRaw)) {
+                throw { title: 'Actual Quantity Required', message: 'Enter Actual Quantity.' };
+            }
+            if (returnedQtyRaw === '' || isNaN(returnedQtyRaw)) {
+                throw { title: 'Returned Quantity Required', message: 'Enter Returned Quantity.' };
+            }
+            if (toBeReturnQtyRaw === '' || isNaN(toBeReturnQtyRaw)) {
+                throw { title: 'To-Be-Return Quantity Required', message: 'Enter To-Be-Return Quantity.' };
+            }
+
+            const actualQty     = parseFloat(actualQtyRaw);
+            const returnedQty   = parseFloat(returnedQtyRaw);
+            const toBeReturnQty = parseFloat(toBeReturnQtyRaw);
+
+            if (actualQty < 0 || returnedQty < 0 || toBeReturnQty < 0) {
+                throw { title: 'Invalid Quantity', message: 'Quantities cannot be negative.' };
+            }
+
+            if (!batchNo) {
+                throw { title: 'Batch Number Required', message: 'Batch number is mandatory.' };
+            }
+
+            if (!expiryDate) {
+                throw { title: 'Expiry Date Required', message: 'Expiry date is mandatory.' };
+            }
+
+            if (mrpRaw === '' || isNaN(mrpRaw)) {
+                throw { title: 'MRP Required', message: 'Enter MRP.' };
+            }
+
+            const mrp = parseFloat(mrpRaw);
+            if (mrp < 0) {
+                throw { title: 'Invalid MRP', message: 'MRP cannot be negative.' };
+            }
+
+            /* STOCK VALIDATION */
+
+            const totalQty = actualQty + returnedQty + toBeReturnQty + shortQty;
+
+//             if (totalQty > poQty) {
+//                 throw {
+//                     title: 'Stock Error',
+//                     message: `Product "${productName}":
+// Actual + Returned + To-Be-Return cannot exceed PO quantity.`
+//                 };
+//             }
+
+            if (!productTotals[productId]) {
+                productTotals[productId] = {
+                    total: 0,
+                    poQty: poQty,
+                    name : productName
+                };
+            }
+
+            productTotals[productId].total += totalQty;
+
+            /* BUILD PAYLOAD */
+
+            items.push({
+                po_item_id       : row.data('po-item-id'),
+                product_id       : productId,
+                po_qty           : poQty,
+                freeqty          : freeqty,
+                actual_qty       : actualQty,
+                returned_qty     : returnedQty,
+                to_be_return_qty : toBeReturnQty,
+                short_qty       : parseFloat(row.find('.short-qty').val()) || 0,
+                return_reason        : row.find('.return-reason').val() || null,
+                to_be_return_reason  : row.find('.to-be-return-reason').val() || null,
+                purchase_rate    : rate,
+                batch_no         : batchNo,
+                expiry_date      : expiryDate,
+                mrp              : mrp
+            });
+        });
+
+        /* FINAL PRODUCT CHECK */
+
+        Object.keys(productTotals).forEach(pid => {
+            const total = productTotals[pid].total;
+            const poQty = productTotals[pid].poQty;
+            const name  = productTotals[pid].name;
+
+//             if (total !== poQty) {
+//                 throw {
+//                     title: 'Stock Validation Failed',
+//                     message: `Product "${name}":
+// PO Qty = ${poQty}
+// Distributed Qty = ${total}
+// Must be exactly equal.`
+//                 };
+//             }
+        });
+
+    } catch (err) {
+        Swal.fire(err.title || 'Error', err.message || 'Validation failed', 'warning');
+        return;
+    }
+
+    /* MAIN PAYLOAD */
+
+    const payload = {
+        bill_date   : $('#bill_date').val(),
+        subtotal    : window.currentSubtotal || 0,
+        tax_amount  : window.currentTax || 0,
+        grand_total : window.currentGrandTotal || 0,
+        items       : items
+    };
+
+    
+     const formData = new FormData();
+
+    Object.keys(payload).forEach(key => {
+
+    if (key === 'items') {
+        formData.append('items', JSON.stringify(payload.items));
+    } else {
+        formData.append(key, payload[key]);
+    }
+});
+
+const billFile = document.getElementById('original_bill').files[0];
+
+// if (!billFile) {
+//     Swal.fire(
+//         'Original Bill Required',
+//         'Please upload the original bill document',
+//         'warning'
+//     );
+//     return;
+// }
+
+formData.append('original_bill', billFile);
+formData.append('_method', 'PUT');
+
+    Swal.fire({
+        title: 'Updating Approved Bill...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    fetch(`/admin/stock-receivings/bills/update/${$('#vendor_bill_id').val()}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        body: formData
+    })
+    .then(res => res.json())
+    .then(res => {
+        Swal.close();
+
+        if (!res.success) {
+            Swal.fire('Error', res.message || 'Unable to update bill', 'error');
+            return;
+        }
+
+        Swal.fire(
+            'Success',
+            'Approved bill updated successfully',
+            'success'
+        ).then(() => {
+            window.location.href = res.redirect_url;
+        });
+    })
+    .catch(() => {
+        Swal.close();
+        Swal.fire('Server Error', 'Something went wrong', 'error');
+    });
+}
+
+
+
+</script>
+
+@endsection

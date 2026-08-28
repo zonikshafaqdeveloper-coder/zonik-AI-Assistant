@@ -1,0 +1,3787 @@
+
+@extends('web.layouts.app')
+@section('content')
+
+<!-- @if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+@endif -->
+
+<style>
+.coupon-description{
+    font-size: small;
+}
+.dispay-content{
+    display: contents;
+}
+
+.float-right{
+float: right;
+}
+b, strong {
+    font-weight: bold !important;
+}
+
+    .couponList li{
+        border: 1px solid #f1f1f1;
+        padding: 10px 12px
+    }
+    .margin-t{
+        margin-top:25px;
+    }
+
+    .p-all{
+        padding: 25px;
+    }
+
+    .product-n{
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
+
+    td p{
+        width: 250px
+    }
+
+    .section{
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    .brk-line{
+        margin: 0px;
+        padding: 0px;
+        width: 100%;
+        box-sizing: border-box;
+        height: 0.1rem;
+        color: #000;
+        /* color: rgb(244, 244, 244); */
+        /* background-color: rgb(244, 244, 244); */
+        border: medium;
+    }
+
+    .card1{
+        padding: 15px;
+        background-color:#F4F6FB !important;
+        scroll-margin-top: 194px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 4px 0 rgba(28,28,28,.06);
+        border-radius: 24px;
+        border:2px solid #E4EBFC !important;
+    }
+
+ .accordion-item {
+      margin-bottom: 10px;
+    }
+    .accordion-header {
+      cursor: pointer;
+    }
+    .accordion-body {
+      display: none;
+    }
+    tr td {
+    vertical-align: middle;
+    font-family: system-ui;
+
+    }
+
+    th td{
+        text-align: left;
+    }
+    .card-h{
+        color: var(--coolgreycoolgrey-600,#767c8f);
+        font-size: 22px;
+        font-style: normal;
+        font-weight: 700;
+        text-transform: capitalize;
+        line-height: 24px;
+    }
+    /* --------------------------------- */
+
+    .btn-w{
+        width : fit-content ;
+    }
+
+    .tabs1, .tabs2 {
+        position: relative;
+    }
+
+    .countSpan {
+        background: #a558c8;
+        color: white;
+        padding: 1px 7px;
+        position: absolute;
+        top: -5px; /* Adjust this value to change the vertical position */
+        right: -5px; /* Adjust this value to change the horizontal position */
+        border-radius: 30%; /* Optional: For a rounded shape */
+    }
+
+    .modal-w {
+        width: 500px;
+    }
+
+    .modal-h {
+        font-size: 17px;
+        letter-spacing: 0.2;
+        font-weight: 500;
+    }
+
+    /* -----------------quotelist---------------- */
+
+    .q-tab-w {
+        width: 225px !important;
+    }
+
+    .tabs1 {
+        width: 230px ;
+        box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+        border: 2px solid #a558c8;
+    }
+    .tabs2 {
+        width: 230px ;
+        box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+        border: 2px solid #a558c8;
+    }
+
+    .w-input {
+        width: 150px !important;
+    }
+
+    .table-c {
+      background-color: #ffffff;
+    color: #151515;
+    border: 1px solid #ccc;
+    }
+
+    .w11 input[type='text'] {
+        border-radius: 2px !important;
+        border: 1px solid #979797 !important;
+        box-sizing: border-box !important;
+        padding: 1px !important;
+        width: 30% !important;
+    }
+
+    .nav {
+        text-align: center;
+    }
+
+    .orders-m .nav-link {
+        text-align: left !important;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+        font-size: 15px;
+        font-family: var(--secondary-font) !important;
+        border-radius: 0px;
+        margin-left: 0px;
+        color: #2B2B2B;
+        padding: 20px 20px;
+    }
+
+    .ml-8 {
+        margin-left: 80px;
+    }
+
+    .nav {
+        text-align: center !important;
+    }
+
+    .svg-img {
+        margin-right: 10px;
+        height: 20px;
+    }
+
+    .orders-tab h4 {
+        font-size: 25px;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+    }
+
+    .orders-tab-margin {
+        margin: auto  15px;
+    }
+
+    .img-div h4 {
+        font-size: 20px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        color: #585858;
+    }
+
+    .img-div h5 {
+        color: #959595;
+        letter-spacing: 0.5px;
+    }
+
+    /* Firefox */
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    .quantity__minus,
+    .quantity__plus {
+        display: block;
+        width: 22px;
+        height: 23px;
+        margin: 0;
+        background: #FFB5B5;
+        text-decoration: none;
+        text-align: center;
+        line-height: 23px;
+    }
+
+    .quantity__minus:hover,
+    .quantity__plus:hover {
+        background: #575b71;
+        color: #fff;
+    }
+
+    .quantity__minus {
+        border-radius: 15px;
+    }
+
+    .quantity__plus {
+        border-radius: 15px;
+    }
+
+    .quantity__input {
+        width: 24px !important;
+        height: 19px;
+        margin: 0;
+        padding: 0 !important;
+        text-align: center;
+        /* border-top: 2px solid #dee0ee;
+    border-bottom: 2px solid #dee0ee;
+    border-left: 1px solid #dee0ee;
+    border-right: 2px solid #dee0ee; */
+        background: #fff;
+        color: #151515;
+        border: 0px !important;
+    }
+
+    .optional {
+        padding: 0px !important;
+    }
+
+    .quantity__minus:link,
+    .quantity__plus:link {
+        color: #BD2F2F;
+        background: #FFB5B5;
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .quantity__minus:visited,
+    .quantity__plus:visited {
+        color: #fff;
+    }
+
+    .requested-enquiry tbody tr td {
+        font-size: 15px;
+        font-weight: 500;
+        margin-right: 10px;
+        border-bottom: 0px;
+
+    }
+
+    .requested-enquiry tbody tr,
+    .requested-enquiry thead tr {
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px;
+        margin: 0px 0px 10px 0px;
+        background-color: #ffffff;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    .requested-enquiry {
+        box-shadow: inset 6px 6px 8px #dadada, inset -6px -6px 8px #dfdfdf;
+        padding: 20px;
+        display: block;
+        border-radius: 10px;
+        background: #ECF0F1;
+    }
+
+    .enquiry-img {
+        height: 60px;
+        width: 50px;
+    }
+
+    th {
+        border-bottom: 0px;
+    }
+
+
+    .del-svg {
+        height: 60px;
+        width: 60px;
+    }
+
+    td:first-child,
+    th:first-child {
+        border-radius: 10px 0 0 10px;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold !important;
+    }
+
+    .fa-trash {
+        background-color: #a558c8;
+        height: 40px;
+        width: 40px;
+        text-align: center;
+        line-height: 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        color: #ffffff;
+    }
+
+    td:last-child,
+    th:last-child {
+        border-radius: 0 5px 5px 0;
+        padding: 10px;
+    }
+
+    .scrollable-element {
+        scrollbar-width: thin;
+    }
+
+    ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.3);
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb:window-inactive {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .bg-blue {
+        background-color: #F4F6FB;
+    }
+
+    .home-demo .item {
+        background: #ff3f4d;
+    }
+
+    .rightside1 {
+        width: calc(100% - 260px) !important;
+    }
+
+    .discount-div {
+        background-color: #2461A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-divh {
+        font-size: 20px;
+        letter-spacing: 1px;
+        font-weight: 500 !important;
+    }
+
+    .discountc .carousel-control-next-icon {
+        position: relative;
+    }
+
+    .quantity {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        padding: 0;
+        width: fit-content;
+        border: 1px solid #a558c8;
+    }
+
+    .
+    .quantity {
+
+        width: .quantity:width;
+    }
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .tr {
+        box-shadow: none !important;
+        margin: 0px 0px 10px 0px;
+        display: block;
+        background-color: transparent !important;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    .orders-m .nav-link {
+        text-align: left !important;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+        font-size: 15px;
+        font-family: var(--secondary-font) !important;
+        border-radius: 0px;
+        margin-left: 0px;
+        color: #2B2B2B;
+        padding: 20px 20px;
+        display: flex;
+        align-items: center;
+    }
+
+    .profile-arrow {
+        color: #a558c8;
+        text-align: right;
+        width: 190px;
+        position: absolute;
+        font-size: 20px;
+    }
+
+    .orders-m .nav-link .left-icon .active {
+        color: #2B2B2B;
+        background-color: #FFF2F2;
+        font-weight: 500;
+        font-size: 15px;
+        font-family: var(--secondary-font) !important;
+        border-radius: 0px;
+        margin-left: 0px;
+
+    }
+
+    .svg-img {
+        margin-right: 10px;
+        height: 20px;
+    }
+
+    .orders-tab h4 {
+        font-size: 25px;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+    }
+
+
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .tr {
+        box-shadow: none !important;
+        margin: 0px 0px 10px 0px;
+        display: block;
+        background-color: transparent !important;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    /* Firefox */
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    .quantity__minus,
+    .quantity__plus {
+        display: block;
+        width: 22px;
+        height: 23px;
+        margin: 2px;
+        font-weight: 600;
+        color: #fff;
+        background: #c699dd;
+        text-decoration: none;
+        text-align: center;
+        line-height: 23px;
+        border: 0px !important;
+    }
+
+    .quantity__minus:hover,
+    .quantity__plus:hover {
+        background: #575b71;
+        color: #fff;
+    }
+
+    .optional {
+        padding: 0px !important;
+    }
+
+    .quantity__minus:link,
+    .quantity__plus:link {
+        color: #BD2F2F;
+        background: #FFB5B5;
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .quantity__minus:visited,
+    .quantity__plus:visited {
+        color: #fff;
+    }
+
+
+    table {
+        /* border-collapse: separate; */
+        border-spacing: 0 1em;
+    }
+
+
+    th {
+        border-bottom: 0px;
+    }
+
+    .del-svg {
+        height: 60px;
+        width: 60px;
+    }
+
+    td:first-child,
+    th:first-child {
+        border-radius: 10px 0 0 10px;
+        padding: 10px;
+    }
+
+    .fa-trash,
+    .fa-cart-shopping1 {
+        background-color: #a558c8;
+        height: 40px;
+        width: 40px;
+        text-align: center;
+        line-height: 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        color: #ffffff;
+    }
+
+    td:last-child,
+    th:last-child {
+        border-radius: 0 5px 5px 0;
+        padding: 10px;
+    }
+
+    .scrollable-element {
+        scrollbar-width: thin;
+    }
+
+    ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        -webkit-border-radius: 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.3);
+        -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb:window-inactive {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .bg-blue {
+        background-color: #F4F6FB;
+    }
+
+    .home-demo .item {
+        background: #ff3f4d;
+    }
+
+    .rightside1 {
+        width: calc(100% - 260px) !important;
+    }
+
+    .discount-div {
+        background-color: #2461A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-divh {
+        font-size: 20px;
+        letter-spacing: 1px;
+        font-weight: 500 !important;
+    }
+
+    .discountc .carousel-control-next-icon {
+        position: relative;
+    }
+
+    .discountc .carousel-control-next-icon {
+        background-image: url("/assets/images/right-arrow.png");
+        opacity: 1 !important;
+
+    }
+
+    .discountc .carousel-control-prev {
+        display: none;
+    }
+
+    .discount-div1 {
+        background-color: #168848;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-div2 {
+        background-color: #2824A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .cart-table1 .container .row1 {
+        box-shadow: inset 6px 6px 8px #dadada, inset -6px -6px 8px #dfdfdf;
+        border-radius: 10px;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr {
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px;
+        margin: 0px 0px 10px 0px;
+        display: block;
+        background-color: #ffffff;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr td {
+        border-bottom: 0px !important;
+        font-size: 15px;
+        font-weight: 500;
+        margin-right: 10px;
+        border-bottom: 0px;
+    }
+
+
+    .cart-right {
+        background-color: #F4F6FB;
+        border: 2px solid #E4EBFC;
+        padding: 0px 25px 15px 25px !important;
+    }
+
+    .cart-right h4 {
+        color: #a558c8;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        font-size: 20px;
+    }
+
+
+    .cart-right .text-end1 {
+        display: flex;
+        align-items: end;
+        justify-content: end;
+    }
+
+    .color-dark {
+        color: #212529;
+    }
+
+
+
+    .order-summary .row .col-md-8 p,
+    .order-summary .row .col-md-4 p {
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        padding-bottom: 15px;
+    }
+
+    .secondary-color {
+        color: #a558c8;
+    }
+
+    .order-row {
+        border-bottom: 1px solid #ccc;
+    }
+
+    .taxes {
+        font-size: 12px;
+    }
+
+    .dic-div {
+        background-color: #D5EBE4;
+        text-align: center;
+        padding: 5px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        border-radius: 10px;
+
+    }
+
+    .discount-div {
+        background-color: #2461A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-divh {
+        font-size: 20px;
+        letter-spacing: 1px;
+        font-weight: 500 !important;
+    }
+
+    .discountc .carousel-control-next-icon {
+        position: relative;
+    }
+
+    .discountc .carousel-control-next-icon {
+        background-image: url("/assets/images/right-arrow.png");
+        opacity: 1 !important;
+
+    }
+
+    .discountc .carousel-control-prev {
+        display: none;
+    }
+
+    .discount-div1 {
+        background-color: #168848;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-div2 {
+        background-color: #2824A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .cart-table1 .container .row1 {
+        box-shadow: inset 6px 6px 8px #dadada, inset -6px -6px 8px #dfdfdf;
+        border-radius: 10px;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr {
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px;
+        margin: 0px 0px 10px 0px;
+        display: block;
+        background-color: #ffffff;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr td {
+        border-bottom: 0px !important;
+        font-size: 15px;
+        font-weight: 500;
+        margin-right: 10px;
+        border-bottom: 0px;
+    }
+
+    .ct1 {
+        width: 5%;
+    }
+
+    .ct2 {
+        width: 50%;
+    }
+
+    .ct3 {
+        width: 15%;
+    }
+
+
+    .ct5 {
+        width: 25%;
+    }
+
+    .cart-right {
+        background-color: #F4F6FB;
+        border: 2px solid #E4EBFC;
+        padding: 20px;
+        border-radius: 5px;
+    }
+
+
+
+    .cart-right h3 {
+        color: #a558c8;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        font-size: 18px;
+    }
+
+    .cart-right .text-end1 {
+        display: flex;
+        align-items: end;
+        justify-content: end;
+    }
+
+    .color-dark {
+        color: #212529;
+    }
+
+
+    .order-summary .row .col-md-8 p,
+    .order-summary .row .col-md-4 p {
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        padding-bottom: 15px;
+    }
+
+    .secondary-color {
+        color: #a558c8;
+    }
+
+    .order-row {
+        border-bottom: 1px solid #ccc;
+    }
+
+    .taxes {
+        font-size: 12px;
+    }
+
+    .dic-div {
+        background-color: #D5EBE4;
+        text-align: center;
+        padding: 5px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        border-radius: 10px;
+
+    }
+
+
+
+    /*  */
+    @import  "./variable.css";
+
+    /* header */
+    .logo {
+        height: 20%;
+    }
+
+    .header-section {
+        padding: 20px;
+        height: 100px;
+    }
+
+    .header-section .container .row .col-md-6 .shadow-inner-btn {
+        position: relative;
+        z-index: 2;
+    }
+
+    /* banner */
+    .banner-section {
+        position: relative;
+        height: calc(100vh - 100px);
+        display: flex;
+        align-items: center;
+    }
+
+    .banner-img {
+        position: absolute;
+        top: -100px;
+    }
+
+    .banner-left {
+        margin-left: 110px;
+    }
+
+    .header .top-nav {
+        box-shadow: rgba(99, 99, 99, 0.2) 0px 2px 8px 0px !important;
+    }
+
+    .banner-section h1 {
+        font-family: var(--secondary-font);
+        text-transform: uppercase;
+        line-height: 55px;
+        letter-spacing: 0.5px;
+        font-size: 35px;
+    }
+
+    .features-div .row .col-md-3 img {
+        height: 120px;
+        margin-top: -80px;
+        margin-left: -50px;
+    }
+
+    .features-div {
+        padding: 20px 10px;
+        border: 2px solid #303030;
+        border-style: dashed;
+    }
+
+    .features-section {
+        padding: 60px 0px;
+        background-color: #F5F8FF;
+    }
+
+    /* Steps */
+    .image {
+        position: absolute;
+        width: 650px;
+        height: 650px;
+        margin: -60px 0 0 -60px;
+        margin: -60px 0 0 -60px;
+        -webkit-animation: spin 25s linear infinite;
+        -moz-animation: spin 25s linear infinite;
+        animation: spin 25s linear infinite;
+    }
+
+    @-moz-keyframes spin {
+        100% {
+            -moz-transform: rotate(360deg);
+        }
+    }
+
+    @-webkit-keyframes spin {
+        100% {
+            -webkit-transform: rotate(360deg);
+        }
+    }
+
+    @keyframes  spin {
+        100% {
+            -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+        }
+    }
+
+    .step-section {
+        padding: 100px 0px;
+    }
+
+    .mob-div img {
+        height: 400px;
+        position: relative;
+        margin-top: 50px;
+    }
+
+    .points ul {
+        list-style-type: none;
+    }
+
+    .points ul li {
+        display: flex;
+        align-items: center;
+        font-size: 20px;
+        letter-spacing: 1px;
+        font-weight: 500;
+        margin-bottom: 30px;
+
+    }
+
+    .num {
+        background-image: linear-gradient(to right, #a558c8, #D01919D6);
+        color: #fff;
+        height: 55px;
+        width: 55px;
+        display: block;
+        border-radius: 50px;
+        text-align: center;
+        line-height: 55px;
+        font-size: 25px;
+        font-weight: 500;
+    }
+
+    .btn-bar {
+        border-radius: 50px;
+        border: none;
+        background: #f8f8f8;
+        box-shadow: inset 6px 6px 8px #dadada, inset -6px -6px 8px #dfdfdf;
+        padding: 10px 30px;
+        padding-left: 30px;
+        font-family: var(--secondary-font) !important;
+        letter-spacing: 1px;
+        font-size: 16px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .products-section {
+        padding: 100px 0px;
+        background-color: #F5F8FF;
+    }
+
+    /* Products */
+    .beverages-img {
+        height: 35px;
+        margin-right: 10px;
+    }
+
+    .btn-bar ul li {
+        list-style-type: none;
+
+    }
+
+    .btn-bar {
+        width: 100%;
+    }
+
+    .btn-bar ul .ml {
+        margin-left: 40px;
+    }
+
+    .fa-check {
+        background-color: #1fa135;
+        height: 40px;
+        width: 40px;
+        text-align: center;
+        line-height: 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        color: #ffffff;
+        border: none;
+        font-size: 20px;
+    }
+
+    .tick,
+    .cross, .money {
+        border: none;
+        background-color: #fff;
+
+    }
+
+
+
+    .red-btn1 {
+        background-color: var(--primary);
+        padding: 6px 21px;
+        color: #fff !important;
+        border-radius: 5px;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+        font-family: var(--secondary-font);
+        box-shadow: rgba(99, 99, 99, 0.2) 0px 2px 8px 0px;
+    }
+
+    .fa-xmark {
+        background-color: #ce6e6e;
+        height: 40px;
+        width: 40px;
+        text-align: center;
+        line-height: 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        color: #ffffff;
+        border: none;
+        font-size: 20px;
+    }
+
+    .fa-money-check {
+        background-color: #006b79;
+        height: 40px;
+        width: 40px;
+        text-align: center;
+        line-height: 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        color: #ffffff;
+        border: none;
+        font-size: 20px;
+    }
+
+    .nav-pills .nav-link.active,
+    .nav-pills .show>.nav-link {
+        color: #fff;
+        background-color: var(--primary) !important;
+        border-radius: 0px !important;
+    }
+
+    .nav-pills .nav-link {
+        background: 0 0;
+        border: 0;
+        border-radius: .25rem;
+        color: var(--dark);
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        height: 50px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .product-div {
+        background-color: #fff;
+        box-shadow: rgba(99, 99, 99, 0.2) 0px 2px 8px 0px;
+        padding: 20px;
+        border-radius: 5px;
+
+    }
+
+    .product-main-div {
+        padding: 40px 0px;
+    }
+
+    /* Logo Slider */
+    .slick-slide {
+        margin: 0px 20px;
+    }
+
+    .slick-slide img {
+        width: 100%;
+    }
+
+    .slick-slider {
+        position: relative;
+        display: block;
+        box-sizing: border-box;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -khtml-user-select: none;
+        -ms-touch-action: pan-y;
+        touch-action: pan-y;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .slick-list {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+
+    .slick-list:focus {
+        outline: none;
+    }
+
+    .slick-list.dragging {
+        cursor: pointer;
+        cursor: hand;
+    }
+
+    .slick-slider .slick-track,
+    .slick-slider .slick-list {
+        -webkit-transform: translate3d(0, 0, 0);
+        -moz-transform: translate3d(0, 0, 0);
+        -ms-transform: translate3d(0, 0, 0);
+        -o-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+    }
+
+    .slick-track {
+        position: relative;
+        top: 0;
+        left: 0;
+        display: block;
+    }
+
+    .slick-track:before,
+    .slick-track:after {
+        display: table;
+        content: '';
+    }
+
+    .slick-track:after {
+        clear: both;
+    }
+
+    .slick-loading .slick-track {
+        visibility: hidden;
+    }
+
+    .slick-slide {
+        display: none;
+        float: left;
+        height: 100%;
+        min-height: 1px;
+    }
+
+    [dir='rtl'] .slick-slide {
+        float: right;
+    }
+
+    .slick-slide img {
+        display: block;
+    }
+
+    .slick-slide.slick-loading img {
+        display: none;
+    }
+
+    .slick-slide.dragging img {
+        pointer-events: none;
+    }
+
+    .slick-initialized .slick-slide {
+        display: block;
+    }
+
+    .slick-loading .slick-slide {
+        visibility: hidden;
+    }
+
+    .slick-vertical .slick-slide {
+        display: block;
+        height: auto;
+        border: 1px solid transparent;
+    }
+
+    .slick-arrow.slick-hidden {
+        display: none;
+    }
+
+    .padding-100 {
+        padding: 100px 0px;
+    }
+
+    .home-demo .item {
+        background: #ff3f4d;
+    }
+
+    .home-demo h2 {
+        color: #FFF;
+        text-align: center;
+        padding: 5rem 0;
+        margin: 0;
+        font-style: italic;
+        font-weight: 300;
+    }
+
+    .testimonial-div {
+        padding: 20px;
+        background-color: #ECF1FD;
+        border: 2px solid #D8E3FF;
+        border-radius: 5px;
+    }
+
+    .testimonial-div p {
+        text-align: justify;
+    }
+
+    .testimonial-div h5 {
+        font-size: 22px;
+    }
+
+    .testimonial-div h6 {
+        font-size: 18px;
+    }
+
+    .quote {
+        text-align: end;
+    }
+
+    .quote img {
+        height: 50px;
+        width: 50px !important;
+    }
+
+    .testimonial-div-red {
+        background-color: #a558c8;
+        border: 2px solid #7c1b1b;
+        padding: 20px;
+        border-radius: 5px;
+    }
+
+    .testimonial-div-red p {
+        color: #ffffff;
+    }
+
+    .testimonial-div-red h5 {
+        color: #ffffff;
+    }
+
+    .testimonial-div-red h6 {
+        color: #dadada !important;
+    }
+
+    .testimonial .owl-carousel .owl-stage-outer .owl-nav {
+        position: relative;
+    }
+
+    .testimonial .owl-carousel .owl-stage-outer .owl-nav .owl-next span {
+        background-image: linear-gradient(to right, #131313, #202020d6);
+        color: #fff;
+        height: 45px;
+        width: 45px;
+        display: block;
+        border-radius: 50px;
+        text-align: center;
+        line-height: 40px;
+        font-size: 45px;
+        font-weight: 500;
+    }
+
+    .testimonial .owl-carousel .owl-stage-outer .owl-nav .owl-prev span {
+        background-image: linear-gradient(to right, #a558c8, #D01919D6);
+        color: #fff;
+        height: 45px;
+        width: 45px;
+        display: block;
+        border-radius: 50px;
+        text-align: center;
+        line-height: 40px;
+        font-size: 45px;
+        font-weight: 500;
+    }
+
+    .testimonial .owl-carousel .owl-stage-outer .owl-nav .owl-prev {
+        position: absolute;
+        top: -160px;
+        left: -80px;
+    }
+
+    .accordion-item {
+        margin-bottom: 20px;
+        margin-bottom: 20px;
+        border-radius: 10px !important;
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px;
+        background-color: #fff;
+    }
+
+    .accordion-button:focus {
+        z-index: 3;
+        border-color: #fff;
+        outline: 0;
+        box-shadow: 0 0 0 .25rem rgba(255, 255, 255, 0.25);
+    }
+
+    .accordion-button:not(.collapsed) {
+        color: #fff;
+        background-color: #a558c8;
+    }
+
+    .accordion-item button {
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+
+    .hr {
+        background-image: linear-gradient(to right, #a558c8, #AEAEAE17);
+        width: 160px;
+        height: 3px;
+    }
+
+    .social i {
+        background-image: linear-gradient(to right, #a558c8, #D01919);
+        color: #fff;
+        height: 40px;
+        width: 40px;
+        line-height: 40px;
+        border-radius: 50px;
+        text-align: center;
+    }
+
+    .social p {
+        margin-left: 10px;
+        color: #cecece;
+        letter-spacing: 0.5px;
+    }
+
+    .links ul .lir {
+        list-style-type: none;
+        margin-right: 10px;
+    }
+
+    .links ul {
+        list-style-type: none;
+    }
+
+    .links ul li {
+        color: #cecece;
+        letter-spacing: 0.5px;
+    }
+
+    .text-light {
+        color: #ffffff !important;
+    }
+
+    .social-links ul {
+        list-style-type: none;
+    }
+
+    .so-l {
+        font-size: 20px;
+        margin-right: 10px;
+    }
+
+    .div-hr {
+        width: 80%;
+        background-color: #414141;
+        height: 2px;
+        margin: 0 auto;
+        margin-top: 50px;
+    }
+
+    .footer-section {
+        padding: 100px 0px 50px 0px;
+    }
+
+    .ml {
+        margin-left: 20px !important;
+    }
+
+    .mr {
+        margin-right: 20px !important;
+    }
+
+    .copyright-sec .mr-2 {
+        margin-right: 20px;
+    }
+
+    .copyright-sec .ml-2 {
+        margin-left: 20px;
+    }
+
+    .copyright-sec img {
+        height: 50px;
+    }
+
+    .heading {
+        font-size: 40px;
+        font-weight: 500 !important;
+        text-transform: uppercase;
+
+    }
+
+    .product-quantity>* {
+        width: 36.9px;
+    }
+
+    .product-quantity>input[type="number"]::-webkit-inner-spin-button,
+    .product-quantity>input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .product-quantity>input {
+        border: none;
+        text-align: center;
+        font-size: 12px;
+    }
+
+    .product-quantity {
+        display: inline-flex;
+        border: 1px solid #e6e6e6;
+        align-items: center;
+        height: 40px;
+        border-radius: 4px;
+    }
+
+    .product-quantity-plus:before,
+    .product-quantity-minus:before {
+        width: 11px;
+        display: block;
+        margin: 0 auto;
+    }
+
+    .product-quantity-plus:before {
+        content: "+";
+    }
+
+    .product-quantity-minus:before {
+        content: "-";
+    }
+
+    .product-quantity-plus,
+    .product-quantity-minus {
+        cursor: pointer;
+    }
+
+    .product-quantity-plus:before,
+    .product-quantity-minus:before {
+        width: 11px;
+        display: block;
+        margin: 0 auto;
+    }
+
+
+
+    .discount-div {
+        background-color: #2461A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-divh {
+        font-size: 20px;
+        letter-spacing: 1px;
+        font-weight: 500 !important;
+    }
+
+    .discountc .carousel-control-next-icon {
+        position: relative;
+    }
+
+    .discountc .carousel-control-next-icon {
+        background-image: url("/assets/images/right-arrow.png");
+        opacity: 1 !important;
+
+    }
+
+    .discountc .carousel-control-prev {
+        display: none;
+    }
+
+    .discount-div1 {
+        background-color: #168848;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .discount-div2 {
+        background-color: #2824A8;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+    }
+
+    .cart-table1 .container .row1 {
+        box-shadow: inset 6px 6px 8px #dadada, inset -6px -6px 8px #dfdfdf;
+        border-radius: 10px;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr {
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px;
+        margin: 0px 0px 10px 0px;
+        display: block;
+        background-color: #ffffff;
+        border-radius: 5px;
+        padding: 10px;
+        border-bottom: 0px !important;
+    }
+
+    .cart-table1 .container .row1 .col-md-8 table tr td {
+        border-bottom: 0px !important;
+        font-size: 15px;
+        font-weight: 500;
+        margin-right: 10px;
+        border-bottom: 0px;
+    }
+
+    .ct1 {
+        width: 5%;
+    }
+
+    .ct2 {
+        width: 50%;
+    }
+
+
+    .ct4 {
+        width: 15%;
+    }
+
+    .ct5 {
+        width: 30%;
+    }
+
+    .cart-right {
+        background-color: #F4F6FB;
+        border: 2px solid #E4EBFC;
+        padding: 20px;
+    }
+
+
+
+    .cart-right input {
+        box-shadow: none;
+        background: #fff;
+
+    }
+
+    .cart-right .text-end1 {
+        display: flex;
+        align-items: end;
+        justify-content: end;
+    }
+
+    .color-dark {
+        color: #212529;
+    }
+
+
+    .order-summary h4 {
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ccc;
+    }
+
+    .order-summary .row .col-md-8 p,
+    .order-summary .row .col-md-4 p {
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        padding-bottom: 15px;
+    }
+
+    .secondary-color {
+        color: #a558c8;
+    }
+
+    .order-row {
+        border-bottom: 1px solid #ccc;
+    }
+
+    .taxes {
+        font-size: 12px;
+    }
+
+    .dic-div {
+        background-color: #D5EBE4;
+        text-align: center;
+        padding: 5px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        border-radius: 10px;
+
+    }
+
+    .left-icon {
+        color: var(--primary) !important;
+        margin-right: 15px;
+        font-size: 20px;
+    }
+
+    .nav-pills .nav-link.active .left-icon {
+        color: #ffffff !important;
+    }
+
+    .box-btn {
+        background-color: #000;
+    }
+
+    .loose-btn {
+        background-color: #000;
+    }
+
+    /* .w7{width:50px;}
+    .w8{width:100px;}
+    .w9{width:300px;}
+    .w10{width:220px;}
+    .w11{width:80px;}
+    .w12{width:70px;}
+
+    .w3-7{width:50px;}
+    .w3-8{width:100px;}
+    .w3-9{width:200px;}
+    .w3-10{width:150px;}
+    .w3-11{width:60px;}
+    .w3-12{width:70px;}
+    .w3-13{width:70px;} */
+
+    .profile-arrow {
+        color: #a558c8;
+        text-align: right;
+        width: 190px;
+        position: absolute;
+        font-size: 20px;
+    }
+
+    .orders-m .nav-link.active {
+        color: #fff;
+        background-color: #a558c8;
+        font-weight: 500;
+        font-size: 15px;
+        font-family: var(--secondary-font) !important;
+        /* border-radius: 0px; */
+        margin-left: 0px;
+        border-radius: 18px 18px 0px 0px;
+        -moz-border-radius: 18px 18px 0px 0px;
+        -webkit-border-radius: 18px 18px 0px 0px;
+        border: 0px solid #7d137d;
+    }
+
+    .orders-m .nav-link.active .left-icon {
+        color: #fff !important;
+    }
+
+    .left-icon {
+        color: var(--primary) !important;
+        margin-right: 15px;
+        font-size: 20px;
+    }
+
+    .nav-pills .nav-link.active .left-icon {
+        color: #ffffff !important;
+    }
+
+    .box-btn {
+        background-color: #000;
+    }
+
+    .loose-btn {
+        background-color: #000;
+    }
+
+    th,
+    td {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    /* Align text in the second column (index 2) to the left */
+    tr td:nth-child(2), tr th:nth-child(2)  {
+        text-align: left;
+    }
+
+    .pt-55{
+        padding-top: 55px;
+    }
+
+    .home-i{
+        font-size:22px;
+        background-color: #f0f0f0;
+    padding: 15px;
+    border-radius: 10px;
+    }
+
+    .home-i:hover{
+        background-color:#a558c8;
+        color: #f0f0f0;
+    }
+
+    .cart-l{
+        background: #F4F6FB !important;
+        height: fit-content !important;
+        margin-top:15px !important;
+        border: 2px solid #E4EBFC !important;
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px !important;
+    }
+
+    .offer-tr{
+        border-bottom: 1px solid #d8d8d8;
+    }
+
+    .cart-offer{
+        background: #F4F6FB !important;
+        height: fit-content !important;
+        border-radius: 24px !important;
+        margin-top:15px !important;
+        /* border: 2px solid #E4EBFC !important; */
+        box-shadow: rgba(0, 0, 0, 0.16) 0px 1px 4px !important;
+    }
+
+    .order-management{
+        font-family :"Inter", sans-serif !important;
+        font-weight:900 !important;
+    }
+
+    .re-off{
+        mix-blend-mode: darken;
+    }
+
+    .w-f{
+        width:300px;
+        padding: 15px;
+    }
+
+    .price-d{
+        font-weight: 600;
+    letter-spacing: 0.5px;
+    }
+
+    .diff{
+        width: fit-content;
+    color: green;
+    font-weight: bold;
+    }
+
+    @media (max-width: 767px) {
+        .col-sm-6{
+            width: 50%;
+        }
+
+        .orders-m .nav-link.active {
+            color: #fff;
+            background-color: #a558c8;
+            font-weight: 500;
+            font-size: 15px;
+            font-family: var(--secondary-font) !important;
+            /* border-radius: 0px; */
+            margin-left: 0px;
+            border-radius: 0;
+            -moz-border-radius: 0;
+            -webkit-border-radius: 0;
+            border: 0px solid #7d137d;
+        }
+
+        .orders-m .nav-link.active .left-icon {
+            color: #fff !important;
+        }
+
+        .left-icon {
+            color: var(--primary) !important;
+            margin-right: 15px;
+            font-size: 20px;
+        }
+
+        .tabs1 , .tabs2 {
+            position: relative;
+            width: 100%;
+        }
+
+        .w-sm-100{
+            width: 100%;
+        }
+        .heading {
+            font-size: 25px;
+            font-weight: 500 !important;
+            text-transform: uppercase;
+        }
+
+        .dropdown-menu{
+            width: 100%
+        }
+        .dropdown-menu li{
+            width: 100%;
+        }
+
+    .ml-8 {
+        margin-left: 0;
+    }
+
+
+    .w11 input[type='text'] {
+        border-radius: 2px !important;
+        border: 1px solid #979797 !important;
+        box-sizing: border-box !important;
+        padding: 1px !important;
+        width: 100% !important;
+    }
+    }
+
+</style>
+
+<section class="order-management pt-55 pb-5">
+    <div class="container-fluid ">
+        <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex align-items-center justify-content-between">
+                <h3 class="heading">
+                    <span class="text-primary">Order</span>
+                    <span class="fw-600"> Management</span>
+                </h3>
+                <a href="{{ route('homepage') }}">
+                    <i class="fa fa-home home-i"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="title">
+                    <!-- <div class="d-flex align-items-center flex-row justify-content-between">
+                        <h3 class="heading">
+                        <span class="text-primary">Order</span>
+                        <span class="fw-600"> &nbsp;
+                            Management</span>
+                        </h3>
+
+                    <a href="{{ route('homepage') }}">
+                        <i class="fa fa-home" style="font-size:22px;" ></i>
+                    </a>
+                    </div> -->
+                    <!-- <h3 class="heading">
+                        <span class="text-primary">Order</span>
+                        <span class="fw-600"> &nbsp;
+                            Management</span>
+
+                    </h3>
+                    <i class="fa fa-home" aria-hidden="true"></i> -->
+
+                    <section class="py-5 header ml-8" style="width:100% !important;">
+                        <!-- <div class=" py-4">
+                                <div class="d-flex align-items-start">
+                                    <div class="left-sidebar"  style="width:250px !important;"> -->
+
+                        <!-- <div class="img-div">
+                                            <img src="" class="empty-profile">
+                                            <h4 class="companyname mt-4">ABC COMPANY</h4>
+                                            <h5 class="mt-2">abc@gmail.com</h5>
+                                        </div> -->
+
+                        <!-- Tabs nav -->
+                       <div class="nav nav-tabs orders-m nav-item" id="v-pills-tab" role="tablist">
+                        <button class="nav-link tabs1 active" id="v-pills-enquiry-tab" data-bs-toggle="pill" data-bs-target="#v-pills-enquiry" type="button" role="tab" aria-controls="v-pills-enquiry" aria-selected="false"><i class="fa-solid fa-cart-shopping left-icon"></i> Enquiry <span class="countSpan">{{$quoteCounts}}</span></button>
+
+                        <div class="dropdown w-sm-100">
+                            <button class="nav-link tabs2" id="v-pills-offer-dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fa-solid fa-scroll left-icon"></i> Offer List<span class="countSpan">{{$offerListCount}}</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="v-pills-offer-dropdown-toggle" style="border-radius: 20px; padding: 0px;}">
+                                <li>
+                                    <button class="nav-link tabs1" id="v-pills-offer-tab" data-bs-toggle="pill" data-bs-target="#v-pills-offer" type="button" role="tab" aria-controls="v-pills-offer" aria-selected="false">New Offer</button>
+                                </li>
+                                <li>
+                                    <button class="nav-link tabs1" id="v-pills-offer-tab2" data-bs-toggle="pill" data-bs-target="#v-pills-offer2" type="button" role="tab" aria-controls="v-pills-offer2" aria-selected="false">Reoffer</button>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <button class="nav-link tabs1" id="v-pills-price-tab" data-bs-toggle="pill" data-bs-target="#v-pills-price" type="button" role="tab" aria-controls="v-pills-price" aria-selected="false"><i class="fa-solid fa-receipt left-icon"></i> My Price List <span class="countSpan">{{$enquiriesForAcceptCount}}</span></button>
+
+                        <button class="nav-link tabs1" id="v-pills-rejected-tab" data-bs-toggle="pill" data-bs-target="#v-pills-rejected" type="button" role="tab" aria-controls="v-pills-rejected" aria-selected="false"><i class="fa-solid fa-cart-plus left-icon"></i> Order cart <span class="countSpan">{{$cartsCount}}</span></button>
+                    </div>
+
+
+                </div>
+
+
+
+
+
+                <div class="tab-content right-side1" id="v-pills-tabContent">
+                    <div class="tab-pane fade" id="v-pills-orders" role="tabpanel" aria-labelledby="v-pills-orders-tab"
+                        style="width:100% !important;">
+                        <div class="orders-tab orders-tab-margin">
+                            <h4>Requested <span class="color-primary"> Enquiry </span></h4>
+                            <table class="table mt-2">
+                                <tbody>
+                                    <tr class="table-c">
+                                        <td class="w1">Sr.No.</td>
+                                        <td class="w2">Image</td>
+                                        <td class="w3">Product Name</td>
+                                        <td class="w4">Pattern</td>
+                                        <td class="w5">Monthly Consumption</td>
+                                        <td class="w6">Action</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="w1">01 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4"><select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w1">02 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4">
+                                            <select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w1">03 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4"><select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w1">04 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4"><select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w1">05 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4"><select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w1">06 </td>
+                                        <td class="w2"><img src="assests/images/img.png" class="enquiry-img"></td>
+                                        <td class="w3">Govind - Dahi, 1 Kg Pouch<br><span>Unit
+                                                : 1 kg</span></td>
+                                        <td class="w4"><select class="form-select" aria-label="Default select example">
+                                                <option selected>Select</option>
+                                                <option value="1">Loose Box</option>
+                                                <option value="2">Cartoon box</option>
+                                            </select></td>
+                                        <td class="w5">
+                                            <div class="quantity">
+                                                <a href="#" class="quantity__minus"><span>-</span></a>
+                                                <input name="quantity" type="text" class="quantity__input" value="1">
+                                                <a href="#" class="quantity__plus"><span>+</span></a>
+                                            </div>
+                                            <input type="text form-control" class="optional ">
+                                        </td>
+                                        <td class="w6"><img src="assests/images/close.svg">
+                                        </td>
+                                    </tr>
+
+
+
+                                </tbody>
+                            </table>
+                        </div>
+
+
+
+                    </div>
+
+                     <div class="tab-pane fade show active" id="v-pills-enquiry" role="tabpanel"
+                        aria-labelledby="v-pills-enquiry-tab">
+                    <div class="orders-tab orders-tab-margin">
+                            <h4 class="mb-4">Enquiry <span class="color-primary">Cart</span> </h4>
+                            @if (isset($quote_Items_list) && $quote_Items_list->count() > 0)
+                                <form id="enquiryForm">
+                                    @csrf
+
+                                    @php
+
+                                                    $counter = 1; // Initialize counter for each category
+                                                @endphp
+
+                                        <div class="d-none d-md-block">
+                                        <div class="table-responsive">
+                                            <table class="table "> <!-- Hide on small screens -->
+                                                <!-- Table header -->
+                                                <thead>
+                                                <tr class="table-c">
+                                                    <th class="w7">Sr.No.</th>
+                                                    <th class="w8">Image</th>
+                                                    <th class="w9">Product Name</th>
+                                                    <th class="w10">Order Quantity Type</th>
+                                                    <th class="w11">Monthly Consumption</th>
+                                                    <th class="w12">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+
+                                                @foreach($quote_Items_list as $key => $quote_Items)
+                                                    <tr>
+                                                        <td class="w7">{{ $counter++ }}</td>
+                                                        <td class="w8">
+                                                            <img src="uploads/{{ $quote_Items->product->image }}" class="enquiry-img">
+                                                        </td>
+                                                        <td class="w9">{{ $quote_Items->product->product_name }}</td>
+                                                        <td class="w10">
+                                                            @if ($quote_Items->product_type == '1')
+                                                                <!-- <span style="color:red">Carton Box : 24 Nos.</span> -->
+                                                                <span style="color:red">Carton Box :{{ $quote_Items->product->carton_size ?? 0 }} Nos.</span>
+                                                                <input type="hidden" name="discount{{ $counter }}" id="discount{{ $counter }}" value="{{ $quote_Items->product->carton_discount_basic }}">
+                                                                <input type="hidden" name="offer_price{{ $counter }}" id="offer_price{{ $counter }}" value="{{ $quote_Items->product->sale_price_carton }}">
+                                                                <input type="hidden" class="form-select" name="product_types{{ $counter }}" value="{{ $quote_Items->product_type }}">
+                                                                <input type="hidden" class="form-select" name="quantity{{ $counter }}" value="{{ $quote_Items->quantity }}">
+                                                            @elseif ($quote_Items->product_type == '2')
+                                                                <span style="color:red">Loose (pcs.)</span>
+                                                                <input type="hidden" name="discount{{ $counter }}" id="discount{{ $counter }}" value="{{ $quote_Items->product->loose_discount_basic }}">
+                                                                <input type="hidden" name="offer_price{{ $counter }}" id="offer_price{{ $counter }}" value="{{ $quote_Items->product->sale_price_loose_pcs }}">
+                                                                <input type="hidden" class="form-select" name="quantity{{ $counter }}" value="{{ $quote_Items->quantity }}">
+                                                                <input type="hidden" class="form-select" name="product_types{{ $counter }}" value="{{ $quote_Items->product_type }}">
+                                                            @else
+                                                                <span style="color:#00f">Loose/Box Not</span>
+                                                            @endif
+                                                            <input type="hidden" name="product_id{{ $counter }}" value="{{ $quote_Items->product->id }}">
+                                                        </td>
+                                                        <td class="w11">
+                                                            <input type="text" maxlength="3"  name="monthlyconsumption{{ $counter }}" id="monthlyconsumption{{ $counter }}" value="">
+                                                            <input type="hidden" name="mrp{{ $counter }}" id="mrp{{ $counter }}" value="{{ $quote_Items->product->product_mrp }}">
+                                                        </td>
+                                                        <td class="w12">
+                                                            <a href="{{ route('removequote', $quote_Items->id) }}">
+                                                                <i class="fa-solid fa-trash"></i>
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                            </table>
+                                        </div>
+                                        </div>
+
+                                        <!-- Grid layout for small screens -->
+                                        <div class="row d-md-none"> <!-- Show on small screens -->
+                                            @foreach($quote_Items_list as $key => $quote_Items)
+                                                <div class="col-md-6 ">
+                                                    <div class=" row my-2 bordered p-3">
+                                                    <div class="col-sm-4">
+                                                        <img src="uploads/{{ $quote_Items->product->image }}" class="card-img-top" alt="Product Image">
+                                                    </div>
+                                                    <div class="col-sm-8 p-2">
+                                                            <h5 class="card-title" style="font-weight: 700">{{ $quote_Items->product->product_name }}</h5>
+                                                            <p class="card-text" style="margin: 5px auto;">
+                                                                @if ($quote_Items->product_type == '1')
+                                                                Carton Box :{{ $quote_Items->product->carton_size ?? 0 }} Nos.
+                                                                @elseif ($quote_Items->product_type == '2')
+                                                                    Loose (pcs.)
+                                                                @else
+                                                                    Loose/Box Not
+                                                                @endif
+                                                            </p>
+                                                            <div class="d-flex">
+                                                                                                                            <input type="text" style="margin: 5px auto;" maxlength="3"  placeholder="Monthly Consumption"  name="monthlyconsumption{{ $counter }}" id="monthlyconsumption{{ $counter }}" value="">
+                                                            <input type="hidden" name="mrp{{ $counter }}" id="mrp{{ $counter }}" value="{{ $quote_Items->product->product_mrp }}">
+                                                            <a style="    margin: 5px auto;" href="{{ route('removequote', $quote_Items->id) }}" class="btn btn-theme">
+                                                            Remove
+                                                            </a>
+                                                            </div>
+                                                    </div>
+                                                </div>
+                                                    </div>
+                                            @endforeach
+                                        </div>
+
+
+                                        <a id="submitEnquiryButton" style="position: relative; bottom: 0; top: 20px; cursor: pointer;" class="add-button addcart-button buy-button text-light red-btn submitEnquiry">
+                                            Request to quote
+                                        </a>
+                                            </form>
+                                @else
+                                    <div style="margin-top: 30px; background: aliceblue; padding: 10px; font-weight: 500; font-size: 18px; letter-spacing: 0.5px;">
+                                        <span>Add new product to your enquiry cart to get offer.</span>
+                                    </div>
+                             @endif
+
+
+
+                        </div>
+
+
+                     </div>
+                 <div class="tab-pane fade" id="v-pills-offer" role="tabpanel" aria-labelledby="v-pills-offer-tab">
+                      <div class="orders-tab orders-tab-margin">
+                    <h4>My <span class="color-primary">Offer List</span></h4>
+                    <div class="row margin-t">
+                        @php
+                            // Initialize an associative array to store products grouped by category name
+                            $groupedProducts = [];
+
+                            // Group products by category name
+                            foreach ($enquiriesForOfferList as $key => $offer_list) {
+                                // Check if reoffer is 'no'
+
+                                    // Calculate GST rate and selling price with GST
+                                    
+                                     if ($offer_list->reoffer == 'no') {
+                                    
+                                    $gstRate = $offer_list->product->cgst + $offer_list->product->sgst;
+                                    $sellingPriceWithGst = $offer_list->offer_price * (1 + ($gstRate / 100));
+
+                                    // Calculate discount
+                                    $discount = (($offer_list->mrp - $sellingPriceWithGst) / $offer_list->mrp) * 100;
+
+                                    // Add discount to product data
+                                    $offer_list->discount = number_format($discount, 2);
+
+                                    $groupedProducts[] = $offer_list;
+
+                            }
+                        }
+                        @endphp
+
+                        @if (count($groupedProducts) > 0)
+                            <div class="section mt-2">
+                                <hr class="brk-line">
+                            </div>
+
+                            <div class="d-none d-md-block">
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr class="table-c">
+                                                <th></th>
+                                                <th class="w3-7">Sr.No.</th>
+                                                <th class="w3-8">Image</th>
+                                                <th class="w3-9">Product Name</th>
+                                                <th class="w3-10">Order Quantity Type</th>
+                                                <th class="w3-11">Offer Price (Basic)</th>
+                                                <th class="w3-12">MRP</th>
+                                                <th class="w3-12">Discount</th>
+                                                <th class="w3-12">Counter Price/Comment</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($groupedProducts as $key => $offer_list)
+                                                <tr>
+                                                    <td>
+                                                        @if ($offer_list->alert === 'active')
+                                                            <i class="fa fa-info-circle text-danger" aria-hidden="true" title="The price has been updated. You're welcome to accept a new offer."></i>
+                                                        @endif
+                                                    </td>
+                                                    <td class="w3-7 text-center">{{ $key + 1 }}</td>
+                                                    <td class="w3-8">
+                                                        <img src="uploads/{{ $offer_list->product->image }}" class="enquiry-img" alt="Product Image">
+                                                    </td>
+                                                    <td class="w3-9 w-f">
+                                                        <div class="d-flex flex-column">
+                                                            <span>{{ $offer_list->product->product_name }}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-10">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->product_types == 1)
+                                                                <span style="color:red">Carton Box :{{ $offer_list->product->carton_size ?? 0 }} Nos.</span>
+                                                            @elseif ($offer_list->product_types == 2)
+                                                                <span style="color: red">Loose (pcs.)</span>
+                                                            @else
+                                                                <span style="color: blue">Loose/Box Not</span>
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-11 text-center">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->offer_price)
+                                                                ₹ {{ $offer_list->offer_price }}
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->mrp)
+                                                                ₹ {{ $offer_list->mrp }}
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12 text-center">
+                                                        <div class="d-flex flex-column">
+                                                            {{ $offer_list->discount }} %
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12">
+                                                        <div class="d-flex flex-column">
+                                                            {{--  {{ $offer_list->expected_price_value ? $offer_list->expected_price_value : 'No Counter/Comment' }}  --}}
+                                                            <!--<input type="text" maxlength="3" name="" value="">-->
+    <input type="text" id="sharedComment_{{ $offer_list->id }}" value="{{ $offer_list->counter_comment }}">
+                                                        </div>
+                                                    </td>
+
+                                                    <!--<td>-->
+                                                    <!--    <div class="d-flex flex-column">-->
+                                                    <!--        <div class="d-flex">-->
+                                                    <!--            <form class="offerRequestForm" id="offerRequestForm_{{ $offer_list->id }}" action="{{ route('offer.request', $offer_list->id) }}" method="POST" class="re-off">-->
+                                                    <!--                @csrf-->
+                                                    <!--                <input type="hidden" name="status" value="accept">-->
+                                                    <!--                <input type="hidden" name="updated_at" value="{{ $offer_list->updated_at }}">-->
+                                                    <!--                <input type="hidden" name="offerRequestFormid" value="{{ $offer_list->id }}">-->
+                                                    <!--                <button type="button" class="tick acceptButton" title="Accept"><i class="fa-solid fa-check"></i></button>-->
+                                                    <!--            </form>-->
+
+                                                    <!--            <form action="{{ route('offer.reject', $offer_list->id) }}" method="POST" rel="noopener noreferrer" class="re-off">-->
+                                                    <!--                @csrf-->
+                                                    <!--                <input type="hidden" name="status" value="rejected">-->
+                                                    <!--                <button type="submit" class="cross" title="Rejected"><i class="fa-solid fa-xmark"></i></button>-->
+                                                    <!--            </form>-->
+                                                    <!--            <button type="submit" class="money" data-bs-toggle="modal" data-bs-target="#exampleModal" title="Reoffer">-->
+                                                    <!--                <i class="fa-solid fa-money-check"></i>-->
+                                                    <!--            </button>-->
+                                                    <!--        </div>-->
+
+                                                    <!--        <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">-->
+                                                    <!--            <div class="modal-dialog modal-dialog-centered modal-w">-->
+                                                    <!--                <div class="modal-content">-->
+                                                    <!--                    <div class="modal-header">-->
+                                                    <!--                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>-->
+                                                    <!--                    </div>-->
+                                                    <!--                    <div class="modal-body">-->
+                                                    <!--                        <form action="{{ route('offer.reoffer', $offer_list->id) }}" method="POST" rel="noopener noreferrer">-->
+                                                    <!--                            @csrf-->
+                                                    <!--                            <label class="mb-2 modal-h">Enter Counter Price/Comment</label>-->
+                                                    <!--                            <input type="text" class="form-control" name="expected_price_value" required>-->
+                                                    <!--                            <button type="submit" class="btn red-btn mb-3 add-button addcart-button btn buy-button text-light red-btn1 mt-2">Reoffer</button>-->
+                                                    <!--                        </form>-->
+                                                    <!--                    </div>-->
+                                                    <!--                </div>-->
+                                                    <!--            </div>-->
+                                                    <!--        </div>-->
+                                                    <!--    </div>-->
+                                                    <!--</td>-->
+                                                    
+                                                    
+                                                      <td>
+                                                        <div class="d-flex flex-column">
+                                                            {{--  <input type="text" id="sharedComment_{{ $offer_list->id }}" value="{{ $offer_list->counter_comment }}" placeholder="No Counter/Comment">  --}}
+
+                                                            <div class="d-flex">
+                                                                <form class="offerRequestForm" id="offerRequestForm_{{ $offer_list->id }}" action="{{ route('offer.request', $offer_list->id) }}"  method="POST" class="re-off">
+                                                                    @csrf
+                                                                    <input type="hidden" name="counter_comment" id="counterCommentAccept_{{ $offer_list->id }}">
+                                                                    <input type="hidden" name="status" value="accept">
+                                                                    <input type="hidden" name="updated_at" value="{{ $offer_list->updated_at }}">
+                                                                    <input type="hidden" name="offerRequestFormid" value="{{ $offer_list->id }}">
+                                                                    <input type="hidden" name="product_id" value="{{ $offer_list->product->id }}"> <!-- Add product_id here -->
+                                                                    <button type="button" class="tick acceptButton" title="Accept"><i class="fa-solid fa-check"></i>
+                                                                    </button>
+                                                                </form>
+
+                                                                <form id="rejectForm_{{ $offer_list->id }}" action="{{ route('offer.reject', $offer_list->id) }}" method="POST" rel="noopener noreferrer" class="re-off">
+                                                                    @csrf
+                                                                    <input type="hidden" name="counter_comment" id="counterCommentReject_{{ $offer_list->id }}">
+                                                                    <input type="hidden" name="status" value="rejected">
+                                                                    <button type="button" class="cross rejectButton" title="Rejected"><i class="fa-solid fa-xmark"></i></button>
+                                                                </form>
+                                                                
+                                                                
+                                                                 <form id="reofferForm_{{ $offer_list->id }}" action="{{ route('offer.reoffer', $offer_list->id) }}" method="POST" rel="noopener noreferrer" class="re-off">
+                                                                    @csrf
+                                                                    <input type="hidden" name="counter_comment" id="counterCommentReoffer_{{ $offer_list->id }}">
+                                                                    <input type="hidden" name="reoffer" value="reoffer" required>
+                                                                    <input type="hidden" name="expected_price_value" required>
+                                                                    <button type="button" class="money reofferButton" title="Reoffer"> <i class="fa-solid fa-money-check"></i></button>
+                                                                </form>
+                                                                
+
+                                                                <!--<button type="submit" class="money" data-bs-toggle="modal" data-bs-target="#exampleModal" title="Reoffer">-->
+                                                                <!--    <i class="fa-solid fa-money-check"></i>-->
+                                                                <!--</button>-->
+                                                            </div>
+
+                                                            <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                <div class="modal-dialog modal-dialog-centered modal-w">
+                                                                    <div class="modal-content">
+                                                                        <div class="modal-header">
+                                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                        </div>
+                                                                        <div class="modal-body">
+                                                                            <form action="{{ route('offer.reoffer', $offer_list->id) }}" method="POST" rel="noopener noreferrer">
+                                                                                @csrf
+                                                                                <label class="mb-2 modal-h">Enter Counter Price/Comment</label>
+                                                                                <input type="text" class="form-control" name="expected_price_value" required>
+                                                                                <button type="submit" class="btn red-btn mb-3 add-button addcart-button btn buy-button text-light red-btn1 mt-2">Reoffer</button>
+                                                                            </form>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>  
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="d-md-none">
+                                <div class="row">
+                                    @foreach ($groupedProducts as $key => $offer_list)
+                                        <div class="col-12">
+                                            <div class="card mb-3">
+                                                <div class="row g-0">
+                                                    <div class="col-sm-4">
+                                                        <img src="uploads/{{ $offer_list->product->image }}" class="card-img-top" alt="Product Image">
+                                                    </div>
+                                                    <div class="col-sm-8 p-2">
+                                                        <div class="card-body">
+                                                            <h5 class="card-title" style="font-weight: 700"><strong>{{ $offer_list->product->product_name }}</strong></h5>
+                                                            <p class="card-text mb-3">
+                                                                @if ($offer_list->product_type == '1')
+                                                                Carton Box :{{ $offer_list->product->carton_size ?? 0 }} Nos.
+                                                                @elseif ($offer_list->product_type == '2')
+                                                                    Loose (pcs.)
+                                                                @else
+                                                                    Loose/Box
+                                                                @endif
+                                                            </p>
+                                                            <p class="card-text my-2"><strong>Offer Price:</strong>
+                                                                @if ($offer_list->offer_price)
+                                                                    ₹ {{ $offer_list->offer_price }}
+                                                                @endif
+                                                            </p>
+                                                            <p class="card-text my-2"><strong>MRP:</strong>
+                                                                @if ($offer_list->mrp)
+                                                                    ₹ {{ $offer_list->mrp }}
+                                                                @endif
+                                                            </p>
+                                                            <p class="card-text my-2"><strong>Discount:</strong>
+                                                                @if ($offer_list->discount)
+                                                                    {{ $offer_list->discount }} %
+                                                                @endif
+                                                            </p>
+                                                            <p class="card-text my-2"><strong>Counter Price/Comment:</strong>
+                                                                @if ($offer_list->expected_price_value)
+                                                                    {{ $offer_list->expected_price_value }}
+                                                                @else
+                                                                    0
+                                                                @endif
+                                                            </p>
+                                                            <p>
+                                                                <div class="d-flex flex-column">
+                                                                    <div class="d-flex">
+                                                                        <form class="offerRequestForm" id="offerRequestForm_{{ $offer_list->id }}" action="{{ route('offer.request', $offer_list->id) }}" method="POST" class="re-off">
+                                                                            @csrf
+                                                                            <input type="hidden" name="status" value="accept">
+                                                                            <input type="hidden" name="updated_at" value="{{ $offer_list->updated_at }}">
+                                                                            <input type="hidden" name="offerRequestFormid" value="{{ $offer_list->id }}">
+                                                                            <button type="button" class="tick acceptButton" title="Accept"><i class="fa-solid fa-check"></i></button>
+                                                                        </form>
+
+                                                                        <form action="{{ route('offer.reject', $offer_list->id) }}" method="POST" rel="noopener noreferrer" class="re-off">
+                                                                            @csrf
+                                                                            <input type="hidden" name="status" value="rejected">
+                                                                            <button type="submit" class="cross" title="Rejected"><i class="fa-solid fa-xmark"></i></button>
+                                                                        </form>
+                                                                        <button type="submit" class="money" data-bs-toggle="modal" data-bs-target="#exampleModal22" title="Reoffer">
+                                                                            <i class="fa-solid fa-money-check"></i>
+                                                                        </button>
+                                                                    </div>
+
+                                                                    <div class="modal fade" id="exampleModal22" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                        <div class="modal-dialog modal-dialog-centered modal-w">
+                                                                            <div class="modal-content">
+                                                                                <div class="modal-header">
+                                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                                </div>
+                                                                                <div class="modal-body">
+                                                                                    <form action="{{ route('offer.reoffer', $offer_list->id) }}" method="POST" rel="noopener noreferrer">
+                                                                                        @csrf
+                                                                                        <label class="mb-2 modal-h">Enter Counter Price/Comment</label>
+                                                                                        <input type="text" class="form-control" name="expected_price_value" required>
+                                                                                        <button type="submit" class="btn red-btn mb-3 add-button addcart-button btn buy-button text-light red-btn1 mt-2">Reoffer</button>
+                                                                                    </form>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <div style="margin-top: 30px; background: aliceblue; padding: 10px; font-weight: 500; font-size: 18px; letter-spacing: 0.5px;">
+                                <span>No new offer available from enquiry please contact to customer care if enquiry submitted.</span>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+
+
+
+            </div>
+
+
+                    <div class="tab-pane fade" id="v-pills-offer2" role="tabpanel" aria-labelledby="v-pills-offer-tab2">
+                        <div class="orders-tab orders-tab-margin">
+                            @php
+                                // Initialize an associative array to store products grouped by category name
+                                $groupedProducts = [];
+
+                                // Group products by category name
+                                foreach ($enquiriesForOfferList as $key => $offer_list) {
+                                    // Check if reoffer is 'yes'
+                                    if ($offer_list->reoffer == 'yes') {
+                                        // Calculate GST rate and selling price with GST
+                                        $gstRate = $offer_list->product->cgst + $offer_list->product->sgst;
+                                        $sellingPriceWithGst = $offer_list->offer_price * (1 + ($gstRate / 100));
+
+                                        // Calculate discount
+                                        $discount = (($offer_list->mrp - $sellingPriceWithGst) / $offer_list->mrp) * 100;
+
+                                        // Add discount to product data
+                                        $offer_list->discount = number_format($discount, 2);
+
+                                        $groupedProducts[] = $offer_list;
+                                    }
+                                }
+                            @endphp
+
+                            <h4>My <span class="color-primary">Reoffer List ({{ count($groupedProducts) }})</span></h4>
+
+                            <div class="row margin-t">
+                                @if (count($groupedProducts) > 0)
+                                <div class="section mt-2">
+                                    <hr class="brk-line">
+                                </div>
+                                <div class="d-none d-md-block">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr class="table-c">
+                                                    <th></th>
+                                                    <th class="w3-7">Sr.No.</th>
+                                                    <th class="w3-8">Image</th>
+                                                    <th class="w3-9">Product Name</th>
+                                                    <th class="w3-10">Order Quantity Type</th>
+                                                    <th class="w3-11">Offer Price (Basic)</th>
+                                                    <th class="w3-12">MRP</th>
+                                                    <th class="w3-12">Discount</th>
+                                                    <th class="w3-12">Counter Price/Comment</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($groupedProducts as $key => $offer_list)
+                                                <tr>
+                                                    <td>@if ($offer_list->alert === 'active')
+                                                        <i class="fa fa-info-circle text-danger" aria-hidden="true"
+                                                        title="The price has been updated. You're welcome to accept a new offer."></i>
+                                                        @endif
+                                                    </td>
+                                                    <td class="w3-7 text-center">{{ $key + 1 }}</td>
+                                                    <td class="w3-8"><img src="uploads/{{ $offer_list->product->image }}" class="enquiry-img"></td>
+                                                    <td class="w3-9 w-f">
+                                                        <div class="d-flex flex-column">
+                                                            <span>{{ $offer_list->product->product_name }}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-10">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->product_types == 1)
+                                                            <span style="color:red"> Carton Box :{{ $offer_list->product->carton_size ?? 0 }} Nos.</span>
+                                                            @elseif ($offer_list->product_types == 2)
+                                                            <span style="color: red">Loose (pcs.)</span>
+                                                            @else
+                                                            <span style="color: blue">Loose/Box Not</span>
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-11 text-center">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->offer_price)
+                                                            ₹ {{ $offer_list->offer_price }}
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->mrp)
+                                                            ₹ {{ $offer_list->mrp }}
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12 text-center">
+                                                        <div class="d-flex flex-column">
+                                                            {{ $offer_list->discount }} %
+                                                        </div>
+                                                    </td>
+                                                    <td class="w3-12 text-center">
+                                                        <div class="d-flex flex-column">
+                                                            @if ($offer_list->expected_price_value)
+                                                            {{ $offer_list->expected_price_value }}
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="d-flex flex-column text-center">
+                                                            <div class="d-flex">
+                                                                <form class="offerRequestForm" id="offerRequestForm_{{ $offer_list->id }}" action="{{ route('offer.request', $offer_list->id) }}" method="POST" class="re-off">
+                                                                    @csrf
+                                                                    <input type="hidden" name="status" value="accept">
+                                                                    <input type="hidden" name="updated_at" value="{{ $offer_list->updated_at }}">
+                                                                    <input type="hidden" name="offerRequestFormid" value="{{ $offer_list->id }}">
+                                                                    <button type="button" class="tick acceptButton" title="Accept"><i class="fa-solid fa-check"></i></button>
+                                                                </form>
+
+                                                                <form action="{{ route('offer.reject', $offer_list->id) }}" method="POST"
+                                                                    rel="noopener noreferrer" class="re-off">
+                                                                    @csrf
+                                                                    <input type="hidden" name="status" value="rejected">
+                                                                    <button type="submit" class="cross" title="Rejected"><i class="fa-solid fa-xmark"></i></button>
+                                                                </form>
+                                                                <button type="submit" class="money" data-bs-toggle="modal" data-bs-target="#exampleModal{{ $offer_list->id }}" title="Reoffer">
+                                                                    <i class="fa-solid fa-money-check"></i>
+                                                                </button>
+                                                            </div>
+
+                                                            <div class="modal fade" id="exampleModal{{ $offer_list->id }}" tabindex="-1"
+                                                            aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                <div class="modal-dialog modal-dialog-centered modal-w">
+                                                                    <div class="modal-content">
+                                                                        <div class="modal-header">
+                                                                            <button type="button" class="btn-close"
+                                                                                data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                        </div>
+                                                                        <div class="modal-body">
+                                                                            <form action="{{ route('offer.reoffer1', $offer_list->id) }}"
+                                                                                method="POST" rel="noopener noreferrer">
+                                                                                @csrf
+                                                                             
+                                                                                <label class="mb-2 modal-h">Enter Counter Price/Comment</label>
+                                                                                <input type="text" class="form-control"
+                                                                                    name="expected_price_value" value="" required>
+                                                                                    
+                                                                                   <!--<input type="text" class="form-control"-->
+                                                                                   <!-- name="counter_comment" value="" required> -->
+                                                                                <button type="submit"
+                                                                                    class="btn red-btn mb-3 add-button addcart-button btn buy-button text-light red-btn1 mt-2">Reoffer</button>
+                                                                            </form>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="d-md-none">
+                                    <div class="row">
+                                        @foreach ($groupedProducts as $key => $offer_list)
+                                            <div class="col-12">
+                                                <div class="card mb-3">
+                                                    <div class="row g-0">
+                                                        <div class="col-sm-4">
+                                                            <img src="uploads/{{ $offer_list->product->image }}" class="card-img-top" alt="Product Image">
+                                                        </div>
+                                                        <div class="col-sm-8 p-2">
+                                                            <div class="card-body">
+                                                                <h5 class="card-title" style="font-weight: 700"><strong>{{ $offer_list->product->product_name }}</strong></h5>
+                                                                <p class="card-text mb-3">
+                                                                    @if ($offer_list->product_type == '1')
+                                                                    Carton Box : 24 Nos.
+                                                                    @elseif ($offer_list->product_type == '2')
+                                                                    Loose (pcs.)
+                                                                    @else
+                                                                    Loose/Box
+                                                                    @endif
+                                                                </p>
+                                                                <p class="card-text my-2"><strong>Offer Price:</strong> @if ($offer_list->offer_price)
+                                                                ₹ {{ $offer_list->offer_price }}
+                                                                @endif</p>
+                                                                <p class="card-text my-2"><strong>MRP:</strong> @if ($offer_list->mrp)
+                                                                ₹ {{ $offer_list->mrp }}
+                                                                @endif</p>
+                                                                <p class="card-text my-2"><strong>Discount:</strong> @if ($offer_list->discount)
+                                                                {{ $offer_list->discount }} %
+                                                                @endif</p>
+                                                                <p class="card-text my-2"><strong>Counter Price/Comment:</strong> @if ($offer_list->expected_price_value)
+                                                                ₹ {{ $offer_list->expected_price_value }} @else
+                                                                ₹ 0
+                                                                @endif</p>
+                                                                <p>
+                                                                    <div class="d-flex flex-column">
+                                                                        <div class="d-flex">
+                                                                            <form class="offerRequestForm" id="offerRequestForm_{{ $offer_list->id }}" action="{{ route('offer.request', $offer_list->id) }}" method="POST" class="re-off">
+                                                                                @csrf
+                                                                                <input type="hidden" name="status" value="accept">
+                                                                                <input type="hidden" name="updated_at" value="{{ $offer_list->updated_at }}">
+                                                                                <input type="hidden" name="offerRequestFormid" value="{{ $offer_list->id }}">
+                                                                                <button type="button" class="tick acceptButton" title="Accept"><i class="fa-solid fa-check"></i></button>
+                                                                            </form>
+
+                                                                            <form action="{{ route('offer.reject', $offer_list->id) }}" method="POST"
+                                                                                rel="noopener noreferrer" class="re-off">
+                                                                                @csrf
+                                                                                <input type="hidden" name="status" value="rejected">
+                                                                                <button type="submit" class="cross" title="Rejected"><i class="fa-solid fa-xmark"></i></button>
+                                                                            </form>
+                                                                            <button type="submit" class="money" data-bs-toggle="modal" data-bs-target="#exampleModal22" title="Reoffer">
+                                                                                <i class="fa-solid fa-money-check"></i>
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <div class="modal fade" id="exampleModal22" tabindex="-1"
+                                                                        aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                            <div class="modal-dialog modal-dialog-centered modal-w">
+                                                                                <div class="modal-content">
+                                                                                    <div class="modal-header">
+                                                                                        <button type="button" class="btn-close"
+                                                                                            data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                                    </div>
+                                                                                    <div class="modal-body">
+                                                                                        <form action="{{ route('offer.reoffer', $offer_list->id) }}"
+                                                                                            method="POST" rel="noopener noreferrer">
+                                                                                            @csrf
+                                                                                            <label class="mb-2 modal-h">Enter Counter Price/Comment</label>
+                                                                                            <input type="text" class="form-control"
+                                                                                                name="expected_price_value" value="" required>
+                                                                                            <button type="submit"
+                                                                                                class="btn red-btn mb-3 add-button addcart-button btn buy-button text-light red-btn1 mt-2">Reoffer</button>
+                                                                                        </form>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                @else
+                                    <div style="margin-top: 30px; background: aliceblue; padding: 10px; font-weight: 500; font-size: 18px; letter-spacing: 0.5px;">
+                                        <span>Dear customer, stay tuned you will get revised offer shortly.</span>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="tab-pane fade" id="v-pills-price" role="tabpanel" aria-labelledby="v-pills-price-tab">
+                      <div class="orders-tab orders-tab-margin">
+                        <h4>My <span class="color-primary"> Price List</span></h4>
+                        <div class="row margin-t">
+                            @if (count($enquiriesForAccept) > 0)
+                                <div class="d-none d-md-block">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr class="table-c">
+                                                    <td class="w3-7">Sr.No.</td>
+                                                    <td class="w3-8">Image</td>
+                                                    <td class="w3-9">Product Name</td>
+                                                    <td class="w3-10">Order Quantity Type</td>
+                                                    <td class="w3-12">MRP</td>
+                                                    <td class="w3-11 text-center">Approved Price (Basic)</td>
+                                                    <td class="w3-12">Discount</td>
+                                                    {{-- <td class="w3-12">Counter Price/Comment</td> --}}
+                                                    <td>Action</td>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($enquiriesForAccept as $key => $acceptLits)
+                                                    @php
+                                                        // Calculate GST rate and selling price with GST
+                                                        $gstRate = $acceptLits->product->cgst + $acceptLits->product->sgst;
+                                                        $sellingPriceWithGst = $acceptLits->offer_price * (1 + ($gstRate / 100));
+
+                                                        // Calculate discount
+                                                        $discount = (($acceptLits->mrp - $sellingPriceWithGst) / $acceptLits->mrp) * 100;
+                                                    @endphp
+                                                    <tr>
+                                                        <td class="w3-7">{{ $acceptLits->id }}</td>
+                                                        <td class="w3-8"><img src="uploads/{{ $acceptLits->product->image }}" class="enquiry-img"></td>
+                                                        <td class="w3-9 w-f">{{ $acceptLits->product->product_name }}</td>
+                                                        <td>
+                                                            @if ($acceptLits->product_types == 1)
+                                                                <span style="color:red"> Carton Box :{{ $acceptLits->product->carton_size ?? 0 }} Nos.</span>
+                                                            @elseif ($acceptLits->product_types == 2)
+                                                                <span style="color: red">Loose (pcs.)</span>
+                                                            @else
+                                                                <span style="color: blue">Loose/Box Not</span>
+                                                            @endif
+                                                        </td>
+                                                        <td>@if ($acceptLits->mrp) ₹ {{ $acceptLits->mrp }} @endif</td>
+                                                        <td class="text-center">@if ($acceptLits->offer_price) ₹ {{ $acceptLits->offer_price }} @endif</td>
+                                                        <td>{{ number_format($discount, 2) }} %</td>
+                                                        <td class="w3-10">
+                                                            <div class="d-flex flex-column">
+                                                                <div class="d-flex">
+                                                                    <form action="{{ route('cart.create') }}" method="POST" rel="noopener noreferrer">
+                                                                        @csrf
+                                                                        <input type="hidden" class="form-select" name="product_types" value="{{ $acceptLits->product_types }}">
+                                                                        <input type="hidden" name="enquiry_id" value="{{ $acceptLits->id }}">
+                                                                        <input type="hidden" name="product_id" value="{{ $acceptLits->product_id }}">
+                                                                        @if ($acceptLits->product_types == 1)
+                                                                            <input type="hidden" name="quantity" value="{{ $acceptLits->product->carton_size ?? 0 }}">
+                                                                        @else
+                                                                            <input type="hidden" name="quantity" value="1">
+                                                                        @endif
+                                                                        <input type="hidden" name="offer_price" value="{{ $acceptLits->offer_price }}">
+                                                                        <input type="hidden" name="mrp" value="{{ $acceptLits->mrp }}">
+                                                                        <input type="hidden" name="discount" value="{{ number_format($discount, 2) }}">
+                                                                        <input type="hidden" name="expected_price_value" value="{{ $acceptLits->expected_price_value }}">
+                                                                        <input type="hidden" name="monthlyconsumption" value="{{ $acceptLits->monthlyconsumption }}">
+                                                                        <button type="submit" class="tick re-off"><i class="fa-solid fa-cart-shopping fa-cart-shopping1"></i></button>
+                                                                    </form>
+                                                                    <form action="{{ route('offer.remove', $acceptLits->id) }}" method="POST" rel="noopener noreferrer">
+                                                                        @csrf
+                                                                        <input type="hidden" name="product_id" value="{{ $acceptLits->id }}">
+                                                                        <button type="submit" class="tick re-off"><i class="fa-solid fa-xmark"></i></button>
+                                                                    </form>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <!-- Grid layout for mobile -->
+                                <div class="d-md-none">
+                                    <div class="row">
+                                        @foreach ($enquiriesForAccept as $key => $acceptLits)
+                                            @php
+                                                // Calculate GST rate and selling price with GST
+                                                $gstRate = $acceptLits->product->cgst + $acceptLits->product->sgst;
+                                                $sellingPriceWithGst = $acceptLits->offer_price * (1 + ($gstRate / 100));
+
+                                                // Calculate discount
+                                                $discount = (($acceptLits->mrp - $sellingPriceWithGst) / $acceptLits->mrp) * 100;
+                                            @endphp
+                                            <div class="col-12">
+                                                <div class="card mb-3">
+                                                    <div class="row">
+                                                        <div class="col-sm-4">
+                                                            <img src="uploads/{{ $acceptLits->product->image }}" class="card-img-top" alt="Product Image">
+                                                        </div>
+                                                        <div class="col-sm-8 p-2">
+                                                            <h5 class="card-title" style="font-weight: 700"><strong>{{ $acceptLits->product->product_name }}</strong></h5>
+                                                            <p class="card-text mb-3">
+                                                                @if ($acceptLits->product_type == '1')
+                                                                    Carton Box : 24 Nos.
+                                                                @elseif ($acceptLits->product_type == '2')
+                                                                    Loose (pcs.)
+                                                                @else
+                                                                    Loose/Box
+                                                                @endif
+                                                            </p>
+                                                            <p class="card-text my-2"><strong>Offer Price:</strong> @if ($acceptLits->offer_price) ₹ {{ $acceptLits->offer_price }} @endif</p>
+                                                            <p class="card-text my-2"><strong>MRP:</strong> @if ($acceptLits->mrp) ₹ {{ $acceptLits->mrp }} @endif</p>
+                                                            <p class="card-text my-2"><strong>Discount:</strong> {{ number_format($discount, 2) }} %</p>
+                                                            <p>
+                                                                <div class="d-flex flex-column">
+                                                                    <div class="d-flex">
+                                                                        <form action="{{ route('cart.create') }}" method="POST" rel="noopener noreferrer">
+                                                                            @csrf
+                                                                            <input type="hidden" class="form-select" name="product_types" value="{{ $acceptLits->product_types }}">
+                                                                            <input type="hidden" name="enquiry_id" value="{{ $acceptLits->id }}">
+                                                                            <input type="hidden" name="product_id" value="{{ $acceptLits->product_id }}">
+                                                                            @if ($acceptLits->product_types == 1)
+                                                                                <input type="hidden" name="quantity" value="{{ $acceptLits->product->carton_size ?? 0 }}">
+                                                                            @else
+                                                                                <input type="hidden" name="quantity" value="1">
+                                                                            @endif
+                                                                            <input type="hidden" name="offer_price" value="{{ $acceptLits->offer_price }}">
+                                                                            <input type="hidden" name="mrp" value="{{ $acceptLits->mrp }}">
+                                                                            <input type="hidden" name="discount" value="{{ number_format($discount, 2) }}">
+                                                                            <input type="hidden" name="expected_price_value" value="{{ $acceptLits->expected_price_value }}">
+                                                                            <input type="hidden" name="monthlyconsumption" value="{{ $acceptLits->monthlyconsumption }}">
+                                                                            <button type="submit" class="tick re-off btn btn-theme"><i class="fa-solid fa-cart-shopping"></i> &nbsp;Cart</button>
+                                                                        </form>
+                                                                        <form action="{{ route('offer.remove', $acceptLits->id) }}" method="POST" rel="noopener noreferrer">
+                                                                            @csrf
+                                                                            <input type="hidden" name="product_id" value="{{ $acceptLits->id }}">
+                                                                            <button type="submit" class="tick re-off btn btn-danger">Remove</button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @else
+                                <div style="margin-top: 30px; background: aliceblue; padding: 10px; font-weight: 500; font-size: 18px; letter-spacing: 0.5px;">
+                                    <span>Dear Customer, no price offer has been accepted yet.</span>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    </div>
+
+
+
+
+
+<div class="tab-pane fade" id="v-pills-rejected" role="tabpanel" aria-labelledby="v-pills-rejected-tab">
+     @if ($cart->isEmpty())
+      <div style="margin-top: 30px; background: aliceblue; padding: 10px; font-weight: 500; font-size: 18px; letter-spacing: 0.5px;">
+                                        <span>No items in cart.</span>
+                                    </div>
+
+                            @endif
+    <div class="orders-tab orders-tab-margin {{ $cart->isEmpty() ? ' d-none' : '' }}" >
+        <h4><span class="color-primary">Order Cart</span></h4>
+      <div class="row row1">
+
+            <div class="col-md-8 my-2 cart-l">
+                <div class="table-responsive d-none d-md-block">
+                    <!-- Table layout for PC/tablets -->
+                    <table class="table cart_table">
+                        <thead>
+                            <tr>
+                                <th class="ct1">Sr.</th>
+                                <th class="ct2">Product Name</th>
+                                <th class="ct3">Order Qty</th>
+                                <th class="ct4 text-center">Total Qty(Nos.)</th>
+                                <th class="ct5 text-center">Total Amt (Basic)</th>
+                                <th class="ct6"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if ($cart->isEmpty())
+                                <tr>
+                                    <td colspan="6">No items in cart</td>
+                                </tr>
+
+                            @endif
+                            @php
+                                $dates_checkin = [];
+                                $subTotalAmt = 0;
+                                $productDiscount = 0;
+                                $DiscountValue = 0;
+                                $totalDiscountValue = 0;
+                                $TotalDiscountMainValue = 0;
+                                $CGST = 0;
+                                $SGST = 0;
+                                $totalResult = 0;
+                                $totalGrandTotal = 0;
+                                $totalproductDiscount = 0;
+                                $subTotal= 0;
+                                $total_final_qty = 0;
+                                $TotalGst = 0;
+                                $cart_product_type = 0;
+                                $result = 0;
+                            @endphp
+
+                            @foreach ($cart as $key => $cart_Items)
+                                <tr class="cart-row{{ $key + 1 }}">
+                                    <td><span class="">{{ $key + 1 }}</span></td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="uploads/{{ $cart_Items->product->image }}" class="enquiry-img">
+                                            <p>{{ $cart_Items->product->product_name }}<br>
+                                                <span class="text-center my-1"><b>Price: </b>₹{{ $cart_Items->offer_price }}</span> <br>
+                                                 <span class="text-center "><b>Order Qty Type: </b>@if ($cart_Items->product_types == 1)
+                                                    <span class="text-danger">Box</span>
+                                                    @elseif ($cart_Items->product_types == 2)
+                                                        <span class="text-danger">Loose</span>
+                                                    @else
+                                                        <span class="text-primary">Loose (pcs.)</span>
+                                                    @endif
+                                            </p>
+                                        </div>
+                                    </td>
+                                    <td>
+
+                                        <div class="quantity">
+                                            <button id="minusBtn{{ $key + 1 }}" @if ($cart_Items->count_value != 1)
+                                                onclick="quantityMinus('{{ $key + 1 }}', '{{ $cart_Items->id }}', 'quantity__input{{ $key + 1 }}', 'cart-row{{ $key + 1 }}')"
+                                                @endif class="quantity__minus"><span>-</span></button>
+                                            <input type="hidden" name="product_id{{ $key + 1 }}" value="{{ $cart_Items->product->id }}">
+                                            <input type="number" name="quantity{{ $key + 1 }}" id="quantity__input{{ $key + 1 }}" class="quantity__input quantity__input{{ $key + 1 }} total_qty_cart" value="{{ $cart_Items->count_value ?? 1 }}">
+                                            <button onclick="quantityPlus('{{ $key + 1 }}', '{{ $cart_Items->id }}', 'quantity__input{{ $key + 1 }}', 'cart-row{{ $key + 1 }}')" class="quantity__plus"><span>+</span></button>
+                                        </div>
+                                        <span id="total{{ $key + 1 }}"></span>
+                                    </td>
+                                    <td class="text-center"><span class="total_qty_cart">{{ $cart_Items->total_qty }}</span></td>
+                                    <td class="ct5 text-center"><span class="total-amt-basic{{ $key + 1 }}">₹{{ $cart_Items->total_amt_basic }}</span></td>
+                                    <td style="cursor: pointer;">
+                                        <a onclick="removeCartItem('{{ $cart_Items->id }}')"><i class="fa-solid fa-trash"></i></a>
+                                    </td>
+                                </tr>
+
+                            @endforeach
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Grid layout for mobile -->
+                <div class="d-md-none">
+                    <div class="row">
+                        @if ($cart->isEmpty())
+                            <div class="col-12">
+                                <div class="alert alert-info">No items in cart</div>
+                            </div>
+                        @endif
+
+                        @foreach ($cart as $key => $cart_Items)
+                            <div class="col-12 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                    <div class="row">
+                                    <div class="col-sm-4">
+                                      <img src="uploads/{{ $cart_Items->product->image }}"  class="card-img-top" alt="Product Image"></div>
+                                            <div class="col-sm-8 p-2 cart-row{{ $key + 1 }}">
+                                                <h5 class="card-title"><strong>{{ $cart_Items->product->product_name }}</strong></h5>
+                                                <p class="card-text">
+                                                    <span class="text-center my-1"><b>Price: </b>₹{{ $cart_Items->offer_price }}</span><br>
+                                                    <b>Order Qty:</b>
+                                                    @if ($cart_Items->product_types == 1)
+                                                        <span class="text-danger my-1">Box</span>
+                                                    @elseif ($cart_Items->product_types == 2)
+                                                        <span class="text-danger">Loose</span>
+                                                    @else
+                                                        <span class="text-primary">Loose (pcs.)</span>
+                                                    @endif
+                                                </p>
+                                              <div class="quantity">
+                                                    <button id="minusBtn{{ $key + 1 }}" @if ($cart_Items->count_value != 1)
+                                                        onclick="quantityMinus('{{ $key + 1 }}', '{{ $cart_Items->id }}', 'quantity__input{{ $key + 1 }}', 'cart-row{{ $key + 1 }}')"
+                                                        @endif class="quantity__minus"><span>-</span></button>
+                                                    <input type="hidden" name="product_id{{ $key + 1 }}" value="{{ $cart_Items->product->id }}">
+                                                    <input type="number" name="quantity{{ $key + 1 }}" id="quantity__input{{ $key + 1 }}" class="quantity__input quantity__input{{ $key + 1 }} total_qty_cart" value="{{ $cart_Items->count_value ?? 1 }}">
+                                                    <button onclick="quantityPlus('{{ $key + 1 }}', '{{ $cart_Items->id }}', 'quantity__input{{ $key + 1 }}', 'cart-row{{ $key + 1 }}')" class="quantity__plus"><span>+</span></button>
+                                                </div>
+                                                <span ><b>Totol Qty: </b> <span class="total_qty_cart">{{ $cart_Items->total_qty }}</span> </span><br>
+                                                <span class="total-amt-basic{{ $key + 1 }}"><b>Total Amt (Basic):</b> ₹{{ $cart_Items->total_amt_basic }}</span>
+                                                <div style="cursor: pointer;" class="mt-2">
+                                                      <a onclick="removeCartItem('{{ $cart_Items->id }}')"><i class="fa-solid fa-trash"></i></a>
+                                                </div>
+                                            </div>
+                                            </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @php
+                                $dates_checkin[] = $cart_Items->created_at;
+                                $subTotal = $cart_Items->total_amt_basic;
+                                $productDiscount = $cart_Items->product->total_discount > 0 ? ($subTotal * $cart_Items->product->total_discount) / 100 : 0;
+                                $DiscountValue = $subTotal - $productDiscount;
+                                $CGST = $cart_Items->product->cgst;
+                                $SGST = $cart_Items->product->sgst;
+                                $TotalGst = $CGST + $SGST;
+                               
+                                $TotalDiscountMainValue += $DiscountValue;
+
+                                $totalGrandTotal += $totalDiscountValue;
+                                $totalproductDiscount += $productDiscount;
+                                $subTotalAmt += $subTotal;
+                            @endphp
+                        @endforeach
+
+                        @php
+                            $result = ($TotalDiscountMainValue * $TotalGst) / 100;
+                            $totalDiscountValue = $subTotalAmt + $result;
+                        @endphp
+                    </div>
+                </div>
+
+            </div>
+
+
+
+
+            @if (!$cart->isEmpty())
+            <div class="col-md-4 my-2 p-0">
+                <div class="cart-right  mb-3">
+
+                    <div class="order-summary ">
+                        <h4 class="my-3"><span class="color-dark">Order</span> Summary</h4>
+                        <div class="row  order-row">
+                            <div class="col-md-8 col-sm-6">
+                                <p>Subtotal(Basic)</p>
+                                <p><span class="secondary-color">Product Discount</span></p>
+                                <p>GST + Cess</p>
+                            </div>
+                            <div class="col-md-4 text-end col-sm-6">
+                                <p class="subtotal-value">₹ {{ number_format($subTotalAmt,2) }}</p>
+                                <p><span class="secondary-color product-discount-value">-
+                                        ₹{{ number_format(  $totalproductDiscount,2) }}</span></p>
+                                <p class="gst-value">+ ₹{{ number_format( $result,2) }}</p>
+
+                            </div>
+                        </div>
+                        <div class="row mt-2 order-row">
+                            <div class="col-md-8 col-sm-6">
+                                <p></p>
+                                <p class=""><span>Grand Total</span> </p>
+                            </div>
+                            <div class="col-md-4 text-end col-sm-6 ">
+                                <p><span class="grand-total-value">₹ {{ number_format ( $totalDiscountValue,2) }}</span>
+                                </p>
+                                <p class="taxes">(inclusive all taxes)</p>
+                            </div>
+
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 bordered p-2 my-2">
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h3>PROMO CODE</h3>
+                            </div>
+                        </div>
+                        </div>
+                        <div class="col-md-12   ">
+                            <div class="row">
+                            <div id="promo-i" >
+                                <form id="couponForm">
+                                    <input maxlength="12" class="form-control couponCode" placeholder="Coupon code.." name="couponCode" id="couponCode">
+                                    <span class="validationCoupon2 text-danger"></span>
+                                    <span class="validationCoupon text-danger"></span>
+                                    <div class="dispay-content" id="couponToggle" onclick="toggleCouponList()">
+                                        <label for="" class="float-right"><u>Views Coupons</u></label>
+                                    </div>
+                                    <ul id="couponList" style="display: none;" class="couponList bg-white p-2">
+
+                                        @foreach ($coupon as $item)
+                                            <li @if ($item->max_price > $totalDiscountValue) class="disabled" @endif>
+                                                {{ $item->coupon_name }} - Up to {{ $item->discount_amount }} Off.
+                                                <a href="javascript:void(0);" class="float-end copy-code" style="cursor: pointer; text-decoration: underline; font-size: small" data-coupon-code="{{ $item->coupon_code }}">Copy Code</a>
+                                                <br>
+                                                <a href="javascript:void(0);" class="view-more-link" onclick="toggleDescription(this)">View More</a>
+                                                <div class="coupon-description p-3" style="display: none;">
+                                                <span><b>Min Order: </b> {{ $item->max_price }} </span> <br>
+                                                <span><b>Valid Till: </b>{{ $item->end_date }}</span> <br>
+                                                <span><b>Description: </b> {{ $item->description }}</span>
+                                                </div>
+                                            </li>
+
+
+
+                                        @endforeach
+  <div class="dic-div mb-2 mt-4"><span class="secondary-color total-savings-value">Get your coupon on this order</span></div>
+
+
+                                    </ul>
+
+                                </form>
+                            </div>
+
+
+                                <button type="submit"
+                                class="btn theme-bg-color btn-md text-white fw-bold mt-md-4 w-100"
+                                data-bs-toggle="modal" data-bs-target="#checkout">
+                                Checkout
+                            </button>
+
+
+                            <div class="modal fade " id="checkout" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                      <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th></th>
+                                                    <th>User Name</th>
+                                                    <th>Outlet Name</th>
+                                                    <th>Location</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($userData as $user)
+                                                <tr for="rowData" onclick="selectOutlet({{ $user->id }})">
+                                                    <td>
+                                                        @if($user->verified_status == 'verified')
+                                                            <input type="radio" name="outlet" id="rowData{{ $user->id }}">
+                                                        @else
+                                                            <input type="radio" name="outlet" disabled="true">
+                                                        @endif
+                                                    </td>
+                                                    <td>{{ $user->name }}</td>
+                                                     <td>{{ $user->outlet_name }}</td>
+                                                      <td>{{ $user->location }}</td>
+
+
+
+                                                    <td style="white-space: nowrap">
+                                                        @if($user->verified_status == 'verified')
+                                                            <div class="customer_status">
+                                                                <div class="customer_bage">
+                                                                    <img src="https://cdn.shopify.com/s/files/1/0566/8241/4246/t/11/assets/icon-verified-1662629893290.png?v=1662629894" alt="">
+                                                                </div>
+                                                                <div class="customer_status_content">Verified</div>
+                                                            </div>
+                                                        @else
+                                                            <a href="verify-outlet/{{ $user->id }}">
+                                                                <div class="customer_status">
+                                                                    <div class="customer_bage">
+                                                                        <img src="https://cdn3d.iconscout.com/3d/premium/thumb/unverified-security-9031295-7516457.png?f=webp" alt="">
+                                                                    </div>
+                                                                    <div class="customer_status_content text-danger">Unverified</div>
+                                                                </div> Click to verify
+                                                            </a>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                   <div class="modal-footer">
+                                        <button onclick="redirectToCheckout()" class="btn theme-bg-color btn-md text-white fw-bold mt-md-4 checkout-btn" disabled>
+                                            <i class="fa fa-money" aria-hidden="true"></i> Checkout
+                                        </button>
+                                    </div>
+
+                                </div>
+                                <input type="hidden" id="selectedRowData" name="selectedRowData">
+
+                            </div>
+                        </div></div>
+                    </div>
+                </div>
+            </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+
+
+
+<div class="tab-pane fade" id="v-pills-cart" role="tabpanel" aria-labelledby="v-pills-cart-tab">...
+</div>
+
+</div>
+</div>
+
+</div>
+</section>
+</div>
+</div>
+</div>
+</div>
+
+
+
+</section>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+
+<script>
+$('#ajax-cart-form').submit(function(event) {
+    event.preventDefault(); // Prevent default form submission
+
+    var formData = $(this).serialize(); // Serialize form data
+
+    $.ajax({
+        url: '{{ route('cart.create') }}', // Your route here
+        method: 'POST',
+        data: formData,
+        success: function(response) {
+            if (response.success) {
+                // Handle success response
+                toastr.success(response.message); // Display success message using toastr
+                // Optionally, update the UI to reflect the added item
+            } else {
+                // Handle error response
+                toastr.error(response.message); // Display error message using toastr
+            }
+        },
+        error: function(xhr, status, error) {
+            // Handle error response
+            console.error(xhr.responseText);
+            toastr.error('An error occurred while adding the item to the cart.'); // Display generic error message using toastr
+        }
+    });
+});
+
+</script>
+
+<script>
+
+$('#submitEnquiryButton').on('click', function() {
+    // Check if the button is not disabled
+    if (!$(this).attr('disabled')) {
+        // Call the submitEnquiry function
+        submitEnquiry();
+
+        // Disable the button to prevent further clicks
+        $(this).attr('disabled', true).css('cursor', 'not-allowed');
+
+        // Optionally, change the text to indicate the action is in progress
+        $(this).text('Processing...');
+    }
+});
+
+
+
+function submitEnquiry() {
+
+  var formData = $('#enquiryForm').serialize();
+    $.ajax({
+        url: '/enquiry/store',
+        method: 'POST',
+        data: formData,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response && response.success) {
+                Swal.fire({
+                    title: "Your enquiry has been submitted!",
+                    text: "We'll get back to you as soon as possible.",
+                    icon: "success",
+                    showCancelButton: false,
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#d33",
+                    confirmButtonText: "Okay",
+                    allowOutsideClick: false // This will prevent the modal from being closed by clicking outside of it
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = '/homepage';
+                    }
+                });
+
+            } else {
+                Swal.fire({
+                    title: "Oops!",
+                    text: "Something went wrong. Please try again later.",
+                    icon: "error"
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            var errorMessage = xhr.responseText || 'Internal Server Error';
+            Swal.fire({
+                title: "Error",
+                text: errorMessage,
+                icon: "error"
+            });
+        }
+    });
+}
+
+
+$(document).ready(function() {
+    $('.checkout_btn_datewise').click(function() {
+        var datewisecheckout = $('#datewisecheckout').val();
+        localStorage.setItem('datewisecheckout', datewisecheckout);
+        $('#checkout').modal('show');
+        $('#checkout1').modal('hide');
+    });
+});
+
+// $(document).ready(function() {
+//     $('.acceptButton').click(function(e) {
+//         e.preventDefault();
+
+//         var formData = $(this).closest('form').serialize(); // Serialize the form data of the clicked button's parent form
+//         $.ajax({
+//             url: $(this).closest('form').attr('action'), // Get the action attribute of the parent form
+//             type: 'POST',
+//             data: formData,
+//             success: function(response) {
+//                 if(response.code == 300) {
+//                     showToast('warning', response.message);
+//                 } else {
+//                     showToast('success', response.message);
+//                     setTimeout(function() {
+//                         location.reload();
+//                     }, 1500);
+//                 }
+//             },
+//             error: function(xhr, status, error) {
+//                 console.error(xhr.responseText);
+//             }
+//         });
+//     });
+
+// });
+
+</script>
+@endsection
+
+<script>
+
+function quantityMinus(inputId, totalValue, quantityValue, monthlyconsumptionValue) {
+    var total = document.getElementById(totalValue).innerText;
+    const input = $(`#${inputId}`);
+    var value = input.val();
+    if (value > 1) {
+        value--;
+    }
+    input.val(value);
+
+    if (quantityValue == total) {
+        document.getElementsByClassName('quantity__minus').classList.add('d-none');
+    } else {
+        var total_value = total - quantityValue;
+    }
+
+    document.getElementById(totalValue).innerHTML = total_value;
+    document.getElementById(monthlyconsumptionValue).value = total_value;
+}
+
+function quantityPlus(inputId, totalValue, quantityValue, monthlyconsumptionValue) {
+    // alert(monthlyconsumptionValue)
+    const input = $(`#${inputId}`);
+     console.log(input);
+    var value = input.val();
+
+    value++;
+
+    input.val(value);
+    $('.quantityValue').val(value);
+    var total_value = value * quantityValue;
+    document.getElementById(totalValue).innerHTML = total_value;
+    document.getElementById(monthlyconsumptionValue).value = total_value;
+
+}
+
+//     $(document).ready(function() {
+//   const minus = $('.quantity__minus');
+//   const plus = $('.quantity__plus');
+//   const input = $('#quantity__input1');
+//   minus.click(function(e) {
+//     e.preventDefault();
+//     var value = input.val();
+//     if (value > 1) {
+//       value--;
+//     }
+//     input.val(value);
+//   });
+
+//   plus.click(function(e) {
+//     e.preventDefault();
+//     var value = input.val();
+//     value++;
+//     input.val(value);
+//   })
+// });
+</script>
+
+
+<script>
+$(function() {
+    // Owl Carousel
+    var owl = $("#owl-carousel");
+    owl.owlCarousel({
+        items: 4,
+        margin: 20,
+        autoplay: true,
+        loop: true,
+        nav: false,
+    });
+});
+</script>
+<script>
+$(function() {
+    // Owl Carousel
+    var owl = $("#owl-carousel1");
+    owl.owlCarousel({
+        items: 5,
+        margin: 20,
+        autoplay: true,
+        loop: true,
+        nav: true,
+    });
+});
+</script>
+
+<script>
+$(function() {
+    // Owl Carousel
+    var owl = $(".owl-carousel");
+    owl.owlCarousel({
+        items: 1,
+        margin: 10,
+        loop: true,
+        nav: true
+    });
+});
+
+</script>
+
+<script>
+
+
+
+function toggleAccordion(id) {
+    var content = document.getElementById('accordion-content-' + id);
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleAccordion1(id) {
+    var content = document.getElementById('accordion-content1-' + id);
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleAccordion2(id) {
+    var content = document.getElementById('accordion-content2-' + id);
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+}
+
+
+  </script>
+
+
+
+<script>
+    function myFunction() {
+
+  var checkBox = document.getElementById("myCheck");
+
+  var text = document.getElementById("promo-i");
+
+
+  if (checkBox.checked == true){
+    text.style.display = "block";
+  } else {
+    text.style.display = "none";
+  }
+}
+
+
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var tabs = document.querySelectorAll('.nav-link.tabs1');
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                // Remove active class from all tabs
+                tabs.forEach(function (tab) {
+                    tab.classList.remove('active');
+                });
+                // Add active class to the clicked tab
+                this.classList.add('active');
+            });
+        });
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var dropdownToggle = document.getElementById('v-pills-offer-dropdown-toggle');
+        var dropdownItems = document.querySelectorAll('.dropdown-menu .nav-link.tabs1');
+
+        // Add event listener to dropdown items
+        dropdownItems.forEach(function (item) {
+            item.addEventListener('click', function () {
+                // Remove active class from all dropdown items
+                dropdownItems.forEach(function (item) {
+                    item.classList.remove('active');
+                });
+                // Add active class to the clicked item
+                this.classList.add('active');
+
+                // Add active class to dropdown toggle button
+                dropdownToggle.classList.add('active');
+            });
+        });
+
+        var tabs2Button = document.getElementById('v-pills-offer-dropdown-toggle');
+        var tabs1Buttons = document.querySelectorAll('.nav-link.tabs1');
+
+        tabs1Buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                // Check if any tabs1 button inside tabs2 dropdown is active
+                var tabs1Active = document.querySelector('.dropdown-menu .nav-link.tabs1.active');
+                if (tabs1Active) {
+                    tabs2Button.classList.add('active');
+                } else {
+                    tabs2Button.classList.remove('active');
+                }
+            });
+        });
+    });
+
+
+</script>
+<script>
+    @if($errors->any())
+        showToast('error', '{{ $errors->first() }}');
+    @endif
+
+    @if(session('success'))
+        showToast('success', '{{ session('success') }}');
+    @endif
+
+    function showToast(icon, message) {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: "top-end",
+            showConfirmButton: false,
+            timer: 1200,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.onmouseenter = Swal.stopTimer;
+                toast.onmouseleave = Swal.resumeTimer;
+            }
+        });
+
+        Toast.fire({
+            icon: icon,
+            title: message
+        });
+    }
+
+
+
+</script>
+
+
+<script>
+    function toggleCouponList() {
+        var couponList = document.getElementById("couponList");
+        var caretIcon = document.getElementById("caretIcon");
+
+        if (couponList.style.display === "none") {
+            couponList.style.display = "grid";
+            caretIcon.classList.remove("fa-caret-down");
+            caretIcon.classList.add("fa-caret-up");
+        } else {
+            couponList.style.display = "none";
+            caretIcon.classList.remove("fa-caret-up");
+            caretIcon.classList.add("fa-caret-down");
+        }
+    }
+
+    function toggleDescription(link) {
+        var description = link.nextElementSibling;
+        if (description.style.display === "none") {
+            description.style.display = "block";
+            link.innerText = "Hide Description";
+        } else {
+            description.style.display = "none";
+            link.innerText = "View More";
+        }
+    }
+
+
+</script>
+
+
+
+
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+
+        const acceptButtons = document.querySelectorAll('.acceptButton');
+        const rejectButtons = document.querySelectorAll('.rejectButton');
+        const reofferButtons = document.querySelectorAll('.reofferButton');
+
+        acceptButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const formId = button.closest('form').id.split('_')[1];
+                const comment = document.getElementById(`sharedComment_${formId}`).value;
+                document.getElementById(`counterCommentAccept_${formId}`).value = comment;
+                document.getElementById(`offerRequestForm_${formId}`).submit();
+            });
+        });
+
+        
+
+        rejectButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const formId = button.closest('form').id.split('_')[1];
+                const comment = document.getElementById(`sharedComment_${formId}`).value;
+                document.getElementById(`counterCommentReject_${formId}`).value = comment;
+                document.getElementById(`rejectForm_${formId}`).submit();
+            });
+        });
+        
+        reofferButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const formId = button.closest('form').id.split('_')[1];
+                const comment = document.getElementById(`sharedComment_${formId}`).value;
+                document.getElementById(`counterCommentReoffer_${formId}`).value = comment;
+                document.getElementById(`reofferForm_${formId}`).submit();
+            });
+        });
+        
+    });
+</script>
+
+<!--new script added-->
+
+<!-- <script>
+document.addEventListener('DOMContentLoaded', function () {
+   var enquiryTabButton = document.getElementById('v-pills-enquiry-tab');
+   var enquiryTabContent = document.getElementById('v-pills-enquiry');
+   var offerTabButton = document.getElementById('v-pills-offer-tab');
+   var offerTabContent = document.getElementById('v-pills-offer');
+
+
+   offerTabButton.classList.remove('active');
+   offerTabButton.setAttribute('aria-selected', 'false');
+   offerTabContent.classList.remove('show', 'active');
+
+ 
+   enquiryTabButton.classList.add('active');
+   enquiryTabButton.setAttribute('aria-selected', 'true');
+
+   
+   enquiryTabContent.classList.add('show', 'active');
+});
+</script> -->
+
+
+
+</body>
+
+</html>

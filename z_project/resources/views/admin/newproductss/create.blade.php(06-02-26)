@@ -1,0 +1,435 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<div class="page-body">
+   <!-- partial -->
+    <div class="container-fluid page-body-wrapper">
+      <div class="main-panel">
+        <div class="content-wrapper ">
+          <div class="row">
+            <div class="col-md-12 grid-margin stretch-card">
+              <div class="card">
+                <div class="card-body">
+                <h5 class="card-title">Add Product</h5>
+                                   
+
+
+                                    <!-- <form action="{{ route('products.store') }}" method="POST" enctype="multipart/form-data"> -->
+                                    <form class="theme-form theme-form-2 mega-form" action="{{ route('productss.store') }}"
+                                        method="POST" enctype="multipart/form-data">
+                                        {{ csrf_field() }}
+
+                                        @if (session('success'))
+                                            <div class="alert alert-success">
+                                                {{ session('success') }}
+                                            </div>
+                                        @endif
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                 <div class="mb-4 row align-items-center">
+                                                     <div class="col-md-4">
+                                            <label class="form-label-title  mb-0">Product Name</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <input class="form-control" type="text" name="product_name"
+                                                    placeholder="Product Name">
+                                            </div>
+                                        </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label class="form-label-title mb-2">Unique Reference Id</label>
+                                                </div>
+                                                <div class="col-md-8">
+                                                <input class="form-control" type="text" name="unique_reference_id"
+                                                    placeholder="Unique Reference Id">
+                                                <span class="text-danger">{{ $errors->first('unique_reference_id') }}</span>
+                                            </div></div>
+                                           </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-4">
+                                            <label class="form-label-title mb-0">Product quantity</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <input class="form-control" type="text" name="product_quantity"
+                                                    placeholder="Product quantity">
+                                            </div>
+                                        </div></div>
+                                        
+                                            <div class="col-md-6">
+                                                  <div class="mb-4 row align-items-center">
+                                                      <div class="col-md-4">
+                                            <label class="form-label-title mb-0">Product MRP</label>
+                                            </div>
+                                            <div class="col-sm-8">
+                                                <input class="form-control" type="text" name="product_mrp"
+                                                    placeholder="Product MRP">
+                                                    </div>
+                                            </div>
+                                        </div>
+                                            
+                                            <div class="col-md-6">
+                                                 <div class="mb-4 row align-items-center">
+                                                     <div class="col-md-4">
+                                            <label class="form-label-title  mb-0">Product Offer Price</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <input class="form-control" type="text" name="offer_price"
+                                                    placeholder="Product Offer Price">
+                                            </div>
+                                        </div> 
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-4">
+                                            <label class="form-label-title mb-0">Product Discount</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <input class="form-control" type="text" name="discount"
+                                                    placeholder="Product Discount">
+                                            </div>
+                                        </div>
+                                            </div>
+                                          
+                                            <div class="col-md-6">
+                                              <div class="mb-4 row align-items-center">
+                                                  <div class="col-md-4">
+                                            <label class="form-label-title  mb-0">Product Slug</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <input class="form-control" type="text" name="slug"
+                                                    placeholder="Product Slug">
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                             <div class="mb-4 row align-items-center">
+                                                 <div class="col-md-4">
+                                            <label class=" col-form-label form-label-title">Category Name</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <select class="js-example-basic-single w-100 form-select" name="category_id"
+                                                    id="category_id">
+                                                    <option value="">select subcategory</option>
+                                                    @foreach ($subcategories as $subcategory)
+                                                        <option value="{{ $subcategory->category_id }}">
+                                                            {{ $subcategory->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                             <div class="mb-4 row align-items-center">
+                                                 <div class="col-md-4">
+                                            <label class=" col-form-label form-label-title">Sub Category Name</label>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <select class="js-example-basic-single w-100 form-select" name="subcategory_id"
+                                                    id="category_id">
+                                                    <option value="">select subcategory</option>
+                                                    @foreach ($subcategories as $subcategory)
+                                                        <option value="{{ $subcategory->id }}">{{ $subcategory->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-12">
+                                                 <!-- Description -->
+                                        <div class="mb-4 row align-items-center">
+                                            <div class="col-md-2">
+                                            <label class="form-label-title  mb-0">Description</label>
+                                            </div>
+                                            <div class="col-md-10">
+                                                <textarea class="form-control h-20" style="height: 150px;" type="text" name="description" value=""
+                                                    placeholder="Description"></textarea>
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                               <div class="mb-4 row align-items-center">
+                                                   <div class="col-md-6">
+                                            <label class="form-label-title  mb-0">Unit</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="unit"
+                                                    value="" placeholder="Unit">
+                                            </div>
+                                        </div>  
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-6">
+                                            <label class="form-label-title  mb-0">Pieces Per Pack</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="peices_per_pack"
+                                                    value="" placeholder="Pieces Per Pack">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Carton Size</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="carton_size"
+                                                    value="" placeholder="Carton Size">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-6">
+                                            <label class="form-label-title  mb-0">Varieties</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="varieties"
+                                                    value="" placeholder="Varieties">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-6">
+                                            <label class="form-label-title  mb-0">Cost Per Item</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="cost_per_item"
+                                                    value="" placeholder="Cost Per Item">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                <div class="col-md-6">
+                                            <label class="form-label-title mb-0">GST</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="gst"
+                                                    value="" placeholder="GST">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                            <div class="mb-4 row align-items-center">
+                                                <div class="col-md-6">
+                                            <label class="form-label-title mb-0">sgst</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="sgst"
+                                                    value="" placeholder="sgst">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                               <div class="mb-4 row align-items-center">
+                                                   <div class="col-md-6">
+                                            <label class="form-label-titlemb-0">cgst</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="cgst"
+                                                    value="" placeholder="cgst">
+                                            </div>
+                                        </div>  
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                               <div class="mb-4 row align-items-center">
+                                                   <div class="col-md-6">
+                                            <label class="form-label-title mb-0">igst</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="igst"
+                                                    value="" placeholder="igst">
+                                            </div>
+                                        </div>
+
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mb-4 row align-items-center">
+                                                    <div class="col-md-6">
+                                            <label class="form-label-title mb-0">cess</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="cess"
+                                                    value="" placeholder="cess">
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                              <div class="mb-4 row align-items-center">
+                                                  <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Total with Tax</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="total_with_tax"
+                                                    value="" placeholder="Total with Tax">
+                                            </div>
+                                        </div>  
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                               <div class="mb-4 row align-items-center">
+                                                   <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Sale Price Loose Pcs</label>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <input class="form-control" type="text" name="sale_price_loose_pcs"
+                                                    value=""
+                                                    placeholder="Sale Price Loose Pcs">
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                             <div class="mb-4 row align-items-center">
+                                                 <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Sale Price Carton</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="sale_price_carton"
+                                                    value=""
+                                                    placeholder="Sale Price Carton">
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                              <div class="mb-4 row align-items-center">
+                                                  <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Product Weight (grams)</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="product_weight_grams"
+                                                    value=""
+                                                    placeholder="Product Weight (grams)">
+                                            </div>
+                                        </div>  
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                              <div class="mb-4 row align-items-center">
+                                                  <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Status</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select class="form-control" name="status">
+                                                    <option value="active">Active
+                                                    </option>
+                                                    <option value="inactive">Inactive
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                            <div class="mb-4 row align-items-center">
+                                                <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Type</label>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <input class="form-control" type="text" name="types"
+                                                    value="" placeholder="Types">
+
+                                                    {{-- <select class="js-example-basic-single w-100" name="type_id"  id="category_id" value="">
+                                                    @foreach ($types as $type)
+                                                        <option value="{{ $type->id }}" @if($type->id == $product->type_id) selected @endif>{{ $type->type_name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select> --}}
+                                            </div>
+                                        </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                             <div class="mb-4 row align-items-center">
+                                                 <div class="col-md-6">
+                                            <label class="form-label-title mb-0">Tag</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="tags"
+                                                    value="" placeholder="Tags">
+                                                {{-- <select class="js-example-basic-single w-100" name="tag_id"  id="category_id" value="">
+                                                    @foreach ($tags as $tag)
+                                                        <option value="{{ $tag->id }}" @if($tag->id == $product->tag_id) selected @endif>{{ $tag->tag_name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select> --}}
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                              <div class="mb-4 row align-items-center">
+                                                  <div class="col-md-6">
+                                            <label class=" col-form-label form-label-title">Brand</label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input class="form-control" type="text" name="brands"
+                                                value="" placeholder="Drands">
+                                                {{-- <select class="js-example-basic-single w-100" name="brands" id="brand_id">
+                                                    @foreach ($brands as $brand)
+                                                        <option value="{{ $brand->id }}" @if($brand->id == $product->brand_id) selected @endif>{{ $brand->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select> --}}
+                                            </div>
+                                        </div>   
+                                            </div>
+                                            
+                                        </div>
+                                    
+                                        <!-- Status -->
+                                       
+
+
+                                         <!-- Types -->
+                                         
+
+                                        <!-- Tags -->
+                                        
+
+                                       
+                                        <div class="mb-4 row align-items-center">
+                                            <label class="form-label-title col-sm-3 mb-0">Product Image(500px X 500px)</label>
+                                            <div class="col-sm-9">
+                                                <input class="form-control" type="file" name="image" id="image"
+                                                    accept="image/*" placeholder="Product Image" required>
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" name="submit"
+                                            class="btn btn-primary ms-auto mt-4">Save</button>
+
+                                    </form>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- New Product Add End -->
+    @endsection

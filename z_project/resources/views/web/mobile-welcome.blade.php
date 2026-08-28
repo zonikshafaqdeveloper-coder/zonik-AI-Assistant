@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Zonik - App Screens</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.7/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<style>
+  :root{
+    --navy:#1c4e80;
+    --orange:#eb5a1e;
+    --orange-dark:#e2540f;
+    --text-dark:#1a1a1a;
+    --text-gray:#8a8f98;
+    --border:#e4e6ea;
+    --bg:#ffffff;
+    --peach:#fdece2;
+    --peach-border:#f6c9a8;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:#ffffff;
+    min-height:100vh;
+  }
+
+  /* Each .phone is a full screen. Only the one with .active shows;
+     the rest are hidden until navigated to. This is what you want
+     when this markup is embedded in your real mobile view — only
+     one screen renders at a time instead of all three stacking. */
+  .phone{
+    display:none;
+    width:100%;
+    max-width:480px;
+    background:var(--bg);
+    flex-direction:column;
+    margin:0 auto;
+  }
+  .phone.active{
+    display:flex;
+  }
+
+  .screen-content{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* Logo */
+  .logo{
+    text-align:center;
+  }
+  .logo img{
+    height:100px;
+    width:auto;
+  }
+  .logo-small img{
+    height:34px;
+  }
+
+  .tagline{
+    text-align:center;
+    color:var(--orange);
+    font-family:"Segoe Script","Bradley Hand","Brush Script MT",cursive;
+    font-style:italic;
+    font-weight:600;
+    font-size:16px;
+    margin-top:2px;
+    position:relative;
+    display:inline-block;
+  }
+  .tagline-wrap{display:flex; justify-content:center; margin-top:4px;}
+  .tagline-underline{
+    width:70%;
+    height:2px;
+    background:var(--navy);
+    margin:6px auto 0;
+    border-radius:2px;
+  }
+
+  /* ============ SCREEN 1: ONBOARDING ============ */
+  .onboarding{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:12px 24px 20px;
+  }
+  .onboarding .logo{margin-top:4px;}
+  .onboarding .subtitle{
+    text-align:center;
+    margin-top:16px;
+    font-size:16px;
+    color:var(--text-dark);
+    line-height:1.4;
+  }
+  .onboarding .subtitle .highlight{
+    color:var(--orange);
+    font-weight:700;
+  }
+
+  .illustration{
+    position:relative;
+    margin:-20px 0;
+    width:100%;
+    display:flex;
+    justify-content:center;
+  }
+  .illustration img{
+    /*width:100%;*/
+    /*height:auto;*/
+    /* max-width:330px; */
+    /*max-height:60vh;*/
+    max-width: 378px;
+    object-fit:contain;
+  }
+
+  .onboarding .cta-group{width:100%; margin-top:16px;}
+
+  .btn-primary{
+    width:100%;
+    background:var(--orange);
+    color:#fff;
+    border:none;
+    padding:16px;
+    border-radius:14px;
+    font-size:17px;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    cursor:pointer;
+    box-shadow:0 8px 20px rgba(235,90,30,0.35);
+  }
+  .btn-secondary{
+    width:100%;
+    background:#fff;
+    color:var(--orange);
+    border:2px solid var(--orange);
+    padding:14px;
+    border-radius:14px;
+    font-size:17px;
+    font-weight:700;
+    margin-top:12px;
+    cursor:pointer;
+  }
+  .legal{
+    text-align:center;
+    font-size:12px;
+    color:var(--text-gray);
+    margin-top:16px;
+    line-height:1.5;
+  }
+  .legal a{color:var(--orange); text-decoration:none; font-weight:600;}
+
+  .dots{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin:14px 0 6px;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; background:#e0d5cd;}
+  .dot.active{background:var(--orange); width:18px; border-radius:4px;}
+
+  /* ============ SHARED FORM SCREEN HEADER ============ */
+  .form-screen{
+    padding:12px 24px 24px;
+    display:flex;
+    flex-direction:column;
+  }
+  .back-btn{
+    color:var(--orange);
+    font-size:30px;
+    line-height:1;
+    margin-bottom:2px;
+    cursor:pointer;
+    width:28px;
+  }
+  .form-screen .logo{margin-top:0;}
+  .form-screen .tagline-wrap{margin-bottom:4px;}
+
+  .heading-block{text-align:center; margin-top:18px;}
+  .heading-block h1{
+    font-size:26px;
+    color:var(--text-dark);
+    font-weight:800;
+  }
+  .heading-block p{
+    color:var(--text-gray);
+    font-size:14.5px;
+    margin-top:6px;
+  }
+
+  /* Tabs for login screen */
+  .tabs{
+    display:flex;
+    background:#fdf1ea;
+    border-radius:14px;
+    padding:5px;
+    margin-top:22px;
+    gap:5px;
+  }
+  .tab{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:12px 8px;
+    border-radius:11px;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+  }
+  .tab.active{
+    background:var(--orange);
+    color:#fff;
+    box-shadow:0 6px 16px rgba(235,90,30,0.35);
+  }
+  .tab.inactive{
+    color:var(--orange);
+    background:transparent;
+  }
+
+  .field-group{margin-top:20px;}
+  .field-label{
+    font-size:14px;
+    font-weight:700;
+    color:var(--text-dark);
+    margin-bottom:8px;
+  }
+  .input-wrap{
+    display:flex;
+    align-items:center;
+    border:1.5px solid var(--border);
+    border-radius:13px;
+    padding:13px 14px;
+    gap:10px;
+    background:#fff;
+  }
+  .input-wrap svg{flex-shrink:0;}
+  .input-wrap input, .input-wrap select{
+    border:none;
+    outline:none;
+    flex:1;
+    font-size:15px;
+    color:var(--text-dark);
+    background:transparent;
+    font-family:inherit;
+  }
+  .input-wrap input::placeholder{color:#b7bcc4;}
+  .eye-icon{cursor:pointer; opacity:0.5;}
+
+  .row-between{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:18px;
+    font-size:14px;
+  }
+  .remember{display:flex; align-items:center; gap:8px; color:var(--text-dark);}
+  .checkbox{
+    width:18px; height:18px;
+    border:1.5px solid var(--border);
+    border-radius:5px;
+    cursor:pointer;
+    position:relative;
+    flex-shrink:0;
+    transition:background 0.15s, border-color 0.15s;
+  }
+  .checkbox.checked{
+    background:var(--orange);
+    border-color:var(--orange);
+  }
+  .checkbox.checked::after{
+    content:'';
+    position:absolute;
+    left:5px; top:1px;
+    width:5px; height:9px;
+    border:solid white;
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+  }
+  .forgot{color:var(--orange); font-weight:600; text-decoration:none;}
+
+  .error-message{
+    background:#fdeaea;
+    border:1px solid #f3b8b8;
+    color:#b42318;
+    font-size:13px;
+    line-height:1.6;
+    padding:10px 14px;
+    border-radius:10px;
+    margin-top:14px;
+  }
+  .error-message:empty{display:none;}
+
+  /* ============ INLINE FIELD VALIDATION ============ */
+  .input-wrap.invalid, .phone-input-wrap.invalid{
+    border-color:#e02424 !important;
+    background:#fff6f6;
+  }
+  .field-error{
+    color:#e02424;
+    font-size:12.5px;
+    margin-top:6px;
+    display:none;
+    line-height:1.4;
+  }
+  .field-error.show{display:block;}
+
+  /* ============ SELF-CONTAINED TOAST NOTIFICATIONS ============ */
+  /* Doesn't depend on any external library, so it always works even if
+     a CDN is blocked in your environment. */
+  #toast-stack{
+    position:fixed;
+    top:16px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:9999;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    width:calc(100% - 32px);
+    max-width:400px;
+    pointer-events:none;
+  }
+  .toast{
+    padding:12px 16px;
+    border-radius:12px;
+    font-size:14px;
+    font-weight:600;
+    color:#fff;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15);
+    opacity:0;
+    transform:translateY(-10px);
+    transition:opacity 0.25s, transform 0.25s;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+  .toast.success{background:#1a9e5c;}
+  .toast.error{background:#e02424;}
+  .toast.warning{background:#e08a24;}
+
+  .form-screen .btn-primary{margin-top:22px;}
+
+  .bottom-link{
+    text-align:center;
+    margin-top:18px;
+    font-size:14.5px;
+    color:var(--text-dark);
+  }
+  .bottom-link a{color:var(--orange); font-weight:700; text-decoration:none;}
+
+  /* ============ OTP VERIFY SCREEN ============ */
+  .otp-boxes{
+    display:flex;
+    justify-content:center;
+    gap:14px;
+    margin-top:28px;
+  }
+  .otp-box{
+    width:54px;
+    height:58px;
+    border:1.5px solid var(--border);
+    border-radius:13px;
+    text-align:center;
+    font-size:24px;
+    font-weight:700;
+    color:var(--text-dark);
+    outline:none;
+  }
+  .otp-box:focus{border-color:var(--orange);}
+  .resend-row{
+    text-align:center;
+    margin-top:18px;
+    font-size:14px;
+    color:var(--text-dark);
+  }
+
+  /* ============ SIGNUP SCREEN ============ */
+  .signup .heading-block{margin-top:14px;}
+  .signup .heading-block h1{font-size:24px;}
+
+  .otp-notice{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    background:var(--peach);
+    border:1px solid var(--peach-border);
+    border-radius:13px;
+    padding:12px 14px;
+    margin-top:18px;
+  }
+  .otp-notice svg{flex-shrink:0; margin-top:2px;}
+  .otp-notice p{font-size:13.5px; color:#7a3d18; line-height:1.45;}
+
+  .signup .field-group{margin-top:16px;}
+  .signup .field-group:first-of-type{margin-top:18px;}
+  .hint{font-size:11.5px; color:var(--text-gray); margin-top:5px;}
+
+  .phone-input-wrap{
+    display:flex;
+    align-items:center;
+    border:1.5px solid var(--border);
+    border-radius:13px;
+    overflow:hidden;
+  }
+  .country-code{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:13px 12px;
+    border-right:1.5px solid var(--border);
+    font-size:15px;
+    color:var(--text-dark);
+    font-weight:600;
+  }
+  .phone-input-wrap input{
+    border:none;
+    outline:none;
+    flex:1;
+    padding:13px 14px;
+    font-size:15px;
+    font-family:inherit;
+  }
+  .phone-input-wrap input::placeholder{color:#b7bcc4;}
+
+  .signup .btn-primary{margin-top:24px;}
+
+  /* Icon coloring */
+  .icon-orange{color:var(--orange);}
+  .icon-navy{color:var(--navy);}
+</style>
+</head>
+<body>
+
+<div id="toast-stack"></div>
+
+<div class="phone active" id="screen-onboarding">
+  <div class="screen-content onboarding">
+    <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+
+    <div class="illustration">
+      <img src="{{ asset('frontweb/assests/images/ban-2.jpg') }}" alt="Zonik Cloud Store">
+    </div>
+
+    <div class="cta-group">
+      <button class="btn-primary" onclick="showScreen('login')">Log In
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <button class="btn-secondary" onclick="showScreen('signup')">Sign Up</button>
+      <div class="legal">
+        By continuing, you agree to our<br>
+        <a href="{{ route('terms-condition') }}">Terms of Service</a> and <a href="{{ route('privacy-policy') }}">Privacy Policy</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN 2: LOGIN ============ -->
+<div class="phone" id="screen-login">
+  <div class="screen-content form-screen">
+    <div class="back-btn" onclick="showScreen('onboarding')">←</div>
+     <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+    <!-- <div class="logo logo-small"><span class="z">z</span><span class="o">o</span><span class="n">n</span><span class="i-dot">i</span><span class="k">k</span></div> -->
+    <div class="tagline-wrap">
+      <div>
+        <div class="tagline" style="font-size:14px;">Transforming the Food Service Supply Chain...!</div>
+        <div class="tagline-underline"></div>
+      </div>
+    </div>
+
+    <div class="heading-block">
+      <h1>Welcome Back!</h1>
+      <p>Login to your Zonik account</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-id" onclick="switchLoginTab('id')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        User Log In
+      </div>
+      <div class="tab inactive" id="tab-otp" onclick="switchLoginTab('otp')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+        Login via OTP
+      </div>
+    </div>
+
+    <!-- Panel: User ID + Password -->
+    <div id="login-panel-id">
+      <div class="field-group">
+        <div class="field-label">Email</div>
+        <div class="input-wrap" id="wrap-loginemail">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <input type="email" id="loginemail" placeholder="Enter your email">
+        </div>
+        <div class="field-error" id="err-loginemail"></div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Password</div>
+        <div class="input-wrap" id="wrap-toggle-password_login">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <input type="password" id="toggle-password_login" placeholder="Enter your password">
+          <svg class="eye-icon" onclick="toggleEye(this)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="field-error" id="err-toggle-password_login"></div>
+      </div>
+
+      <div class="row-between">
+        <div class="remember" onclick="toggleCheckbox(this.querySelector('.checkbox'))">
+          <div class="checkbox" id="remember-me-box"></div>
+          Remember me
+        </div>
+        <a href="#" class="forgot" onclick="showScreen('forgot-password'); return false;">Forgot Password?</a>
+      </div>
+
+      <button class="btn-primary" onclick="loginUser()">Log In
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Panel: Mobile number + OTP -->
+    <div id="login-panel-otp" style="display:none;">
+      <div class="field-group">
+        <div class="field-label">Mobile Number</div>
+        <div class="phone-input-wrap" id="wrap-mobile_number3">
+          <div class="country-code">
+            <svg width="16" height="12" viewBox="0 0 24 18"><rect width="24" height="6" fill="#ff9933"/><rect y="6" width="24" height="6" fill="#fff"/><rect y="12" width="24" height="6" fill="#138808"/><circle cx="12" cy="9" r="2.2" fill="none" stroke="#000080" stroke-width="0.4"/></svg>
+            +91
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <input type="text" inputmode="numeric" maxlength="10" id="mobile_number3" oninput="checkNumber(this)" placeholder="Enter your mobile number">
+        </div>
+        <div class="field-error" id="err-mobile_number3"></div>
+      </div>
+
+      <button class="btn-primary" onclick="sendLoginOtp()" style="margin-top:22px;">Send OTP
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </div>
+
+    <div class="bottom-link">Not a member yet? <a href="#" onclick="showScreen('signup'); return false;">Sign Up</a></div>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN: FORGOT PASSWORD ============ -->
+<div class="phone" id="screen-forgot-password">
+  <div class="screen-content form-screen">
+    <div class="back-btn" onclick="showScreen('login')">←</div>
+     <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+    <!-- <div class="logo logo-small"><span class="z">z</span><span class="o">o</span><span class="n">n</span><span class="i-dot">i</span><span class="k">k</span></div> -->
+    <div class="tagline-wrap">
+      <div>
+        <div class="tagline" style="font-size:14px;">Transforming the Food Service Supply Chain...!</div>
+        <div class="tagline-underline"></div>
+      </div>
+    </div>
+
+    <div class="heading-block">
+      <h1>Forgot Password?</h1>
+      <p>Enter your registered email and mobile number to reset your password.</p>
+    </div>
+
+    <div class="field-group" style="margin-top:26px;">
+      <div class="field-label">Email</div>
+      <div class="input-wrap" id="wrap-resetEmail">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 6l8 7 8-7"/></svg>
+        <input type="email" id="resetEmail" placeholder="Enter your registered email">
+      </div>
+      <div class="field-error" id="err-resetEmail"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Mobile Number</div>
+      <div class="phone-input-wrap" id="wrap-resetMobile">
+        <div class="country-code">
+          <svg width="16" height="12" viewBox="0 0 24 18"><rect width="24" height="6" fill="#ff9933"/><rect y="6" width="24" height="6" fill="#fff"/><rect y="12" width="24" height="6" fill="#138808"/><circle cx="12" cy="9" r="2.2" fill="none" stroke="#000080" stroke-width="0.4"/></svg>
+          +91
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <input type="text" inputmode="numeric" maxlength="10" id="resetMobile" placeholder="Enter your registered mobile number">
+      </div>
+      <div class="field-error" id="err-resetMobile"></div>
+    </div>
+
+    <button class="btn-primary" onclick="resetPassword()" style="margin-top:24px;">Submit
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+
+    <div class="bottom-link">Remembered your password? <a href="#" onclick="showScreen('login'); return false;">Log In</a></div>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN: OTP VERIFY (shared by Login-via-OTP and Signup) ============ -->
+<div class="phone" id="screen-otp-verify">
+  <div class="screen-content form-screen">
+    <div class="back-btn" onclick="showScreen('login')">←</div>
+     <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+    <!-- <div class="logo logo-small"><span class="z">z</span><span class="o">o</span><span class="n">n</span><span class="i-dot">i</span><span class="k">k</span></div> -->
+    <div class="tagline-wrap">
+      <div>
+        <div class="tagline" style="font-size:14px;">Transforming the Food Service Supply Chain...!</div>
+        <div class="tagline-underline"></div>
+      </div>
+    </div>
+
+    <div class="heading-block">
+      <h1>Verify OTP</h1>
+      <p id="otp-verify-subtext">Enter the 4-digit code sent to your mobile number</p>
+    </div>
+
+    <div class="otp-boxes">
+      <input type="text" inputmode="numeric" maxlength="1" class="otp-box">
+      <input type="text" inputmode="numeric" maxlength="1" class="otp-box">
+      <input type="text" inputmode="numeric" maxlength="1" class="otp-box">
+      <input type="text" inputmode="numeric" maxlength="1" class="otp-box">
+    </div>
+
+    <div class="resend-row">
+      Didn't receive the code? <a href="#" class="forgot" id="resend-link" onclick="resendOtp(); return false;">Resend</a>
+    </div>
+
+    <button class="btn-primary" onclick="handleOtpVerify()" style="margin-top:24px;">Verify &amp; Continue
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN: RESET PASSWORD (after Forgot Password validation) ============ -->
+<div class="phone" id="screen-reset-password">
+  <div class="screen-content form-screen">
+    <div class="back-btn" onclick="showScreen('login')">←</div>
+   
+     <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+    <!-- <div class="logo logo-small"><span class="z">z</span><span class="o">o</span><span class="n">n</span><span class="i-dot">i</span><span class="k">k</span></div> -->
+    <div class="tagline-wrap">
+      <div>
+        <div class="tagline" style="font-size:14px;">Transforming the Food Service Supply Chain...!</div>
+        <div class="tagline-underline"></div>
+      </div>
+    </div>
+
+    <div class="heading-block">
+      <h1>Reset Password</h1>
+      <p>Create a new password for your account</p>
+    </div>
+
+    <div class="field-group" style="margin-top:26px;">
+      <div class="field-label">New Password</div>
+      <div class="input-wrap" id="wrap-toggle-password_newpass">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <input type="password" id="toggle-password_newpass" placeholder="Enter new password">
+        <svg class="eye-icon" onclick="toggleEye(this)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="field-error" id="err-toggle-password_newpass"></div>
+      <div class="hint">Use 8+ characters with a mix of letters, numbers &amp; symbols</div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Confirm Password</div>
+      <div class="input-wrap" id="wrap-toggle-password_confirmPassword">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <input type="password" id="toggle-password_confirmPassword" placeholder="Re-enter new password">
+        <svg class="eye-icon" onclick="toggleEye(this)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="field-error" id="err-toggle-password_confirmPassword"></div>
+    </div>
+
+    <button class="btn-primary" onclick="submitNewPassword()" style="margin-top:24px;">Save Password
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN: SUCCESS (shown briefly before redirecting to your app) ============ -->
+<div class="phone" id="screen-success">
+  <div class="screen-content form-screen" style="justify-content:center; text-align:center;">
+    <div style="display:flex; justify-content:center; margin-bottom:20px;">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r="36" fill="#fdece2"/>
+        <path d="M22 37l9 9 19-19" stroke="#eb5a1e" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1 id="success-heading" style="font-size:24px; font-weight:800; color:var(--text-dark);">Success!</h1>
+    <p id="success-subtext" style="color:var(--text-gray); font-size:14.5px; margin-top:10px; line-height:1.5;">Done.</p>
+  </div>
+</div>
+
+
+<!-- ============ SCREEN 3: SIGN UP ============ -->
+<div class="phone" id="screen-signup">
+  <div class="screen-content form-screen signup">
+    <div class="back-btn" onclick="showScreen('onboarding')">←</div>
+     <div class="logo"><img src="{{ asset('frontweb/assests/images/Adobe Express - file.png') }}" alt="Zonik"></div>
+    <!-- <div class="logo logo-small"><span class="z">z</span><span class="o">o</span><span class="n">n</span><span class="i-dot">i</span><span class="k">k</span></div> -->
+    <div class="tagline-wrap">
+      <div>
+        <div class="tagline" style="font-size:14px;">Transforming the Food Service Supply Chain...!</div>
+        <div class="tagline-underline"></div>
+      </div>
+    </div>
+
+    <div class="heading-block">
+      <h1>Create Your Account</h1>
+      <p>Join Zonik and grow your business smartly.</p>
+    </div>
+
+    <div class="otp-notice">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+      <p>We'll send a One Time Password (OTP) to this number for verification.</p>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Mobile Number</div>
+      <div class="phone-input-wrap" id="wrap-mobile">
+        <div class="country-code">
+          <svg width="16" height="12" viewBox="0 0 24 18"><rect width="24" height="6" fill="#ff9933"/><rect y="6" width="24" height="6" fill="#fff"/><rect y="12" width="24" height="6" fill="#138808"/><circle cx="12" cy="9" r="2.2" fill="none" stroke="#000080" stroke-width="0.4"/></svg>
+          +91
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <input type="text" inputmode="numeric" maxlength="10" id="mobile" placeholder="Enter your mobile number">
+      </div>
+      <div class="field-error" id="err-mobile"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Full Name</div>
+      <div class="input-wrap" id="wrap-name">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <input type="text" id="name" placeholder="Enter your full name">
+      </div>
+      <div class="field-error" id="err-name"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Designation</div>
+      <div class="input-wrap" id="wrap-designation">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <input type="text" id="designation" placeholder="Enter your designation">
+      </div>
+      <div class="field-error" id="err-designation"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Legal Company Name</div>
+      <div class="input-wrap" id="wrap-outlet_name">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="4" y="3" width="16" height="18"/><line x1="9" y1="8" x2="9" y2="8"/><line x1="15" y1="8" x2="15" y2="8"/><line x1="9" y1="13" x2="9" y2="13"/><line x1="15" y1="13" x2="15" y2="13"/></svg>
+        <input type="text" id="outlet_name" placeholder="Enter legal company name">
+      </div>
+      <div class="field-error" id="err-outlet_name"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Location / Branch</div>
+      <div class="input-wrap" id="wrap-location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        <input type="text" id="location" placeholder="Enter location / branch name">
+      </div>
+      <div class="field-error" id="err-location"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Pincode</div>
+      <div class="input-wrap" id="wrap-pincode">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        <input type="text" inputmode="numeric" maxlength="6" id="pincode" placeholder="Enter your area pincode">
+      </div>
+      <div class="field-error" id="err-pincode"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Email</div>
+      <div class="input-wrap" id="wrap-email">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 6l8 7 8-7"/></svg>
+        <input type="email" id="email" placeholder="Enter your email">
+      </div>
+      <div class="field-error" id="err-email"></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Password</div>
+      <div class="input-wrap" id="wrap-password-field">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eb5a1e" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <input type="password" id="password-field" placeholder="Create a strong password">
+        <svg class="eye-icon" onclick="toggleEye(this)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="field-error" id="err-password-field"></div>
+      <div class="hint">Use 8+ characters with a mix of letters, numbers &amp; symbols</div>
+    </div>
+
+    <button class="btn-primary" onclick="validateForm()">Send OTP
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+    </button>
+
+    <div class="bottom-link">Already a member? <a href="#" onclick="showScreen('login'); return false;">Log In</a></div>
+  </div>
+</div>
+
+<script>
+  function showScreen(name){
+    document.querySelectorAll('.phone').forEach(function(el){
+      el.classList.remove('active');
+    });
+    document.getElementById('screen-' + name).classList.add('active');
+
+    // Reset scroll position no matter how this page is embedded:
+    // - plain window scrolling
+    // - body/html scrolling (older browsers / some webviews)
+    // - a nested scrollable wrapper div (common if this markup is
+    //   dropped inside an existing app layout with its own overflow:auto container)
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    var scrollParent = document.getElementById('screen-' + name).closest('[style*="overflow"], .scroll, .app-scroll');
+    if (scrollParent) scrollParent.scrollTop = 0;
+  }
+
+  function switchLoginTab(which){
+    var tabId = document.getElementById('tab-id');
+    var tabOtp = document.getElementById('tab-otp');
+    var panelId = document.getElementById('login-panel-id');
+    var panelOtp = document.getElementById('login-panel-otp');
+
+    if (which === 'id'){
+      tabId.classList.add('active'); tabId.classList.remove('inactive');
+      tabOtp.classList.add('inactive'); tabOtp.classList.remove('active');
+      panelId.style.display = '';
+      panelOtp.style.display = 'none';
+    } else {
+      tabOtp.classList.add('active'); tabOtp.classList.remove('inactive');
+      tabId.classList.add('inactive'); tabId.classList.remove('active');
+      panelOtp.style.display = '';
+      panelId.style.display = 'none';
+    }
+  }
+
+  // OTP box auto-advance: typing a digit jumps to the next box,
+  // backspace on an empty box jumps back to the previous one.
+  document.addEventListener('input', function(e){
+    if (!e.target.classList.contains('otp-box')) return;
+    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    if (e.target.value && e.target.nextElementSibling && e.target.nextElementSibling.classList.contains('otp-box')){
+      e.target.nextElementSibling.focus();
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if (!e.target.classList.contains('otp-box')) return;
+    if (e.key === 'Backspace' && !e.target.value && e.target.previousElementSibling && e.target.previousElementSibling.classList.contains('otp-box')){
+      e.target.previousElementSibling.focus();
+    }
+  });
+
+  // ============ ERROR DIAGNOSTICS: surfaces the REAL server error instead of a generic message ============
+  // Also logs full response details to the console so backend/frontend
+  // contract mismatches (wrong status code, missing JSON keys, unexpected
+  // redirects, etc.) are visible immediately instead of hidden behind
+  // one generic "An error occurred" toast.
+  function describeAxiosError(error, fallback){
+    try {
+      console.error('Request failed:', error);
+      if (error && error.response){
+        console.error('Status:', error.response.status, 'Body:', error.response.data);
+
+        if (error.response.data && typeof error.response.data === 'object' && error.response.data.message){
+          return error.response.data.message;
+        }
+        if (error.response.status === 419){
+          return 'Your session expired. Please refresh the page and try again.';
+        }
+        if (error.response.status === 422 && error.response.data && error.response.data.errors){
+          var msgs = [];
+          Object.values(error.response.data.errors).forEach(function(arr){
+            arr.forEach(function(m){ msgs.push(m); });
+          });
+          if (msgs.length) return msgs.join(' ');
+        }
+        return fallback + ' (server responded with status ' + error.response.status + ')';
+      }
+      if (error && error.request){
+        return fallback + ' (no response from server — check your connection)';
+      }
+      return fallback;
+    } catch(e){
+      return fallback;
+    }
+  }
+
+  // ============ NOTIFICATIONS: never throws, works even if the toastr CDN is blocked ============
+  // This is the fix for "nothing happens after OTP is sent" — previously a call to
+  // toastr.success(...) would throw a ReferenceError if toastr failed to load, which
+  // silently aborted the rest of the function (including showScreen()). notify() is
+  // wrapped in try/catch and always falls back to a built-in toast, so the UI never
+  // gets stuck no matter what's available in the page.
+  function notify(type, message){
+    try {
+      if (typeof toastr !== 'undefined' && toastr[type]){
+        toastr[type](message);
+        return;
+      }
+    } catch(e){ /* fall through to built-in toast */ }
+
+    try {
+      var stack = document.getElementById('toast-stack');
+      if (!stack) return;
+      var el = document.createElement('div');
+      el.className = 'toast ' + type;
+      el.textContent = message;
+      stack.appendChild(el);
+      requestAnimationFrame(function(){ el.classList.add('show'); });
+      setTimeout(function(){
+        el.classList.remove('show');
+        setTimeout(function(){ el.remove(); }, 300);
+      }, 3200);
+    } catch(e){ /* notifications are best-effort; never let this break the flow */ }
+  }
+
+  // ============ EYE ICON TOGGLE (real, generic — works for every password field) ============
+  function toggleEye(icon){
+    var input = icon.parentElement.querySelector('input[type="password"], input[type="text"].pw-revealed');
+    if (!input) return;
+    if (input.type === 'password'){
+      input.type = 'text';
+      input.classList.add('pw-revealed');
+    } else {
+      input.type = 'password';
+      input.classList.remove('pw-revealed');
+    }
+  }
+
+  // ============ CHECKBOX TOGGLE (real "Remember me" state) ============
+  function toggleCheckbox(box){
+    box.classList.toggle('checked');
+  }
+
+  // ============ OTP BOX HELPERS ============
+  function getOtpValue(){
+    var boxes = document.querySelectorAll('#screen-otp-verify .otp-box');
+    var val = '';
+    boxes.forEach(function(b){ val += b.value; });
+    return val;
+  }
+  function clearOtpBoxes(){
+    document.querySelectorAll('#screen-otp-verify .otp-box').forEach(function(b){ b.value = ''; });
+  }
+
+  // ============ INLINE FIELD VALIDATION (red border + message below the field) ============
+  function setFieldError(fieldId, message){
+    var input = document.getElementById(fieldId);
+    var wrap = document.getElementById('wrap-' + fieldId);
+    var err = document.getElementById('err-' + fieldId);
+    if (wrap) wrap.classList.add('invalid');
+    if (err){ err.textContent = message; err.classList.add('show'); }
+    return false;
+  }
+  function clearFieldError(fieldId){
+    var wrap = document.getElementById('wrap-' + fieldId);
+    var err = document.getElementById('err-' + fieldId);
+    if (wrap) wrap.classList.remove('invalid');
+    if (err){ err.textContent = ''; err.classList.remove('show'); }
+  }
+  function clearFieldErrors(fieldIds){
+    fieldIds.forEach(clearFieldError);
+  }
+  function fieldVal(id){
+    var el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  }
+
+  function isValidMobile(mobile){
+    return /^[6-9][0-9]{9}$/.test(mobile);
+  }
+
+  // Live-validate mobile number as the user types (mirrors old checkNumber())
+  function checkNumber(input){
+    if (input.value.length > 10) input.value = input.value.slice(0, 10);
+    clearFieldError('mobile_number3');
+  }
+
+  // ============ Tracks which flow is currently using the OTP verify screen ============
+  var otpContext = 'login-otp'; // 'login-otp' | 'signup'
+  var resetUserId = null; // captured from /customer/validate-email-mobile for the reset-password step
+
+  // ============ LOGIN (email + password) ============
+  function loginUser(){
+    var email = fieldVal('loginemail');
+    var password = fieldVal('toggle-password_login');
+    clearFieldErrors(['loginemail', 'toggle-password_login']);
+
+    var valid = true;
+    if (!email) valid = setFieldError('loginemail', 'Please enter your email.') && valid;
+    if (!password) valid = setFieldError('toggle-password_login', 'Please enter your password.') && valid;
+    if (!valid) return;
+
+    axios.post('/customer/login', { email: email, password: password })
+      .then(function(response){
+        if (response.data.success){
+          notify('success', response.data.message || 'Logged in successfully');
+          window.location.href = '/outlet-selection';
+        } else {
+          notify('error', response.data.message || 'Login failed');
+        }
+      })
+      .catch(function(error){
+        notify('error', describeAxiosError(error, 'An error occurred while logging in.'));
+      });
+  }
+
+  // ============ LOGIN VIA OTP ============
+  function sendLoginOtp(){
+    var mobile = fieldVal('mobile_number3');
+    clearFieldError('mobile_number3');
+
+    if (!isValidMobile(mobile)){
+      setFieldError('mobile_number3', 'Invalid mobile number. Must be 10 digits and start with 9, 8, 7, or 6.');
+      return;
+    }
+
+    axios.get('/customer/name/' + mobile)
+      .then(function(res){
+        if (res.data && res.data.name){
+          requestOtp(mobile, 'login-otp');
+        } else {
+          notify('error', 'This number is not registered. Please sign up.');
+          showScreen('signup');
+        }
+      })
+      .catch(function(error){
+        notify('error', describeAxiosError(error, 'Something went wrong. Please try again.'));
+      });
+  }
+
+  function requestOtp(mobile, context){
+    axios.post('/customer/sendOtp', { mobile: mobile })
+      .then(function(response){
+        if (response.data){
+          otpContext = context;
+          clearOtpBoxes();
+          var subtext = document.getElementById('otp-verify-subtext');
+          if (subtext) subtext.textContent = 'Enter the 4-digit code sent to +91 ' + mobile;
+          showScreen('otp-verify');
+          notify('success', 'OTP sent successfully In WhatsApp');
+        } else {
+          notify('error', 'Failed to send OTP');
+        }
+      })
+      .catch(function(error){
+        notify('error', describeAxiosError(error, 'Failed to send OTP'));
+      });
+  }
+
+  // ============ SIGN UP ============
+  var SIGNUP_FIELDS = ['mobile','name','designation','outlet_name','location','pincode','email','password-field'];
+
+  function validateForm(){
+    var mobile = fieldVal('mobile');
+    var name = fieldVal('name');
+    var designation = fieldVal('designation');
+    var outletName = fieldVal('outlet_name');
+    var location = fieldVal('location');
+    var pincode = fieldVal('pincode');
+    var email = fieldVal('email');
+    var password = fieldVal('password-field');
+
+    clearFieldErrors(SIGNUP_FIELDS);
+    var valid = true;
+
+    if (!/^[6-9][0-9]{9}$/.test(mobile)){ setFieldError('mobile', 'Enter a valid 10-digit mobile number.'); valid = false; }
+    if (name === ''){ setFieldError('name', 'Please enter your name.'); valid = false; }
+    if (designation === ''){ setFieldError('designation', 'Please enter your designation.'); valid = false; }
+    if (outletName === ''){ setFieldError('outlet_name', 'Please enter your company name.'); valid = false; }
+    if (location === ''){ setFieldError('location', 'Please enter your location name.'); valid = false; }
+    if (pincode === '' || isNaN(pincode)){ setFieldError('pincode', 'Please enter a valid pincode.'); valid = false; }
+    if (!email.match(/^\S+@\S+\.\S+$/)){ setFieldError('email', 'Please enter a valid email address.'); valid = false; }
+    if (password.length < 6){ setFieldError('password-field', 'Password must be at least 6 characters.'); valid = false; }
+
+    if (!valid) return;
+
+    // Check BOTH mobile and email before sending an OTP at all — no point
+    // spending an OTP if we already know the signup will fail afterward.
+    axios.get('/customer/name/' + mobile)
+      .then(function(mobileRes){
+        if (mobileRes.data && mobileRes.data.name){
+          setFieldError('mobile', 'This mobile number is already registered.');
+          notify('warning', 'User already exists. Please log in instead.');
+          return;
+        }
+
+        axios.post('/customer/check-email', { email: email })
+          .then(function(emailRes){
+            if (emailRes.data && emailRes.data.exists){
+              setFieldError('email', 'This email is already registered. Please use a different email or log in instead.');
+              notify('error', 'This email is already registered.');
+            } else {
+              requestOtp(mobile, 'signup');
+            }
+          })
+          .catch(function(error){
+            notify('error', describeAxiosError(error, 'Error checking email. Please try again.'));
+          });
+      })
+      .catch(function(error){
+        notify('error', describeAxiosError(error, 'Error checking mobile number. Please try again.'));
+      });
+  }
+
+  // ============ OTP VERIFY (branches by context) ============
+  function handleOtpVerify(){
+    var otp = getOtpValue();
+    if (otp.length !== 4){
+      notify('error', 'Please enter the 4-digit OTP.');
+      return;
+    }
+
+    if (otpContext === 'signup'){
+      axios.post('/customer/verifyOtp', {
+        otp: otp,
+        mobile: fieldVal('mobile'),
+        name: fieldVal('name'),
+        outlet_name: fieldVal('outlet_name'),
+        designation: fieldVal('designation'),
+        pincode: fieldVal('pincode'),
+        email: fieldVal('email'),
+        location: fieldVal('location'),
+        password: fieldVal('password-field')
+      }).then(function(response){
+        if (response.data.success){
+          showSuccess('Account Created!', response.data.message || 'Your Zonik account has been created successfully.');
+          notify('success', response.data.message || 'Account created!');
+          setTimeout(function(){ window.location.href = '/outlet-selection'; }, 1400);
+        } else {
+          notify('error', response.data.message || 'OTP verification failed');
+        }
+      }).catch(function(error){
+        notify('error', describeAxiosError(error, 'An error occurred while verifying OTP'));
+      });
+    } else {
+      var mobile = fieldVal('mobile_number3');
+      axios.post('/customer/verifyloginOtp', { otp: otp, mobile: mobile })
+        .then(function(response){
+          if (response.data.success){
+            showSuccess('Login Successful!', response.data.message || 'Welcome back to Zonik.');
+            notify('success', response.data.message || 'Logged in!');
+            setTimeout(function(){ window.location.href = '/outlet-selection'; }, 1400);
+          } else {
+            notify('error', response.data.message || 'OTP verification failed');
+          }
+        })
+        .catch(function(error){
+          notify('error', describeAxiosError(error, 'An error occurred while verifying OTP'));
+        });
+    }
+  }
+
+  // Resend re-sends a real OTP for whichever flow is active, plus keeps the cooldown UI
+  function resendOtp(){
+    var mobile = otpContext === 'signup' ? fieldVal('mobile') : fieldVal('mobile_number3');
+
+    axios.post('/customer/sendOtp', { mobile: mobile })
+      .then(function(){ notify('success', 'OTP resent successfully In WhatsApp'); })
+      .catch(function(error){ notify('error', describeAxiosError(error, 'Failed to resend OTP')); });
+
+    var link = document.getElementById('resend-link');
+    if (!link) return;
+    var seconds = 30;
+    link.style.pointerEvents = 'none';
+    link.style.opacity = '0.5';
+    var original = link.textContent;
+    var timer = setInterval(function(){
+      link.textContent = 'Resend in ' + seconds + 's';
+      seconds--;
+      if (seconds < 0){
+        clearInterval(timer);
+        link.textContent = original;
+        link.style.pointerEvents = '';
+        link.style.opacity = '';
+      }
+    }, 1000);
+  }
+
+  // ============ FORGOT PASSWORD (no OTP step — validates email + mobile directly) ============
+  function resetPassword(){
+    var email = fieldVal('resetEmail');
+    var mobile = fieldVal('resetMobile');
+    clearFieldErrors(['resetEmail', 'resetMobile']);
+
+    var valid = true;
+    if (!email) valid = setFieldError('resetEmail', 'Please enter your email.') && valid;
+    if (!mobile) valid = setFieldError('resetMobile', 'Please enter your mobile number.') && valid;
+    if (!valid) return;
+
+    axios.post('/customer/validate-email-mobile', { email: email, mobile: mobile })
+      .then(function(response){
+        if (response.data.success){
+          resetUserId = response.data.user_id;
+          showScreen('reset-password');
+        } else {
+          notify('error', response.data.message || 'Email and mobile do not match our records.');
+        }
+      })
+      .catch(function(error){
+        if (error.response && error.response.data && error.response.data.errors){
+          Object.values(error.response.data.errors).forEach(function(msgs){
+            msgs.forEach(function(m){ notify('error', m); });
+          });
+        } else {
+          notify('error', describeAxiosError(error, 'An error occurred while checking email and mobile.'));
+        }
+      });
+  }
+
+  function submitNewPassword(){
+    var newPassword = fieldVal('toggle-password_newpass');
+    var confirmPassword = fieldVal('toggle-password_confirmPassword');
+    clearFieldErrors(['toggle-password_newpass', 'toggle-password_confirmPassword']);
+
+    var valid = true;
+    if (newPassword.length < 6) valid = setFieldError('toggle-password_newpass', 'Password must be at least 6 characters long.') && valid;
+    if (confirmPassword !== newPassword) valid = setFieldError('toggle-password_confirmPassword', 'Passwords do not match!') && valid;
+    if (!valid) return;
+
+    axios.post('/customer/reset-password', {
+      user_id: resetUserId,
+      newPassword: newPassword,
+      confirmPassword: confirmPassword
+    }).then(function(response){
+      if (response.data.success){
+        showSuccess('Password Reset!', 'Your password has been updated successfully.');
+        notify('success', 'Password updated successfully!');
+        setTimeout(function(){ window.location.href = '/outlet-selection'; }, 1400);
+      } else {
+        notify('error', response.data.message || 'Failed to update password.');
+      }
+    }).catch(function(error){
+      notify('error', describeAxiosError(error, 'An error occurred while updating the password.'));
+    });
+  }
+
+  // Shown briefly, then the flow redirects into your real app
+  function showSuccess(title, subtitle){
+    document.getElementById('success-heading').textContent = title;
+    document.getElementById('success-subtext').textContent = subtitle;
+    showScreen('success');
+  }
+
+  // Clear a field's red-border error as soon as the user starts fixing it
+  document.addEventListener('input', function(e){
+    if (e.target.id && document.getElementById('err-' + e.target.id)){
+      clearFieldError(e.target.id);
+    }
+  });
+</script>
+
+</body>
+</html>

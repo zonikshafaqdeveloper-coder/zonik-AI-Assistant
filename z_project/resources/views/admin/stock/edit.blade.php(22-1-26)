@@ -1,0 +1,411 @@
+@extends('admin.layouts.appnew')
+
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<script>
+    window.dbDiscount = {{ $grn->discount_percent ?? 0 }};
+    window.dbTax = {{ $grn->tax_amount ?? 0 }};
+    window.dbdelivery_charges = {{ $grn->delivery_charges ?? 0 }};
+</script>
+
+
+<div class="page-body">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 my-5">
+                <div class="col-sm-10 m-auto">
+
+                    <div class="card">
+                        <div class="card-body">
+
+                            <h3 class="mb-4">Edit Stock Receiving (Draft)</h3>
+
+                            {{-- =====================
+                                HEADER
+                            ====================== --}}
+                            <form id="stockEditForm">
+
+                                <input type="hidden" id="stock_receiving_id" value="{{ $grn->id }}">
+                                <input type="hidden" id="purchase_order_id" value="{{ $grn->purchase_order_id }}">
+                                <input type="hidden" id="vendor_id" value="{{ $grn->vendor_id }}">
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Purchase Order</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->purchase_order_number }}"
+                                               readonly>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Vendor</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->vendor->name ?? '' }}"
+                                               readonly>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">PO Date</label>
+                                        <input type="date"
+                                               class="form-control"
+                                               value="{{ $grn->purchaseOrder->po_date }}"
+                                               readonly>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Receipt Date</label>
+                                        <input type="date"
+                                               class="form-control"
+                                               id="receipt_date"
+                                               value="{{ $grn->receipt_date }}">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Bill Date</label>
+                                        <input type="date"
+                                               class="form-control"
+                                               id="bill_date"
+                                               value="{{ $grn->bill_date }}">
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                {{-- =====================
+                                    ITEMS TABLE
+                                ====================== --}}
+                                <div class="table-responsive">
+                                    <table class="table table-bordered align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Item</th>
+                                                <th>UOM</th>
+                                                <th>Rate</th>
+                                                <th>PO Qty</th>
+                                                <th>Tax %</th>
+                                                <th>Actual Qty</th>
+                                                <th>Returned Qty</th>
+                                                <th>Reason</th>
+                                                <th>Batch</th>
+                                                <th>Expiry</th>
+                                                <th>MRP</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody id="poItemsBody">
+                                            @foreach($grn->items as $index => $item)
+                                            <tr
+                                                data-po-item-id="{{ $item->purchase_order_item_id }}"
+                                                data-product-id="{{ $item->product_id }}"
+                                                data-rate="{{ $item->purchase_rate }}"
+                                                data-po-qty="{{ $item->po_qty }}"
+                                                data-tax="{{ $item->row_tax ?? 0 }}"
+                                            >
+                                                <td>{{ $index + 1 }}</td>
+                                                <td>{{ $item->product->product_name ?? '' }}</td>
+                                                <td>{{ $item->product->brands ?? '' }}</td>
+                                                <td>
+                                                    <input type="number" class="form-control purchase-rate"
+                                                           value="{{ $item->purchase_rate }}">
+                                                </td>
+                                                <td>{{ $item->po_qty }}</td>
+                                                <td>{{ $item->row_tax ?? 0 }}</td>
+
+                                                <td>
+                                                    <input type="number" class="form-control actual-qty"
+                                                           value="{{ $item->actual_qty }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="number" class="form-control returned-qty"
+                                                           value="{{ $item->returned_qty }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="text" class="form-control return-reason"
+                                                           value="{{ $item->return_reason }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="text" class="form-control batch-no"
+                                                           value="{{ $item->batch_no }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="date" class="form-control expiry-date"
+                                                           value="{{ $item->expiry_date }}">
+                                                </td>
+
+                                                <td>
+                                                    <input type="number" class="form-control mrp"
+                                                           value="{{ $item->mrp }}">
+                                                </td>
+                                               <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-danger remove-row">
+                                                        Remove
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {{-- =====================
+                                    TOTALS
+                                ====================== --}}
+                               <div class="row mt-3">
+                                    <div class="col-md-4 offset-md-8">
+                                        <table class="table table-borderless table-sm">
+
+                                            <tr>
+                                                <th class="text-end">Subtotal</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="subTotal">{{ number_format($grn->subtotal, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="text-end">Discount ({{ $grn->discount_percent }}%)</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="discountAmount">
+                                                        {{ number_format(
+                                                            (($grn->subtotal + $grn->tax_amount) * $grn->discount_percent / 100),
+                                                            2
+                                                        ) }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+
+
+                                            <tr>
+                                                <th class="text-end">Tax</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="taxAmount">{{ number_format($grn->tax_amount, 2) }}</span>
+                                                </td>
+                                            </tr>
+                                           
+                                            <tr>
+                                                <th class="text-end">Delivery Charges</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="">{{ number_format($grn->delivery_charges, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="text-end">Grand Total</th>
+                                                <td class="text-end">
+                                                    ₹ <span id="grandTotal">{{ number_format($grn->grand_total, 2) }}</span>
+                                                </td>
+                                            </tr>
+
+                                        </table>
+                                    </div>
+                                </div>
+
+
+                                {{-- =====================
+                                    ACTIONS
+                                ====================== --}}
+                                <div class="row mt-4">
+                                    <div class="col-md-4 offset-md-8 d-grid gap-2">
+                                        <button type="button"
+                                                class="btn btn-secondary"
+                                                onclick="submitEdit('draft')">
+                                            Update Draft
+                                        </button>
+
+                                        <button type="button"
+                                                class="btn btn-success"
+                                                onclick="submitEdit('submit')">
+                                            Update & Submit
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- =====================
+    JS (EDIT ONLY)
+====================== --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function calculateEditTotals() {
+
+    let subtotal = 0;
+    let totalTax = 0;
+
+    $('#poItemsBody tr').each(function () {
+
+        const row = $(this);
+
+        const actualQty = parseFloat($(this).find('.actual-qty').val()) || 0;
+        const poQty     = parseFloat($(this).data('po-qty')) || 0;
+        const rate      = parseFloat(row.find('.purchase-rate').val()) || 0;
+        const taxPct    = parseFloat($(this).data('tax')) || 0;
+
+        const effectiveQty = actualQty > 0 ? actualQty : poQty;
+
+        if (effectiveQty <= 0) return;
+
+        const rowBase = effectiveQty * rate;
+        const rowTax  = rowBase * taxPct / 100;
+
+        subtotal += rowBase;
+        totalTax += rowTax;
+    });
+
+    const netAmount = subtotal + totalTax + (window.dbdelivery_charges || 0);
+    const discountAmount = (netAmount * window.dbDiscount) / 100;
+    const grandTotal = netAmount - discountAmount;
+
+    $('#subTotal').text(subtotal.toFixed(2));
+    $('#taxAmount').text(totalTax.toFixed(2));
+    $('#discountAmount').text(discountAmount.toFixed(2));
+    $('#grandTotal').text(grandTotal.toFixed(2));
+}
+</script>
+
+
+<script>
+$(document).on('input', '.actual-qty', function () {
+
+    const poQty = parseFloat($(this).closest('tr').data('po-qty')) || 0;
+    let val = parseFloat($(this).val()) || 0;
+
+    if (val < 0) {
+        $(this).val(0);
+        return;
+    }
+
+    if (val > poQty) {
+        $(this).addClass('border-danger');
+    } else {
+        $(this).removeClass('border-danger');
+    }
+
+    calculateEditTotals();
+});
+
+$(document).on('input', '.purchase-rate', function () {
+    calculateEditTotals();
+});
+
+
+$(document).on('click', '.remove-row', function () {
+
+    const rowCount = $('#poItemsBody tr').length;
+
+    if (rowCount <= 1) {
+        Swal.fire(
+            'Action Not Allowed',
+            'At least one item must remain.',
+            'warning'
+        );
+        return;
+    }
+
+    Swal.fire({
+        title: 'Remove item?',
+        text: 'This item will be removed from calculation.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, remove it',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $(this).closest('tr').remove();
+            calculateEditTotals();
+        }
+    });
+});
+</script>
+<script>
+
+function parseAmount(value) {
+return parseFloat(value.replace(/,/g, '')) || 0;
+}    
+    
+function submitEdit(type) {
+
+    let items = [];
+
+    $('#poItemsBody tr').each(function () {
+        const row = $(this);
+
+        items.push({
+            po_item_id: row.data('po-item-id'),
+            product_id: row.data('product-id'),
+            po_qty: row.data('po-qty'),
+
+            actual_qty: parseFloat(row.find('.actual-qty').val()) || 0,
+            returned_qty: parseFloat(row.find('.returned-qty').val()) || 0,
+
+            return_reason: row.find('.return-reason').val() || null,
+            purchase_rate: parseFloat(row.find('.purchase-rate').val()) || 0,
+
+            batch_no: row.find('.batch-no').val() || null,
+            expiry_date: row.find('.expiry-date').val() || null,
+
+            mrp: row.find('.mrp').val() !== ''
+                ? parseFloat(row.find('.mrp').val())
+                : null,
+        });
+    });
+
+    const payload = {
+        receipt_date: $('#receipt_date').val(),
+        bill_date: $('#bill_date').val(),
+
+        subtotal: parseAmount($('#subTotal').text()),
+        tax_amount: parseAmount($('#taxAmount').text()),
+        grand_total: parseAmount($('#grandTotal').text()),
+
+        save_type: type,
+        items: JSON.stringify(items)
+    };
+
+    fetch(`/admin/stock-receivings/update/${$('#stock_receiving_id').val()}`, {
+        method: 'PUT',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams(payload)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (!res.success) {
+            Swal.fire('Error', res.message || 'Unable to update', 'error');
+            return;
+        }
+
+        Swal.fire('Success', 'Draft updated successfully', 'success')
+            .then(() => window.location.href = res.redirect_url);
+    })
+    .catch(() => {
+        Swal.fire('Server Error', 'Something went wrong', 'error');
+    });
+}
+
+
+</script>
+
+@endsection

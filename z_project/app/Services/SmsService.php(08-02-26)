@@ -1,0 +1,898 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\SMS;
+use Carbon\Carbon;
+use Twilio\Rest\Client;  // Twilio Client (if using Twilio)
+use Illuminate\Support\Facades\Log;
+
+class SmsService
+{
+
+
+
+    public function __construct()
+    {
+    }
+
+    // public function sendSMS($phone, $message, $otp = '')
+    // {
+
+
+    //     $now = Carbon::now();
+    //     $date = Carbon::now()->subMinutes(5);
+    //     $last = SMS::where('mobile', $phone)->where('otp', (int)$otp)->whereBetween('created_at', [$date, $now])->first();
+    //     if ($last) {
+    //         return json_encode(array("success" => false, "message" => "message_sent_failed", "ErrorMessage" => "Same message already sent on given no."));
+    //     }
+
+    //     $message = explode('|', $message);
+    //     $text = $message[0];
+    //     $templateId = isset($message[1]) ? $message[1] : '';
+
+    //     // $api_url = $this->endPoint . "?key=" . $this->apiKey . "&campaign=" . $this->campaign . "&routeid=" . $this->routeId . "&type=text&contacts=" . $phone . "&senderid=" . $this->senderId . "&msg=" . urlencode($text) . "&template_id=" . $templateId;
+    //     // $result = file_get_contents($api_url);
+
+    //     $apiKey = urlencode('tYXchLMGV3A-TR55gfxl38o58A82wDMDlZbrZ5VFEG');
+
+    //     $numbers = array(917385121432);
+    //     $sender = urlencode('INFIBL');
+    //     $message = rawurlencode("Welcome to Infipara solutions B.local . " . $otp . " is your One Time Password for BLocal application. Don't share this with anyone.");
+
+    //     $numbers = implode(',', $numbers);
+
+    //     // Prepare data for POST request
+    //     $data = array('apikey' => $apiKey, 'numbers' => $numbers, "sender" => $sender, "message" => $message);
+
+    //     // Send the POST request with cURL
+    //     $ch = curl_init('https://api.textlocal.in/send/');
+    //     curl_setopt($ch, CURLOPT_POST, true);
+    //     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    //     $response = curl_exec($ch);
+    //     curl_close($ch);
+
+    //     // dd($response);
+
+
+
+    //     $resultStatus  = json_decode($response);
+    //     // dd($resultStatus->messages[0]->id);
+    //     if ($resultStatus->status == 'success') {
+    //         $smsid = $resultStatus->messages[0]->id;
+    //         $error = null;
+    //     } else {
+    //         $error = $response;
+    //         $smsid = null;
+    //     }
+    //     // dd($phone);
+    //     $sms = new SMS();
+    //     $sms->message_id = $smsid;
+    //     $sms->mobile = $phone;
+    //     $sms->message = $text;
+    //     $sms->error = $error;
+    //     if ($otp != '') {
+    //         $sms->otp = $otp;
+    //     }
+    //     $sms->save();
+    //     if ($smsid != '') {
+    //         return array("success" => true, "message" => "message_sent.");
+    //     } else {
+    //         return array("success" => false, "message" => "message_sent_failed", "ErrorMessage" => $error);
+    //     }
+    // }
+    
+    
+    private function generateUniqueMessageId()
+    {
+        return time() . rand(100, 999);
+    }
+
+    public function sendSMS($phone, $message, $otp = '')
+    {
+        $now = Carbon::now();
+        $date = Carbon::now()->subMinutes(5);
+
+      
+        $last = SMS::where('mobile', $phone)
+            ->where('otp', (int)$otp)
+            ->whereBetween('created_at', [$date, $now])
+            ->first();
+
+        if ($last) {
+            return [
+                "success" => false,
+                "message" => "message_sent_failed",
+                "ErrorMessage" => "Same message already sent on given number."
+            ];
+        }
+
+        $messageParts = explode('|', $message);
+        $text = $messageParts[0];
+
+        
+        $sms = new SMS();
+        $sms->message_id = $this->generateUniqueMessageId();
+        $sms->mobile = $phone;
+        $sms->message = $text;
+        $sms->error = null;
+
+        if (!empty($otp)) {
+            $sms->otp = $otp;
+        }
+
+        $sms->save();
+
+        return [
+            "success" => true,
+            "message" => "message_sent"
+        ];
+    }
+
+    public function verifyOtp($mobile, $otp)
+    {
+        $now = Carbon::now();
+        $date = Carbon::now()->subMinutes(5);
+        
+        // Debugging - log the variables
+        \Log::info("Verifying OTP for mobile: $mobile, OTP: $otp, Date Range: $date to $now");
+        
+        $otp = SMS::where('mobile', $mobile)
+            ->where('otp', (int)$otp)
+            ->whereDate('created_at', '>=', $date)
+            ->whereDate('created_at', '<=', $now)
+            ->whereNull('verified_at')
+            ->first();
+    
+        // Check if OTP is found
+        if (isset($otp->message_id)) {
+            // OTP verified
+            $otp->update(['verified_at' => now()]);
+            return (array("success" => true, "message" => "OTP Verified"));
+        } else {
+            // OTP failed
+            \Log::info("OTP verification failed for mobile: $mobile, OTP: $otp");
+            return (array("success" => false, "message" => "OTP Verification Failed"));
+        }
+    }
+    
+    
+    
+    // added pm 17-10-25
+    public function sendOtp($mobile)
+{
+    $otp = rand(1000, 9999);
+    $now = Carbon::now();
+    $date = Carbon::now()->subMinutes(5);
+
+  
+    $otps = SMS::where('mobile', $mobile)
+        ->whereBetween('created_at', [$date, $now])
+        ->count();
+
+    if ($otps > 5) {
+        return response()->json(['error' => 'Too many OTP requests. Please wait 5 minutes.']);
+    }
+
+  
+    $message = "Welcome To Zonik, $otp is your OTP for Zonik Log In (Infipara Solutions). Do not share this OTP with anyone. Enjoy Shopping!";
+
+  
+    $url = "https://backend.aisensy.com/campaign/t1/api/v2";
+
+    $data = [
+        "apiKey" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZGQwNmZmODE3NGYyMGRhNWRjNzM3YSIsIm5hbWUiOiJJbmZpZ291cm1ldCBuZXR3b3JrcyBwcml2YXRlIGxpbWl0ZWQiLCJhcHBOYW1lIjoiQWlTZW5zeSIsImNsaWVudElkIjoiNjhkZDA2ZmY4MTc0ZjIwZGE1ZGM3Mzc1IiwiYWN0aXZlUGxhbiI6IkZSRUVfRk9SRVZFUiIsImlhdCI6MTc1OTMxNTcxMX0.NHT4TgmpnZecQwtq5ydQ91ObsX7lcJziNkUNa9kgrLs",
+        "campaignName" => "otp verification",
+        "destination" => $mobile,
+        "userName" => "User",
+        "source" => "website",
+        "templateParams" => [strval($otp)], 
+        "buttons" => [
+            [
+                "type" => "button",
+                "sub_type" => "url",
+                "index" => "0",
+                "parameters" => [
+                    [
+                        "type" => "text",
+                        "text" => strval($otp)
+                    ]
+                ]
+            ]
+        ]
+    ];
+
+    $ch = curl_init($url);
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json'
+        ],
+        CURLOPT_POSTFIELDS => json_encode($data),
+    ]);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+
+    file_put_contents('whatsapp_debug_log.txt', $response . PHP_EOL, FILE_APPEND);
+
+   
+    echo $response;
+
+    return $this->sendSMS($mobile, $message, $otp);
+}
+
+    // commnet on 17-10-25
+//       public function sendOtp($mobile)
+// {
+//     $otp = rand(1000, 9999);
+//     $now = Carbon::now();
+//     $date = Carbon::now()->subMinutes(5);
+//     $otps = SMS::where('mobile', $mobile)->whereBetween('created_at', [$date, $now])->count();
+
+//     $apiKey = 'Njg2MjQxMzc3NDQ0NjMzNTUxNjk1ODcxMzc0MjRlNGE=';
+//     $sender = "iZonik";
+//     $message = urlencode("Welcome To Zonik , $otp is your OTP for Zonik Log In (Infipara solutions) . Do not share this OTP with anyone . Enjoy Shopping !");
+
+//     $data = array(
+//         'apikey' => $apiKey,
+//         'sender' => $sender,
+//         'numbers' => $mobile,
+//         'message' => $message,
+//     );
+
+//     $ch = curl_init();
+
+//     curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+//     curl_setopt($ch, CURLOPT_POST, true);
+//     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+//     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+//     $response = curl_exec($ch);
+//     curl_close($ch);
+
+//     file_put_contents('sms_debug_log.txt', $response . PHP_EOL, FILE_APPEND);
+
+//     // Process your response here
+//     echo $response;
+
+//     return $this->sendSMS($mobile, $message, $otp);
+// }
+
+    // public function sendOtp($mobile)
+    // {
+    //     $otp = rand(1000, 9999);
+    //     // $message = "Welcome to Infipara solutions B.local . " . $otp . " is your One Time Password for BLocal application. Don't share this with anyone.";
+    //     $now = Carbon::now();
+    //     $date = Carbon::now()->subMinutes(5);
+    //     $otps = SMS::where('mobile', $mobile)->whereBetween('created_at', [$date, $now])->count();
+
+    //     $apiKey = 'Njg2MjQxMzc3NDQ0NjMzNTUxNjk1ODcxMzc0MjRlNGE=';
+    //     $sender = 'Zonics';
+    //     // $message = urlencode($otp . ' is OTP for your Infipara Solutions E-commerce account activation . Do not share this OTP with anyone');
+    //     $message = urlencode('Welcome To Zonik ,' .$otp. ' is your OTP for Zonik Log In (Infipara solutions). Do not share this OTP with anyone. Enjoy Shopping!');
+    //     $data = array(
+    //         'apikey' => $apiKey,
+    //         'sender' => $sender,
+    //         'numbers' => $mobile,
+    //         'message' => $message,
+    //     );
+
+    //     $ch = curl_init();
+
+    //     curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+    //     curl_setopt($ch, CURLOPT_POST, true);
+    //     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    //     $response = curl_exec($ch);
+
+    //     curl_close($ch);
+    //     file_put_contents('sms_debug_log.txt', $response . PHP_EOL, FILE_APPEND);
+    //     // Process your response here
+    //     echo $response;
+    //     return $this->sendSMS($mobile, $message, $otp);
+    // }
+
+
+
+//added on 18-10-25
+   public function sendOrderDetails($mobile, $order_id, $status){
+
+      $apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZGQwNmZmODE3NGYyMGRhNWRjNzM3YSIsIm5hbWUiOiJJbmZpZ291cm1ldCBuZXR3b3JrcyBwcml2YXRlIGxpbWl0ZWQiLCJhcHBOYW1lIjoiQWlTZW5zeSIsImNsaWVudElkIjoiNjhkZDA2ZmY4MTc0ZjIwZGE1ZGM3Mzc1IiwiYWN0aXZlUGxhbiI6IkZSRUVfRk9SRVZFUiIsImlhdCI6MTc1OTMxNTcxMX0.NHT4TgmpnZecQwtq5ydQ91ObsX7lcJziNkUNa9kgrLs';
+    $url = "https://backend.aisensy.com/campaign/t1/api/v2";
+    $mobile1 = "91" . preg_replace('/\D/', '', $mobile); // Ensure country code
+
+    // Template does not have parameters
+    $templateParams = []; 
+
+    // Buttons
+    $buttons = [
+        [
+            "type" => "button",
+            "sub_type" => "url",
+            "index" => "0",
+            "parameters" => [
+                ["type" => "payload", "payload" => "https://www.zonik.in"]
+            ]
+        ],
+                [
+                "type" => "button",
+                "sub_type" => "phone_number",
+                "index" => "1",
+                "parameters" => [
+                    ["type" => "payload", "payload" => "8850268043"] 
+                ]
+            ],
+        [
+            "type" => "button",
+            "sub_type" => "quick_reply",
+            "index" => "2",
+            "parameters" => [
+                ["type" => "payload", "payload" => "Request Call Back"]
+            ]
+        ]
+    ];
+
+    // Prepare payload
+    $data = [
+        "apiKey" => $apiKey,
+        "campaignName" => "offersent_notification",
+        "destination" => $mobile1,
+        "userName" => "Customer",
+        "source" => "website",
+        "templateParams" => $templateParams
+    ];
+
+    // Send WhatsApp request
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($data),
+    ]);
+
+    $response = curl_exec($ch);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        echo "cURL Error: $curlError";
+    } else {
+        $decoded = json_decode($response, true);
+        echo "<pre>"; print_r($decoded); echo "</pre>";
+    }
+
+    // Log message
+    file_put_contents(
+        'whatsapp_debug_log.txt',
+        date('Y-m-d H:i:s') . " | offersent_notification | $mobile1 | " . $response . PHP_EOL,
+        FILE_APPEND
+    );
+
+    }
+    
+//comment on 18-10-25
+//   public function sendOrderDetails($mobile, $order_id, $status)
+// {
+//     $apiKey = 'N2E1MjRhMzYzNDcyNTY2ZTMzMzA3OTc1NzE0Mjc2Mzk=';
+//     $sender = 'iZonik';
+
+//   if($status == 'submitted'){
+//     $message = "Dear Customer ,Price Offer sent from Zonik (Infipara solutions). Take action in Offer Section to confirm Offer Prices. Incase of any issue contact +919136411489";
+//     }
+
+//     // $message = urlencode($message);
+
+//     $data = array(
+//         'apikey' => $apiKey,
+//         'sender' => $sender,
+//         'numbers' => $mobile,
+//         'message' => $message,
+//     );
+    
+//     // dd($data);
+
+//     $ch = curl_init();
+
+//     curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+//     curl_setopt($ch, CURLOPT_POST, true);
+//     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+//     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+//     $response = curl_exec($ch);
+
+//     curl_close($ch);
+//     error_log(print_r($response, true));
+
+//     $resultStatus = json_decode($response, true);
+    
+//     if ($resultStatus['status'] === 'success') {
+//         echo "Message sent successfully!";
+//     } else {
+//         echo "Failed to send message. Error: " . $resultStatus['errors'][0]['message'];
+//     }
+// }
+
+//comment on 18-10-25
+// public function sendOrder($data)
+// {
+//     $apiKey = 'N2E1MjRhMzYzNDcyNTY2ZTMzMzA3OTc1NzE0Mjc2Mzk=';
+    
+//     $sender = 'iZonik';
+//     $delivery = $data['delivery'];
+//     $order = $data['order'];
+//     $mobile = $order->user->mobile_number;
+//     $order_id = $order->order_id;
+//     $id = $order->id;
+//     // dd($id);
+
+//     if ($delivery->delivery_status === 'delivered') {
+//         $user_name = substr($order->user->name, 0, 30);
+//         $outlet_name = substr($order->user->outlet_name, 0, 30);
+
+//         if(!$outlet_name){
+//         $outletname = $user_name;
+//         }else{
+//         $outletname = $outlet_name;
+//         } 
+//         $base_url = 'https://Zonik.in/iZonik/';
+//         // dd($base_url);
+//         $invoiceWithId = $base_url . $id;
+
+//         $message = "Dear Customer , Your order $order_id is Delivered to Outlet $outletname . Sharing your Invoice $invoiceWithId .For Customer care Contact Zonik at +919136411489";
+	
+//         // $message = "Dear Customer , your order $order_id is Delivered. Please share your feedback for us to serve you better by replying Yes or No for satisfaction (Yes) & Not satisfied (No) of our service. Team Infipara Solutions";
+//     } else if ($delivery->delivery_status === 'in_progress') {
+//         $user_name = substr($order->user->name, 0, 30);  // Limit outlet name to 30 characters
+//         $invoice_id = substr($order->invoice_id, 0, 30);  // Limit invoice ID to 30 characters
+//         $payment_mode = substr($order->payment_method, 0, 30);  // Limit payment mode to 30 characters
+//         $total_amount = substr($order->total_discount_value, 0, 30);  // Limit total amount to 30 
+//         $base_url = 'https://Zonik.in/iZonik/';
+//         // dd($base_url);
+//         $invoiceWithId = $base_url . $id;
+//         $outlet_name = substr($order->user->outlet_name, 0, 30);
+
+//         if(!$outlet_name){
+//         $outletname = $user_name;
+//         }else{
+//         $outletname = $outlet_name;
+//         }
+
+//         // dd($invoiceWithId);
+//         $message = "Dear Customer , Your order $order_id is Confirmed and In Process. Sharing you the invoice $invoiceWithId . Invoice Value : $total_amount , Outlet Name : $outletname , Payment Mode : $payment_mode. Incase of any issue please contact Zonik team at +919136411489";
+
+
+//     }else if ($delivery->delivery_status === 'pending') {
+//          $user_name = substr($order->user->name, 0, 30);  
+//          $invoice_id = substr($order->invoice_id, 0, 30);
+//          $payment_mode = substr($order->payment_method, 0, 30);
+//          $total_amount = substr($order->total_discount_value, 0, 30); 
+//          $delivery_date = substr($delivery->delivery_date, 0, 30);
+
+//         $outlet_name = substr($order->user->outlet_name, 0, 30);
+
+//         if(!$outlet_name){
+//         $outletname = $user_name;
+//         }else{
+//         $outletname = $outlet_name;
+//         }
+
+       
+//         $message = "Dear Customer, Thanks for the order $order_id , Your order is Received & Under Review .Outlet Name: :$outletname , Delivery Date: $delivery_date. Incase of any issue please contact Zonik team at +919136411489."; 
+        
+ 
+//      }  else if ($delivery->delivery_status === 'ready_for_dispatch') {
+//         $outlet_name = substr($order->user->outlet_name, 0, 10);  // Limit outlet name to 10 characters
+//         $delivery_date = substr($delivery->delivery_date, 0, 10);  // Limit delivery date to 10 characters
+//         $invoice_id = substr($order->invoice_id, 0, 10);  // Limit invoice ID to 10 characters
+//         $payment_mode = substr($order->payment_method, 0, 10);  // Limit payment mode to 10 characters
+//         $total_amount = substr($order->total_discount_value, 0, 10);  // Limit total amount to 10 
+//         $base_url = 'https://Zonik.in/iZonik/';
+//         // dd($base_url);
+//         $invoiceWithId = $base_url . $id;
+//         // $outlet_name = substr($order->user->outlet_name, 0, 30);
+
+//         // if(!$outlet_name){
+//         // $outletname = $user_name;
+//         // }else{
+//         // $outletname = $outlet_name;
+//         // }
+
+//         $message = "Dear Customer, Your order $order_id is Out For Delivery - Dispatched . Download invoice $invoiceWithId . Outlet Name: $outlet_name , Delivery Date: $delivery_date. Incase of any issue please contact Zonik team at +919136411489";
+         
+//             // API call
+//             // $data = array(
+//             //     'apikey' => $apiKey,
+//             //     'sender' => $sender,
+//             //     'numbers' => $mobile,
+//             //     'message' => $message,
+//             // );
+
+//             // $ch = curl_init();
+
+//             // curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+//             // curl_setopt($ch, CURLOPT_POST, true);
+//             // curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+//             // curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+//             // $response = curl_exec($ch);
+
+//             // curl_close($ch);
+
+//             // // Log API response to a file
+//             // $apiLogFilePath = __DIR__ . '/sms_api_response_logs.txt';
+//             // $apiLogMessage = "[" . date('Y-m-d H:i:s') . "] " . $response . PHP_EOL;
+//             // file_put_contents($apiLogFilePath, $apiLogMessage, FILE_APPEND);
+
+//     }else if ($delivery->delivery_status === 'cancelled') {
+//         $outlet_name = substr($order->user->outlet_name, 0, 10);  // Limit outlet name to 10 characters
+//         $delivery_date = substr($delivery->delivery_date, 0, 10);  // Limit delivery date to 10 characters
+//         $invoice_id = substr($order->invoice_id, 0, 10);  // Limit invoice ID to 10 characters
+//         $payment_mode = substr($order->payment_method, 0, 10);  // Limit payment mode to 10 characters
+//         $total_amount = substr($order->total_discount_value, 0, 10);  // Limit total amount to 10 
+//         $base_url = 'https://Zonik.in/iZonik/';
+//         // dd($base_url);
+//         $invoiceWithId = $base_url . $id;
+//         // $outlet_name = substr($order->user->outlet_name, 0, 30);
+
+//         // if(!$outlet_name){
+//         // $outletname = $user_name;
+//         // }else{
+//         // $outletname = $outlet_name;
+//         // }
+
+//      	$message = "Dear Customer , Your order $order_id is Cancelled of Outlet $outlet_name. Please contact our Customer care Team Zonik at +919136411489 for further information";
+         
+//             // API call
+//             // $data = array(
+//             //     'apikey' => $apiKey,
+//             //     'sender' => $sender,
+//             //     'numbers' => $mobile,
+//             //     'message' => $message,
+//             // );
+
+//             // $ch = curl_init();
+
+//             // curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+//             // curl_setopt($ch, CURLOPT_POST, true);
+//             // curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+//             // curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+//             // $response = curl_exec($ch);
+
+//             // curl_close($ch);
+
+//             // // Log API response to a file
+//             // $apiLogFilePath = __DIR__ . '/sms_api_response_logs.txt';
+//             // $apiLogMessage = "[" . date('Y-m-d H:i:s') . "] " . $response . PHP_EOL;
+//             // file_put_contents($apiLogFilePath, $apiLogMessage, FILE_APPEND);
+
+//     }  
+    
+    
+//     else {
+//         echo "Invalid delivery status.";
+//         return;
+//     }
+
+//     // $message = urlencode($message);
+
+//     $data = array(
+//         'apikey' => $apiKey,
+//         'sender' => $sender,
+//         'numbers' => $mobile,
+//         'message' => $message,
+//     );
+// // dd($data);
+//     $ch = curl_init();
+
+//     curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+//     curl_setopt($ch, CURLOPT_POST, true);
+//     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+//     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+//     $response = curl_exec($ch);
+
+//     curl_close($ch);
+//     error_log(print_r($response, true));
+// // dd($response);
+//     $resultStatus = json_decode($response, true);
+
+//     if ($resultStatus['status'] === 'success') {
+//         echo "Message sent successfully!";
+//     } else {
+//         echo "Failed to send message. Error: " . $resultStatus['errors'][0]['message'];
+//     }
+// }
+
+//added on 18-10-25
+
+public function sendOrder($data)
+{
+    $delivery = $data['delivery'];
+    $order = $data['order'];
+    $mobile = "91" . $order->user->mobile_number;
+    $user_name = substr($order->user->name, 0, 30);
+    $invoice_id = substr($order->invoice_id, 0, 30);
+    // $delivery_time_slot = substr($order->delivery_time_slot ?? '', 0, 30);
+    $payment_mode = substr($order->payment_method, 0, 30);
+    $total_amount = substr($order->total_discount_value ?? '', 0, 30);
+    // $delivery_date = substr($delivery->delivery_date ?? '', 0, 30);
+    $outlet_name = substr($order->user->outlet_name ?? '', 0, 30);
+    $outletname = $outlet_name ?: $user_name;
+    
+    $deliveryDateRaw = $delivery->delivery_date ?? null;
+    $timeSlot = $order->delivery_time_slot ?? '';
+
+    if ($deliveryDateRaw) {
+        $deliveryDate = \Carbon\Carbon::parse($deliveryDateRaw)->startOfDay();
+        $today = \Carbon\Carbon::today();
+        $tomorrow = \Carbon\Carbon::tomorrow();
+
+        if ($deliveryDate->equalTo($today)) {
+            $dateLabel = 'Today';
+        } elseif ($deliveryDate->equalTo($tomorrow)) {
+            $dateLabel = 'Tomorrow';
+        } else {
+            $dateLabel = $deliveryDate->format('d-m-Y');
+        }
+
+        $delivery_time_slot = trim($dateLabel . ', ' . $timeSlot);
+    } else {
+        $delivery_time_slot = $timeSlot;
+    }
+
+    $delivery_time_slot = substr($delivery_time_slot, 0, 30);
+
+    $id = $order->id;
+    $invoiceLink =  "iZonik/" . $id;
+
+    $apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZGQwNmZmODE3NGYyMGRhNWRjNzM3YSIsIm5hbWUiOiJJbmZpZ291cm1ldCBuZXR3b3JrcyBwcml2YXRlIGxpbWl0ZWQiLCJhcHBOYW1lIjoiQWlTZW5zeSIsImNsaWVudElkIjoiNjhkZDA2ZmY4MTc0ZjIwZGE1ZGM3Mzc1IiwiYWN0aXZlUGxhbiI6IkZSRUVfRk9SRVZFUiIsImlhdCI6MTc1OTMxNTcxMX0.NHT4TgmpnZecQwtq5ydQ91ObsX7lcJziNkUNa9kgrLs";
+    $url = "https://backend.aisensy.com/campaign/t1/api/v2";
+
+    // Default empty buttons
+    $buttons = [];
+
+   
+    switch ($delivery->delivery_status) {
+        case 'pending':
+            $campaignName = "order_under_review";
+            $templateParams = [
+                $user_name,
+                $invoice_id,
+                $outletname,
+                $delivery_time_slot
+            ];
+            $buttons = []; 
+            break;
+
+        case 'in_progress':
+            $campaignName = "order_confirmed_process";
+            $templateParams = [
+                $user_name,
+                $invoice_id,
+                $outletname,
+                $delivery_time_slot,
+                $payment_mode
+            ];
+            $buttons = [
+                [
+                    "type" => "button",
+                    "sub_type" => "url",
+                    "index" => "0",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => $invoiceLink]
+                    ]
+                ],
+                [
+                    "type" => "button",
+                    "sub_type" => "quick_reply",
+                    "index" => "1",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => "Help, Please call me"]
+                    ]
+                ],
+                [
+                    "type" => "button",
+                    "sub_type" => "quick_reply",
+                    "index" => "2",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => "Cancel my Order"]
+                    ]
+                ]
+            ];
+            break;
+
+        case 'ready_for_dispatch':
+            $campaignName = "ready_for_dispatch";
+            $templateParams = [
+                $user_name,
+                $invoice_id,
+                $outletname,
+                $delivery_time_slot,
+                $payment_mode
+            ];
+          
+               $buttons = [
+                [
+                    "type" => "button",
+                    "sub_type" => "url",
+                    "index" => "0",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => $invoiceLink]
+                    ]
+                ],
+                [
+                    "type" => "button",
+                    "sub_type" => "quick_reply",
+                    "index" => "1",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => "Help, Please call me"]
+                    ]
+                ],
+            ];
+
+            break;
+
+        case 'delivered':
+            $campaignName = "order_delivered_12_new_25";
+            $templateParams = [
+                $user_name,
+                $invoice_id,
+                $outletname,
+                $payment_mode
+            ];
+             $buttons = [
+                [
+                    "type" => "button",
+                    "sub_type" => "url",
+                    "index" => "0",
+                    "parameters" => [
+                        ["type" => "payload", "payload" => $invoiceLink]
+                    ]
+                ],
+             
+            ];
+            
+            break;
+
+        case 'cancelled':
+            $campaignName = "order_cancelled";
+            $templateParams = [
+                $user_name,
+                $invoice_id,
+                $outletname
+            ];
+            $buttons = [];
+            break;
+
+        default:
+            echo "Invalid delivery status.";
+            return;
+    }
+
+    
+    $payload = [
+        "apiKey" => $apiKey,
+        "campaignName" => $campaignName,
+        "destination" => $mobile,
+        "userName" => $user_name,
+        "source" => "website",
+        "templateParams" => $templateParams,
+    ];
+
+    if (!empty($buttons)) {
+        $payload['buttons'] = $buttons;
+    }
+
+  
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+    ]);
+
+    $response = curl_exec($ch);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        echo "cURL Error: $curlError";
+    } else {
+        $decoded = json_decode($response, true);
+        // echo "<pre>"; print_r($decoded); echo "</pre>";
+    }
+
+ 
+    file_put_contents(
+        'whatsapp_debug_log.txt',
+        date('Y-m-d H:i:s') . " | " . $delivery->delivery_status . " | $mobile | " . $response . PHP_EOL,
+        FILE_APPEND
+    );
+}
+
+
+public function sendVerificationSMS($data)
+{
+    $apiKey = 'N2E1MjRhMzYzNDcyNTY2ZTMzMzA3OTc1NzE0Mjc2Mzk=';
+    $sender = 'iZonik';
+
+    $mobile = $data['mobile_number'];
+    $outletName = $data['outlet_name'];
+
+    $message ="Dear Customer , Your Outlet $outletName is verified , you can now start placing orders from Order cart .Please contact our Customer care Team Zonik at +919136411489 for further information";
+
+    $data = [
+        'apikey' => $apiKey,
+        'sender' => $sender,
+        'numbers' => $mobile,
+        'message' => $message,
+    ];
+
+    $ch = curl_init();
+
+    curl_setopt($ch, CURLOPT_URL, 'https://api.textlocal.in/send/');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    // Prepare the log message
+    $logMessage = "[" . date('Y-m-d H:i:s') . "] SMS Response: " . print_r($response, true) . PHP_EOL;
+
+    // Save response to logs.txt
+    file_put_contents(storage_path('logs/logs.txt'), $logMessage, FILE_APPEND);
+
+    // Log to Laravel log for debugging
+    error_log(print_r($response, true));
+    $resultStatus = json_decode($response, true);
+
+    if (isset($resultStatus['status']) && $resultStatus['status'] === 'success') {
+        $successMessage = "[" . date('Y-m-d H:i:s') . "] Verification message sent successfully to $mobile" . PHP_EOL;
+        file_put_contents(storage_path('logs/logs.txt'), $successMessage, FILE_APPEND);
+    } else {
+        $error = $resultStatus['errors'][0]['message'] ?? 'Unknown error';
+        $errorMessage = "[" . date('Y-m-d H:i:s') . "] Failed to send message to $mobile. Error: " . $error . PHP_EOL;
+        file_put_contents(storage_path('logs/logs.txt'), $errorMessage, FILE_APPEND);
+    }
+}
+
+
+
+
+    public function checkBalance()
+    {
+        $BALANCE_URL = "http://kutility.org/app/miscapi/" . $this->apiKey . "/getBalance/true/";
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $BALANCE_URL);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, "");
+        $result = curl_exec($ch);
+        if (curl_errno($ch)) {
+            return array('success' => false, "message" => curl_error($ch));
+        }
+        curl_close($ch);
+        if ($this->isJson($result)) {
+            return array('success' => true, 'data' => json_decode($result, true), "message" => "");
+        } else {
+            return array('success' => false, "message" => $result);
+        }
+    }
+
+    public function isJson($string)
+    {
+        json_decode($string);
+        return (json_last_error() == JSON_ERROR_NONE);
+    }
+}

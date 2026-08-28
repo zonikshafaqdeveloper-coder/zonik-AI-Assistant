@@ -1,0 +1,929 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderDetail;
+use App\Models\StockReceiving;
+use App\Models\StockReceivingItem;
+use App\Models\StockMovement;
+use App\Models\ProductStock;
+use App\Models\VendorBill;
+use App\Models\RackStock;
+use App\Models\VendorPayment;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+
+class StockController extends Controller
+{
+   
+    public function index()
+{
+     $stockReceivings = StockReceiving::with([
+            'purchaseOrder.vendor',
+            'items',
+            'vendorBill'
+        ])
+        ->orderBy('id', 'desc')
+        ->get();
+
+    return view('admin.stock.index', compact('stockReceivings'));
+}
+
+
+public function stock_opening()
+    {
+        $openings = StockMovement::with('product')
+            ->where('reference_type', 'OPENING')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('admin.stock_opening.index', compact('openings'));
+    }
+
+    public function stock_opening_create()
+{
+    $products = Product::select('id','product_name','cost_per_item')
+        ->orderBy('product_name')
+        ->get();
+
+    return view('admin.stock_opening.create', compact('products'));
+}
+
+ public function stock_opening_store(Request $request)
+{
+    $request->validate([
+        'items' => 'required|array|min:1',
+        'items.*.product_id' => 'required|exists:products,id',
+        'items.*.quantity'   => 'required|numeric|min:0.01',
+        'items.*.rack_no'    => 'required',
+        'items.*.level_no'   => 'required',
+        'items.*.slot_no'    => 'required',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+
+        foreach ($request->items as $item) {
+
+            $qty = (float) $item['quantity'];
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create Rack Stock
+            |--------------------------------------------------------------------------
+            */
+            $rackStock = RackStock::create([
+                'stock_receiving_id' => null,
+                'product_id'         => $item['product_id'],
+                'batch_no'           => $item['batch_no'] ?? null,
+                'expiry_date'        => $item['expiry_date'] ?? null,
+                'quantity'           => $qty,
+                'rack_no'            => $item['rack_no'],
+                'level_no'           => $item['level_no'],
+                'slot_no'            => $item['slot_no'],
+            ]);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Product Stock (MASTER TABLE)
+            |--------------------------------------------------------------------------
+            */
+            $productStock = ProductStock::where('product_id', $item['product_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (!$productStock) {
+                $productStock = ProductStock::create([
+                    'product_id'  => $item['product_id'],
+                    'total_stock' => 0
+                ]);
+            }
+
+            $productStock->total_stock += $qty;
+            $productStock->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stock Movement Log
+            |--------------------------------------------------------------------------
+            */
+            StockMovement::create([
+                'product_id'     => $item['product_id'],
+                'reference_type' => 'OPENING',
+                'reference_id'   => null,
+                'movement_type'  => 'IN',
+                'quantity'       => $qty,
+                'unit_cost'      => $item['unit_cost'] ?? 0,
+                'batch_no'       => $item['batch_no'] ?? null,
+                'expiry_date'    => $item['expiry_date'] ?? null,
+                'remarks'        => 'Opening stock entry',
+            ]);
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'status'       => true,
+            'message'      => 'Opening stock saved successfully',
+            'redirect_url' => route('admin.stock-opening')
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'status'  => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+public function stockAdjustmentIndex()
+{
+    $products = RackStock::with('product')
+        ->select('product_id', DB::raw('SUM(quantity) as total_qty'))
+        ->groupBy('product_id')
+        ->orderBy('product_id')
+        ->get();
+
+    return view('admin.stock_adjustment.index', compact('products'));
+}
+
+
+public function stockAdjustmentCreate($productId)
+{
+    $product = Product::findOrFail($productId);
+
+    $rackStocks = RackStock::where('product_id', $productId)
+        ->orderBy('rack_no')
+        ->orderBy('level_no')
+        ->orderBy('slot_no')
+        ->get();
+
+    return view('admin.stock_adjustment.create', compact('product','rackStocks'));
+}
+
+public function stockAdjustmentStore(Request $request)
+{
+    $request->validate([
+        'product_id' => 'required|exists:products,id',
+        'items'      => 'required|array|min:1',
+        'items.*.rack_no'  => 'required',
+        'items.*.level_no' => 'required',
+        'items.*.slot_no'  => 'required',
+        'items.*.adjustment_type' => 'required|in:IN,OUT,TRANSFER',
+        'items.*.quantity' => 'required|numeric|min:0',
+        'items.*.remarks'  => 'required|string',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+
+        foreach ($request->items as $item) {
+
+            $qty = (float) $item['quantity'];
+
+            // Quantity validation
+            if ($item['adjustment_type'] !== 'TRANSFER' && $qty <= 0) {
+                throw new \Exception("Quantity must be greater than 0 for IN or OUT adjustments.");
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Lock Rack Stock (old location if transfer)
+            |--------------------------------------------------------------------------
+            */
+            $rackStock = RackStock::where('product_id', $request->product_id)
+                ->where('rack_no',  $item['old_rack_no']  ?? $item['rack_no'])
+                ->where('level_no', $item['old_level_no'] ?? $item['level_no'])
+                ->where('slot_no',  $item['old_slot_no']  ?? $item['slot_no'])
+                ->lockForUpdate()
+                ->first();
+
+            if (!$rackStock) {
+                throw new \Exception(
+                    "Rack stock not found at Rack {$item['rack_no']} / Level {$item['level_no']} / Slot {$item['slot_no']}"
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Adjust Rack Stock Quantity
+            |--------------------------------------------------------------------------
+            */
+            if ($item['adjustment_type'] === 'IN') {
+                $rackStock->quantity += $qty;
+            }
+
+            if ($item['adjustment_type'] === 'OUT') {
+                if ($qty > $rackStock->quantity) {
+                    throw new \Exception("Adjustment quantity exceeds available rack stock.");
+                }
+                $rackStock->quantity -= $qty;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Transfer Location Only (no quantity change)
+            |--------------------------------------------------------------------------
+            */
+            if ($item['adjustment_type'] === 'TRANSFER') {
+                $rackStock->rack_no  = $item['rack_no'];
+                $rackStock->level_no = $item['level_no'];
+                $rackStock->slot_no  = $item['slot_no'];
+            }
+
+            $rackStock->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Product Stock (MASTER TABLE)
+            |--------------------------------------------------------------------------
+            */
+            $productStock = ProductStock::where('product_id', $request->product_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$productStock) {
+                $productStock = ProductStock::create([
+                    'product_id'  => $request->product_id,
+                    'total_stock' => 0
+                ]);
+            }
+
+            if ($item['adjustment_type'] === 'IN') {
+                $productStock->total_stock += $qty;
+            }
+
+            if ($item['adjustment_type'] === 'OUT') {
+                if ($qty > $productStock->total_stock) {
+                    throw new \Exception("Product stock cannot go negative.");
+                }
+                $productStock->total_stock -= $qty;
+            }
+
+            // TRANSFER → no change
+            $productStock->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stock Movement Log
+            |--------------------------------------------------------------------------
+            */
+            $lastCost = StockMovement::where('product_id', $request->product_id)
+                ->where('unit_cost', '>', 0)
+                ->orderBy('id', 'desc')
+                ->value('unit_cost') ?? 0;
+
+            if ($item['adjustment_type'] === 'TRANSFER') {
+
+                StockMovement::create([
+                    'product_id'     => $request->product_id,
+                    'reference_type' => 'TRANSFER',
+                    'reference_id'   => null,
+                    'movement_type'  => 'TRANSFER',
+                    'quantity'       => $rackStock->quantity,
+                    'unit_cost'      => $lastCost,
+                    'batch_no'       => $rackStock->batch_no,
+                    'expiry_date'    => $rackStock->expiry_date,
+                    'remarks'        => $item['remarks'],
+                ]);
+
+            } else {
+
+                StockMovement::create([
+                    'product_id'     => $request->product_id,
+                    'reference_type' => 'ADJUSTMENT',
+                    'reference_id'   => null,
+                    'movement_type'  => $item['adjustment_type'], // IN / OUT
+                    'quantity'       => $qty,
+                    'unit_cost'      => $lastCost,
+                    'batch_no'       => $rackStock->batch_no,
+                    'expiry_date'    => $rackStock->expiry_date,
+                    'remarks'        => $item['remarks'],
+                ]);
+            }
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Stock adjustments saved successfully.'
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'status'  => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+   
+    public function create(Request $request)
+    {
+        $purchaseOrders = PurchaseOrderDetail::where('status', 'approved')
+            ->orderBy('id', 'desc')
+            ->get(['id', 'purchase_order_number']);
+           
+        $selectedPoId = $request->query('po_id');
+
+        return view('admin.stock.create', compact('purchaseOrders','selectedPoId'));
+    }
+
+      function generateBillNumber()
+    {
+        $lastNumber = DB::table('vendor_bills')
+            ->lockForUpdate()
+            ->max(DB::raw("CAST(SUBSTRING(bill_no, 6) AS UNSIGNED)"));
+
+        $nextNumber = ($lastNumber ?? 0) + 1;
+
+        return 'BILL-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+
+
+public function stock_receivings(Request $request)
+{
+    $request->validate([
+        'purchase_order_id' => 'required|exists:purchase_order_details,id',
+        'receipt_date'      => 'required|date',
+        'items'             => 'required',
+        'original_bill'     => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    ]);
+
+    $items = json_decode($request->items, true);
+
+    if (!is_array($items) || count($items) === 0) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No items found'
+        ], 422);
+    }
+
+    try {
+
+        DB::transaction(function () use ($request, $items, &$srId) {
+
+            $po = PurchaseOrderDetail::lockForUpdate()
+                ->findOrFail($request->purchase_order_id);
+
+                if ($po && $po->status !== 'received') {
+                        $po->update(['status' => 'received']);
+                    }
+
+            
+            $billFilename = null;
+            if ($request->hasFile('original_bill')) {
+                $file = $request->file('original_bill');
+                $billFilename = time() . '_' . $file->getClientOriginalName();
+                $file->move(public_path('uploads/stock_receiving_bills'), $billFilename);
+            }
+
+            
+            $billNo = null;
+            if ($request->save_type === 'submit') {
+                $lastNumber = VendorBill::lockForUpdate()
+                    ->max(DB::raw("CAST(SUBSTRING(bill_no, 6) AS UNSIGNED)"));
+
+                $billNo = 'BILL-' . str_pad(($lastNumber ?? 0) + 1, 5, '0', STR_PAD_LEFT);
+            }
+
+            
+            $sr = StockReceiving::create([
+                'purchase_order_id' => $po->id,
+                'vendor_id'         => $po->vendor_id,
+                'receipt_date'      => $request->receipt_date,
+                'bill_no'           => $billNo,
+                'bill_date'         => $request->bill_date,
+                'original_bill'     => $billFilename,
+
+                'subtotal'          => $request->subtotal,
+                'discount_percent'  => $request->discount_percent,
+                'tax_amount'        => $request->tax_amount,
+                'delivery_charges'  => $request->delivery_charges,
+                'grand_total'       => $request->grand_total,
+
+                'status'            => $request->save_type === 'draft'
+                                        ? 'draft'
+                                        : 'submitted',
+
+                'created_by'        => auth()->id(),
+            ]);
+
+      
+            foreach ($items as $item) {
+                StockReceivingItem::create([
+                    'stock_receiving_id'     => $sr->id,
+                    'purchase_order_item_id' => $item['po_item_id'],
+                    'product_id'             => $item['product_id'],
+                    'po_qty'                 => $item['po_qty'],
+                    'row_tax'                 => $item['row_tax'],
+                    'actual_qty'             => $item['actual_qty'],
+                    'returned_qty'           => $item['returned_qty'] ?? 0,
+                    'return_reason'          => $item['return_reason'] ?? null,
+                    'to_be_return_qty'       => $item['to_be_return_qty'] ?? 0,
+                    'to_be_return_reason'    => $item['to_be_return_reason'] ?? null,
+                    'purchase_rate'          => $item['purchase_rate'],
+                    'batch_no'               => $item['batch_no'],
+                    'expiry_date'            => $item['expiry_date'],
+                    'mrp'                    => $item['mrp'],
+                ]);
+            }
+
+          
+            if ($request->save_type === 'submit') {
+                VendorBill::create([
+                    'stock_receiving_id' => $sr->id,
+                    'purchase_order_id'  => $po->id,
+                    'vendor_id'          => $po->vendor_id,
+                    'bill_no'            => $billNo,
+                    'bill_date'          => $request->bill_date ?? now(),
+                    'subtotal'           => $sr->subtotal,
+                    'discount_percent'   => $sr->discount_percent,
+                    'tax_amount'        => $sr->tax_amount,
+                    'delivery_charges'   => $sr->delivery_charges,
+                    'grand_total'        => $sr->grand_total,
+                    'status'             => 'unpaid',
+                ]);
+            }
+
+            $srId = $sr->id;
+        });
+
+        return response()->json([
+            'success' => true,
+            'redirect_url' => route('admin.stock-receivings.show', $srId)
+        ]);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+    public function stock_show($id)
+{
+    $stockReceiving = StockReceiving::with([
+        'items.product',
+        'purchaseOrder',
+        'vendorBill'
+    ])->findOrFail($id);
+
+    return view('admin.stock.show', compact('stockReceiving'));
+}
+
+public function stock_convert_to_bill($id)
+{
+    try {
+
+        DB::transaction(function () use ($id) {
+
+            $grn = StockReceiving::with(['items'])
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            // Safety checks
+            if ($grn->status !== 'draft') {
+                throw new \Exception('Only draft GRN can be converted');
+            }
+
+            if ($grn->vendorBill) {
+                throw new \Exception('Bill already generated');
+            }
+
+            /* ============================
+               Generate Bill Number
+            ============================ */
+            $lastNumber = VendorBill::lockForUpdate()
+                ->max(DB::raw("CAST(SUBSTRING(bill_no, 6) AS UNSIGNED)"));
+
+            $billNo = 'BILL-' . str_pad(($lastNumber ?? 0) + 1, 5, '0', STR_PAD_LEFT);
+
+            /* ============================
+               Update GRN (IMPORTANT)
+            ============================ */
+            $grn->update([
+                'bill_no' => $billNo,
+                'status'  => 'submitted', // ✅ NOT approved, NOT received
+            ]);
+
+            $po = PurchaseOrderDetail::lockForUpdate()
+                ->find($grn->purchase_order_id);
+
+            if ($po && $po->status !== 'received') {
+                $po->update(['status' => 'received']);
+            }
+
+            /* ============================
+               Create Vendor Bill
+            ============================ */
+            VendorBill::create([
+                'stock_receiving_id' => $grn->id,
+                'purchase_order_id'  => $grn->purchase_order_id,
+                'vendor_id'          => $grn->vendor_id,
+                'bill_no'            => $billNo,
+                'bill_date'          => now(),
+                'subtotal'           => $grn->subtotal,
+                'discount_percent'   => $grn->discount_percent,
+                'tax_amount'         => $grn->tax_amount,
+                'delivery_charges'   => $grn->delivery_charges,
+                'grand_total'        => $grn->grand_total,
+                'status'             => 'unpaid',
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'redirect_url' => route('admin.stock-receivings.index')
+        ]);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 422);
+    }
+}
+
+
+public function liveStock()
+{
+    $stocks = ProductStock::with('product')
+        ->orderBy('updated_at', 'desc')
+        ->get();
+
+    return view('admin.stock.live-stock', compact('stocks'));
+}
+
+
+public function stockLedger()
+{
+    $movements = StockMovement::with('product')
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    return view('admin.stock.ledger', compact('movements'));
+}
+
+    
+
+    public function stock_receivings_edit($id)
+{
+    $grn = StockReceiving::with([
+        'items.product.brand',
+        'purchaseOrder'
+    ])->findOrFail($id);
+
+    if ($grn->status !== 'draft') {
+        abort(403, 'Only draft stock receiving can be edited');
+    }
+
+    return view('admin.stock.edit', compact('grn'));
+}
+
+public function stock_receivings_bill_edit(VendorBill $bill)
+    {
+       $bill->load([
+            'stockReceiving.items.product.brand',
+            'stockReceiving.purchaseOrder.vendor'
+        ]);
+
+        // Only submitted bills can be edited
+        if ($bill->stockReceiving->status !== 'submitted') {
+            abort(403, 'Only submitted bills can be edited');
+        }
+
+        // We pass GRN for UI reuse
+        $grn = $bill->stockReceiving;
+
+        return view('admin.stock.bills_edit', compact('bill', 'grn'));
+    }
+
+   public function stock_receivings_bill_update(Request $request, VendorBill $bill)
+{
+    $grn = $bill->stockReceiving;
+
+    if ($grn->status !== 'submitted') {
+        abort(403, 'Only submitted bills can be edited');
+    }
+
+    DB::transaction(function () use ($request, $bill, $grn) {
+
+        $items = json_decode($request->items, true);
+
+      
+        $incomingPoItemIds = collect($items)
+            ->pluck('po_item_id')
+            ->filter()
+            ->values()
+            ->toArray();
+
+      
+        StockReceivingItem::where('stock_receiving_id', $grn->id)
+            ->whereNotIn('purchase_order_item_id', $incomingPoItemIds)
+            ->delete();
+
+       
+        foreach ($items as $item) {
+
+            StockReceivingItem::where([
+                'stock_receiving_id'     => $grn->id,
+                'purchase_order_item_id' => $item['po_item_id'],
+            ])->update([
+                'actual_qty'    => $item['actual_qty'],
+                'returned_qty'  => $item['returned_qty'] ?? 0,
+                'return_reason' => $item['return_reason'] ?? null,
+                'purchase_rate' => $item['purchase_rate'],
+                'batch_no'      => $item['batch_no'] ?? null,
+                'expiry_date'   => !empty($item['expiry_date']) ? $item['expiry_date'] : null,
+                'mrp'           => $item['mrp'] ?? null,
+            ]);
+        }
+
+       
+        $bill->update([
+            'bill_date'   => $request->bill_date,
+            'subtotal'    => $request->subtotal,
+            'tax_amount'  => $request->tax_amount,
+            'grand_total' => $request->grand_total,
+        ]);
+
+       
+        $grn->update([
+            'subtotal'    => $request->subtotal,
+            'tax_amount'  => $request->tax_amount,
+            'grand_total' => $request->grand_total,
+        ]);
+    });
+
+    return response()->json([
+        'success' => true,
+        'redirect_url' => route('admin.stock-receivings.bills')
+    ]);
+}
+
+
+
+public function stock_receivings_update(Request $request, $id)
+{
+    // dd($request->all());
+// dd('test');
+    $grn = StockReceiving::lockForUpdate()->findOrFail($id);
+
+    if ($grn->status !== 'draft') {
+        abort(403, 'Only draft GRN can be updated');
+    }
+
+
+    $items = json_decode($request->items, true);
+
+    if (!is_array($items) || count($items) === 0) {
+        return response()->json([
+            'success' => false,
+            'message' => 'At least one item is required'
+        ], 422);
+    }
+
+
+    DB::transaction(function () use ($request, $grn, $items) {
+
+ 
+        $grn->update([
+            'receipt_date' => $request->receipt_date,
+            'bill_date'    => $request->bill_date,
+            'subtotal'     => $request->subtotal,
+            'tax_amount'   => $request->tax_amount,
+            'grand_total'  => $request->grand_total,
+        ]);
+
+
+
+
+         $incomingPoItemIds = collect($items)->pluck('po_item_id')->toArray();
+
+         StockReceivingItem::where('stock_receiving_id', $grn->id)
+            ->whereNotIn('purchase_order_item_id', $incomingPoItemIds)
+            ->delete();
+
+         foreach ($items as $item) {
+
+            StockReceivingItem::where([
+                'stock_receiving_id'     => $grn->id,
+                'purchase_order_item_id' => $item['po_item_id'],
+            ])->update([
+                'actual_qty'    => $item['actual_qty'],
+                'returned_qty'  => $item['returned_qty'] ?? 0,
+                'return_reason' => $item['return_reason'] ?? null,
+                'purchase_rate' => $item['purchase_rate'],
+                'batch_no'      => $item['batch_no'] ?? null,
+                'expiry_date'   => !empty($item['expiry_date']) ? $item['expiry_date'] : null,
+                'mrp'           => $item['mrp'] ?? null,
+            ]);
+        }
+
+
+        if ($request->save_type === 'submit') {
+// dd('test1');
+            // Move GRN to submitted
+            $grn->update([
+                'status' => 'submitted',
+            ]);
+
+            // Create Vendor Bill ONLY if not exists
+            if (!$grn->vendorBill) {
+
+                // Generate Bill No
+                $lastNumber = VendorBill::lockForUpdate()
+                    ->max(DB::raw("CAST(SUBSTRING(bill_no, 6) AS UNSIGNED)"));
+
+                $billNo = 'BILL-' . str_pad(($lastNumber ?? 0) + 1, 5, '0', STR_PAD_LEFT);
+
+                VendorBill::create([
+                    'stock_receiving_id' => $grn->id,
+                    'purchase_order_id'  => $grn->purchase_order_id,
+                    'vendor_id'          => $grn->vendor_id,
+                    'bill_no'            => $billNo,
+                    'bill_date'          => $grn->bill_date ?? now(),
+                    'subtotal'           => $grn->subtotal,
+                    'discount_percent'   => $grn->discount_percent,
+                    'tax_amount'         => $grn->tax_amount,
+                    'delivery_charges'   => $grn->delivery_charges,
+                    'grand_total'        => $grn->grand_total,
+                    'status'             => 'unpaid',
+                ]);
+
+                // Save bill_no back to GRN
+                $grn->update(['bill_no' => $billNo]);
+            }
+
+             $po = PurchaseOrderDetail::lockForUpdate()
+                ->find($grn->purchase_order_id);
+
+            if ($po && $po->status !== 'received') {
+                $po->update(['status' => 'received']);
+            }
+        }
+    });
+
+    return response()->json([
+        'success' => true,
+        'redirect_url' => route('admin.stock-receivings.index')
+    ]);
+}
+
+
+public function stock_receivings_pending()
+{
+    $pendingPOs = PurchaseOrderDetail::with(['items'])
+        ->whereIn('status', ['approved'])
+        ->whereHas('items', function ($q) {
+            $q->whereColumn('received_qty', '<', 'quantity');
+        })
+        ->orderBy('id', 'desc')
+        ->get();
+
+    return view('admin.stock.pending', compact('pendingPOs'));
+}
+
+
+public function stock_receivings_bills()
+{
+
+
+    $bills = VendorBill::with([
+            'stockReceiving.purchaseOrder',
+            'vendor'
+        ])
+        ->orderBy('id', 'desc')
+        ->get();
+
+        // dd($bills);
+
+    return view('admin.stock.bills', compact('bills'));
+}
+
+
+public function stock_receivings_bill_show($id)
+{
+    $bill = VendorBill::with([
+        'vendor',
+        'payments',
+        'stockReceiving.purchaseOrder',
+        'stockReceiving.items.product'
+    ])->findOrFail($id);
+
+    return view('admin.stock.bill-show', compact('bill'));
+}
+
+public function stock_receivings_review_submit(Request $request, $id)
+{
+
+    // dd($request->all());
+
+    $grn = StockReceiving::with(['items'])
+        ->lockForUpdate()
+        ->findOrFail($id);
+
+    
+    if ($grn->status !== 'submitted') {
+        abort(403, 'Only submitted bills can be reviewed');
+    }
+
+    $request->validate([
+        'status' => 'required|in:approved,rejected',
+        'reason' => 'required_if:status,rejected',
+    ]);
+
+    DB::transaction(function () use ($request, $grn) {
+
+        if ($request->status === 'rejected') {
+
+            $grn->update([
+                'status'           => 'rejected',
+                'rejection_reason' => $request->reason,
+                'reviewed_by'      => auth()->id(),
+                'reviewed_at'      => now(),
+            ]);
+
+            return;
+        }
+
+      
+
+        foreach ($grn->items as $item) {
+
+            $netQty = $item->actual_qty - ($item->returned_qty ?? 0);
+            if ($netQty <= 0) continue;
+
+           
+            StockMovement::create([
+                'product_id'     => $item->product_id,
+                'reference_type' => 'GRN',
+                'reference_id'   => $grn->id,
+                'movement_type'  => 'IN',
+                'quantity'       => $netQty,
+                'unit_cost'      => $item->purchase_rate,
+                'batch_no'       => $item->batch_no,
+                'expiry_date'    => $item->expiry_date,
+                'remarks'        => 'Stock received (Bill Approved)',
+            ]);
+
+           
+            ProductStock::updateOrCreate(
+                ['product_id' => $item->product_id],
+                ['total_stock' => DB::raw("total_stock + {$netQty}")]
+            );
+
+          
+            PurchaseOrderItem::where('id', $item->purchase_order_item_id)
+                ->increment('received_qty', $item->actual_qty);
+        }
+
+       
+        $grn->update([
+            'status'      => 'approved',
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+        ]);
+
+        
+    });
+
+    return redirect()
+        ->route('admin.stock-receivings.bills')
+        ->with('success', 'Bill reviewed successfully');
+}
+
+
+  
+
+public function stock_receivings_destroy($id)
+{
+    
+}
+
+
+}

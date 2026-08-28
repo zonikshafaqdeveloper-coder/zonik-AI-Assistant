@@ -1,0 +1,193 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<style>
+    span.text-danger, .text-danger span{
+        color: #dc3545 !important;
+    }
+</style>
+<div class="page-body">
+        <div class="container-fluid page-body-wrapper">
+            <div class="main-panel">
+                <div class="content-wrapper ">
+                    <div class="row">
+                        <div class="col-lg-12 grid-margin stretch-card">
+                            <div class="card">
+                                <div class="card-body">
+                                    @if (session('success'))
+                                    <div class="alert alert-success">
+                                        {{ session('success') }}
+                                    </div>
+                                    @endif
+                                    <div class="d-flex justify-content-between">
+                                        <h3 class="card-title">Payment History</h3>
+                                    </div>
+                                   <div class="table-responsive">
+    <table class="table table-bordered" id="payments-table">
+        <thead class="b-shadow">
+        <tr>
+            <th>ID</th>
+             <th>User</th>
+                        <th>Outlet</th>
+                        <th>Order ID</th>
+                        <th>Total Amount</th>
+                        <th>Total Paid</th>
+                        <th>Remaining</th>
+                        <th>History</th>
+                        <th>Payment Mode</th>
+                        <th>Status</th>
+                        <th>Due Date</th>
+                        <th>Date</th>
+        </tr>
+        </thead>
+
+         <tbody>
+                @foreach ($payments as $payment)
+                    @php
+                        $totalAmount = $payment->total_amount ?? ($payment->order->total_discount_value ?? 0);
+                        $totalPaid = $payment->total_paid ?? 0;
+                        $remaining = $totalAmount - $totalPaid;
+                    @endphp
+
+                    <tr>
+                        <td class="text-center">
+                            {{ $loop->iteration }}
+                        </td>
+
+                        <td class="text-center">
+                            {{ $payment->user->name ?? 'N/A' }} <br>
+                            <small>ID: {{ $payment->user_id }}</small>
+                        </td>
+
+                        <td class="text-center">
+                            {{ $payment->outlet->outlet_name ?? 'N/A' }} <br>
+                            <!--<a href="{{ route('order.detailsid', ['id' => $payment->outlet_id]) }}">-->
+                            <!--    {{ $payment->outlet->name ?? '' }}-->
+                            <!--</a>-->
+                        </td>
+
+                        <td class="text-center">
+                            {{ $payment->order->order_id ?? $payment->order_id }}
+                        </td>
+
+                        <td class="text-center font-weight-bold text-primary">
+                            ₹ {{ number_format($totalAmount, 2) }}
+                        </td>
+
+                        <td class="text-center font-weight-bold text-success">
+                            ₹ {{ number_format($totalPaid, 2) }}
+                        </td>
+
+                        <td class="text-center font-weight-bold text-danger">
+                            ₹ {{ number_format($remaining, 2) }}
+                        </td>
+
+                        <td class="text-center">
+                            @if($payment->histories->count() > 0)
+                                <a href="{{ route('payments.history', $payment->order_id) }}"
+                                   class="badge bg-info text-dark p-2">
+                                   {{ $payment->histories->count() }} entries
+                                </a>
+                            @else
+                                <span class="text-muted">No history</span>
+                            @endif
+                        </td>
+
+                        <td class="text-center">
+                            {{ $payment->payment_method ?? $payment->payment_mode }}
+                        </td>
+
+                        <td class="text-center">
+                            @if($payment->payment_status === 'paid')
+                                <span class="badge bg-success">Paid</span>
+                            @elseif($payment->payment_status === 'partial')
+                                <span class="badge bg-warning text-dark">Partial</span>
+                            @else
+                                <span class="badge bg-danger">Unpaid</span>
+                            @endif
+                        </td>
+
+                  
+                        
+@php
+    $today = \Carbon\Carbon::now();
+
+    // If the payment is already fully paid, skip calculation
+    if ($payment->payment_status === 'paid') {
+        $isPaid = true;
+    } else {
+        $isPaid = false;
+
+        // CUSTOM PAYMENT TERM
+        $paymentTerm = \App\Models\OutletPaymentTerm::where('user_id', $payment->outlet_id)
+                        ->where('is_active', 1)
+                        ->first();
+
+        $hasNewPaymentTerm = $paymentTerm ? true : false;
+
+        if ($hasNewPaymentTerm) {
+            $parts = [];
+
+            if (!empty($paymentTerm->from_range)) $parts[] = (int) $paymentTerm->from_range;
+            if (!empty($paymentTerm->to_range))   $parts[] = (int) $paymentTerm->to_range;
+            if (!empty($paymentTerm->days))       $parts[] = (int) $paymentTerm->days;
+
+            $dueDay = array_sum($parts); 
+
+            $deliveryDate = \Carbon\Carbon::parse($payment->order->delivery_date);
+            $dueDate     = $deliveryDate->copy()->addDays($dueDay);
+            $today        = \Carbon\Carbon::now();
+
+           
+        }
+        // DEFAULT DUE LOGIC
+        else {
+            $deliveryDate = \Carbon\Carbon::parse($payment->order->delivery_date);
+            $limit        = $payment->order->user->due_days_limit ?? 0;
+            $dueDate      = $deliveryDate->copy()->addDays($limit);
+        }
+
+        $daysDifference = $today->diffInDays($dueDate->copy()->addDay(), false);
+
+        if ($daysDifference < 0) {
+            $daysText = 'Overdue by ' . abs($daysDifference) . ' days';
+            $color    = 'red';
+        } elseif ($daysDifference > 0) {
+            $daysText = 'Due in ' . $daysDifference . ' days';
+            $color    = $daysDifference <= 3 ? 'red' : 'orange';
+        } else {
+            $daysText = 'Today';
+            $color    = 'green';
+        }
+    }
+@endphp
+
+
+<td class="text-center">
+    @if($isPaid)
+        <span style="color: green; font-weight: bold;">
+            Already Paid
+        </span>
+    @else
+        <span style="font-weight:bold; color:{{ $color }}">
+            {{ $dueDate->format('Y-m-d') }} <br>
+            <small>{{ $daysText }}</small>
+        </span>
+    @endif
+</td>
+
+                        
+                        <td class="text-center">
+                            {{ $payment->updated_at->format('d M Y, h:i A') }}
+                        </td>
+                    </tr>
+
+                @endforeach
+                </tbody>
+    </table>
+</div>
+
+                                </div>
+                            </div>
+                        </div>
+                        </html>
+                        @endsection

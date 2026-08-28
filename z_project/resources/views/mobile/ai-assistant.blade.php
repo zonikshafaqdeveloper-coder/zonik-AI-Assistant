@@ -1,0 +1,2682 @@
+@extends('mobile.mobile-app')
+
+@section('title', 'AI Order Assistant')
+
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<script defer src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<style>
+.ai-page {
+    height: calc(100vh - 150px);
+    padding: 0;
+    color: #111827;
+}
+.ai-card {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 24px;
+    padding: 12px 12px 10px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+}
+.ai-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f8fafc, #eef2ff);
+    border: 1px solid rgba(79, 70, 229, 0.12);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.ai-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: transparent;
+}
+.ai-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.ai-avatar svg {
+    width: 24px;
+    height: 24px;
+    color: #ffffff;
+}
+.ai-header-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.ai-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1.2;
+}
+.ai-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+}
+.ai-header-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid rgba(79, 70, 229, 0.12);
+    color: #4f46e5;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.ai-header-pill svg {
+    width: 14px;
+    height: 14px;
+}
+.ai-history-panel { position: absolute; inset: 0; z-index: 20; display: none; flex-direction: column; background: #fff; border-radius: 24px; overflow: hidden; }
+.ai-history-panel.open { display: flex; }
+.ai-history-header { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid #e2e8f0; }
+.ai-history-back { width: 36px; height: 36px; border: 1px solid #e2e8f0; border-radius: 50%; background: #fff; color: #334155; display: grid; place-items: center; cursor: pointer; }
+.ai-history-heading { flex: 1; min-width: 0; }
+.ai-history-heading strong { display: block; color: #111827; font-size: 16px; }
+.ai-history-heading span { color: #64748b; font-size: 11px; }
+.ai-history-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; background: #f8fafc; }
+.ai-history-list, .ai-history-detail { display: grid; gap: 9px; }
+.ai-history-actions { display: flex; align-items: center; gap: 7px; }
+.ai-history-continue { display: none; border: 0; border-radius: 9px; padding: 8px 10px; background: #4f46e5; color: #fff; font-size: 11px; font-weight: 800; cursor: pointer; }
+.ai-history-row { display: flex; gap: 8px; align-items: stretch; }
+.ai-history-item { flex: 1; min-width: 0; text-align: left; border: 1px solid #e2e8f0; background: #fff; border-radius: 14px; padding: 12px; cursor: pointer; }
+.ai-history-delete { width: 42px; flex: 0 0 42px; border: 1px solid #fecaca; border-radius: 14px; background: #fff; color: #dc2626; cursor: pointer; display: grid; place-items: center; }
+.ai-history-delete svg { width: 17px; height: 17px; pointer-events: none; }
+.ai-history-item-title { display: block; color: #111827; font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+.ai-history-item-meta { display: flex; flex-wrap: wrap; gap: 5px 10px; color: #64748b; font-size: 11px; }
+.ai-history-empty { padding: 36px 16px; text-align: center; color: #64748b; }
+.ai-history-badge { display: inline-flex; margin-top: 7px; padding: 4px 8px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11px; font-weight: 800; }
+.ai-cart-panel { position: absolute; inset: 0; z-index: 24; display: none; flex-direction: column; background: #f8fafc; border-radius: 24px; overflow: hidden; }
+.ai-cart-panel,
+.ai-cart-panel * { box-sizing: border-box; }
+.ai-cart-panel.open { display: flex; }
+.ai-cart-panel-head { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 14px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.ai-cart-panel-head svg { width: 22px; height: 22px; color: #1d4ed8; }
+.ai-cart-panel-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 15px; font-weight: 850; color: #111827; }
+.ai-cart-panel-title small { color: #64748b; font-weight: 600; }
+.ai-cart-clear { flex: 0 0 auto; white-space: nowrap; border: 0; background: transparent; color: #dc2626; font-size: 12px; font-weight: 750; cursor: pointer; }
+.ai-cart-panel-body { width: 100%; max-width: 100%; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; }
+.ai-cart-panel-item { width: 100%; max-width: 100%; min-width: 0; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 15px; }
+.ai-cart-panel-image { width: 68px; height: 68px; object-fit: contain; border-radius: 11px; background: #f8fafc; }
+.ai-cart-panel-info { min-width: 0; display: grid; gap: 4px; }
+.ai-cart-panel-name { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; color: #111827; font-size: 13px; font-weight: 800; }
+.ai-cart-panel-meta { max-width: 100%; overflow-wrap: anywhere; color: #64748b; font-size: 11px; }
+.ai-cart-panel-price { max-width: 100%; overflow-wrap: anywhere; color: #111827; font-size: 13px; font-weight: 850; }
+.ai-cart-remove { align-self: stretch; border: 0; background: transparent; color: #e11d48; padding: 5px; cursor: pointer; }
+.ai-cart-remove svg { width: 17px; height: 17px; }
+.ai-cart-add-more { border: 1px dashed #94a3b8; background: #fff; color: #1e3a8a; border-radius: 13px; padding: 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ai-cart-bill { width: 100%; min-width: 0; display: grid; gap: 9px; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 15px; }
+.ai-cart-bill-row { display: flex; justify-content: space-between; gap: 15px; color: #334155; font-size: 12px; }
+.ai-cart-bill-row.total { padding-top: 10px; border-top: 1px solid #e2e8f0; color: #111827; font-size: 15px; font-weight: 850; }
+.ai-cart-bill-row.total strong { color: #1d4ed8; font-size: 19px; }
+.ai-cart-suggestions { width: 100%; min-width: 0; overflow: hidden; padding: 14px; background: linear-gradient(145deg, #eff6ff, #f5f3ff); border: 1px solid #dbeafe; border-radius: 15px; }
+.ai-cart-suggestions strong { color: #1e3a8a; font-size: 13px; }
+.ai-cart-chips { width: 100%; min-width: 0; display: flex; gap: 7px; overflow-x: auto; margin-top: 10px; overscroll-behavior-x: contain; }
+.ai-cart-chip { white-space: nowrap; border: 1px solid #c7d2fe; background: #fff; color: #3730a3; border-radius: 999px; padding: 7px 10px; font-size: 11px; cursor: pointer; }
+.ai-cart-panel-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid #e2e8f0; }
+.ai-cart-review { width: 100%; border: 0; border-radius: 13px; padding: 13px; background: #075ff7; color: #fff; font-size: 14px; font-weight: 850; cursor: pointer; }
+.ai-reorder-card { width: 100%; min-width: 0; overflow: hidden; padding: 0; }
+.ai-reorder-head { display: flex; justify-content: space-between; gap: 10px; padding: 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.ai-reorder-head span { color: #64748b; font-size: 11px; }
+.ai-reorder-table-wrap { width: 100%; overflow-x: auto; }
+.ai-reorder-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+.ai-reorder-table th { padding: 8px; background: #eef2ff; color: #475569; font-size: 10px; text-align: left; }
+.ai-reorder-table td { padding: 9px 8px; border-bottom: 1px solid #eef2f7; color: #334155; font-size: 11px; vertical-align: middle; }
+.ai-reorder-product { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ai-reorder-image { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; }
+.ai-reorder-name { min-width: 0; overflow-wrap: anywhere; font-weight: 750; color: #111827; }
+.ai-reorder-total { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; background: #f8fafc; font-size: 13px; font-weight: 800; }
+.ai-reorder-card .ai-product-actions { padding: 0 12px 12px; }
+.ai-confirm-overlay { position: absolute; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, .48); backdrop-filter: blur(2px); }
+.ai-confirm-overlay.open { display: flex; }
+.ai-confirm-box { width: min(100%, 330px); padding: 20px; border-radius: 18px; background: #fff; box-shadow: 0 22px 55px rgba(15, 23, 42, .25); text-align: center; }
+.ai-confirm-icon { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center; background: #fff1f2; color: #e11d48; }
+.ai-confirm-icon svg { width: 23px; height: 23px; }
+.ai-confirm-box h3 { margin: 0 0 7px; color: #111827; font-size: 17px; }
+.ai-confirm-box p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+.ai-confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 18px; }
+.ai-confirm-btn { border: 1px solid #e2e8f0; border-radius: 11px; padding: 10px; background: #fff; color: #334155; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ai-confirm-btn.delete { border-color: #e11d48; background: #e11d48; color: #fff; }
+.ai-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+}
+.ai-caption {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.ai-chat-shell {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-bottom: 10px;
+}
+.ai-chat-shell::-webkit-scrollbar {
+    width: 4px;
+}
+.ai-chat-shell::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+.ai-chat {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 4px;
+}
+.ai-message {
+    width: fit-content;
+    max-width: 88%;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    line-height: 1.6;
+    font-size: 14px;
+}
+.ai-message.assistant {
+    border-color: #dbeafe;
+}
+.ai-message.user {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    justify-self: end;
+    text-align: right;
+    max-width: 78%;
+}
+.ai-message strong {
+    color: #111827;
+}
+.ai-product-card {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+}
+.ai-message-row { display: flex; align-items: flex-end; gap: 7px; max-width: 100%; }
+.ai-message-row.user { justify-content: flex-end; }
+.ai-reply-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; border: 1px solid #dbeafe; }
+.ai-message-time { display: block; margin-top: 5px; color: #64748b; font-size: 10px; line-height: 1; text-align: right; }
+.ai-product-image { width: 58px; height: 58px; border-radius: 10px; object-fit: cover; flex: 0 0 auto; }
+.ai-product-details { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.ai-product-actions, .ai-cart-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.ai-product-btn, .ai-cart-btn { border: 1px solid #4f46e5; background: #fff; color: #3730a3; border-radius: 9px; padding: 7px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.ai-product-btn.primary, .ai-cart-btn.primary { background: #4f46e5; color: #fff; }
+.ai-qty-control { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid #c7d2fe; border-radius: 9px; background: #fff; }
+.ai-qty-btn { width: 32px; height: 32px; border: 0; background: #eef2ff; color: #3730a3; font-size: 18px; font-weight: 800; cursor: pointer; }
+.ai-qty-value { min-width: 34px; text-align: center; color: #111827; font-size: 12px; font-weight: 800; }
+.ai-product-btn:disabled { opacity: .65; cursor: wait; }
+.ai-cart-summary { display: grid; gap: 6px; margin-top: 8px; }
+.ai-cart-row { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; color: #334155; }
+.ai-cart-total { font-weight: 800; color: #111827; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+.ai-live-order-message { width: 100%; }
+.ai-live-order-message .ai-message { width: 100%; max-width: 100%; }
+.ai-live-order-item { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+.ai-live-order-item:last-child { border-bottom: 0; }
+.ai-live-order-image { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: #f1f5f9; }
+.ai-live-order-name { color: #111827; font-size: 13px; font-weight: 750; line-height: 1.3; }
+.ai-live-order-meta { color: #64748b; font-size: 12px; margin-top: 4px; }
+.ai-live-order-price { color: #4f46e5; font-size: 13px; font-weight: 800; text-align: right; white-space: nowrap; }
+.ai-typing { color: #64748b; }
+.ai-product-title {
+    font-weight: 700;
+    color: #111827;
+}
+.ai-product-meta {
+    color: #64748b;
+    font-size: 12px;
+}
+.ai-product-price {
+    color: #4f46e5;
+    font-size: 14px;
+    font-weight: 800;
+}
+.ai-suggestion-message { width: 100%; }
+.ai-suggestion-message .ai-message { width: 100%; max-width: 100%; padding: 10px; }
+.ai-suggestion-line {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(88px, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+.ai-suggestion-card {
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #111827;
+}
+.ai-suggestion-card:hover { border-color: #a5b4fc; background: #f8faff; }
+.ai-suggestion-card:focus-visible { outline: 3px solid rgba(79,70,229,.22); outline-offset: 1px; }
+.ai-suggestion-card:disabled { opacity: .62; cursor: wait; }
+.ai-suggestion-image { width: 54px; height: 54px; border-radius: 9px; object-fit: cover; background: #f1f5f9; }
+.ai-suggestion-name { width: 100%; font-size: 11px; line-height: 1.25; font-weight: 700; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ai-suggestion-add { color: #4f46e5; font-size: 10px; font-weight: 800; }
+.ai-composer {
+    flex-shrink: 0;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 10px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
+    display: grid;
+    gap: 10px;
+    background: #ffffff;
+    margin-top: auto;
+}
+.ai-actions {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+}
+.ai-action-btn {
+    border: 1px solid #e5e7eb;
+    color: #334155;
+    background: #ffffff;
+    border-radius: 10px;
+    min-height: 34px;
+    padding: 6px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+.ai-action-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.ai-action-btn.primary {
+    background: #4f46e5;
+    color: #fff;
+    border-color: transparent;
+}
+.ai-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    position: relative;
+}
+.ai-mic-wrap { display: flex; align-items: center; gap: 7px; }
+.ai-mic-status {
+    min-width: 70px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    white-space: nowrap;
+}
+.ai-mic-status.listening { color: #dc2626; }
+.ai-mic-status.processing { color: #4f46e5; }
+.ai-mic-status.listening::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #dc2626;
+    animation: aiStatusBlink .8s infinite alternate;
+}
+@keyframes aiStatusBlink { to { opacity: .25; } }
+.ai-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: #111827;
+    background: #ffffff;
+    outline: none;
+}
+.ai-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+.ai-send-btn,
+.ai-mic-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: #4f46e5;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ai-send-btn svg,
+.ai-mic-btn svg {
+    width: 18px;
+    height: 18px;
+}
+.ai-action-btn.cart-shortcut { margin-left: auto; background: #16a34a; border-color: #16a34a; color: #fff; }
+.ai-action-btn[hidden] { display: none; }
+.ai-mic-btn.listening { background: #dc2626; animation: aiMicPulse 1s infinite; }
+@keyframes aiMicPulse { 50% { box-shadow: 0 0 0 7px rgba(220, 38, 38, .16); } }
+@media (max-width: 640px) {
+    .ai-page {
+        min-height: calc(100vh - 126px);
+    }
+    .ai-card {
+        padding: 12px;
+        border-radius: 20px;
+    }
+    .ai-header {
+        padding: 10px;
+    }
+    .ai-title {
+        font-size: 16px;
+    }
+    .ai-action-btn { padding: 6px 8px; }
+    .ai-cart-panel { position: fixed; inset: 0; z-index: 1050; width: 100vw; max-width: 100vw; height: 100dvh; margin: 0; border-radius: 0; overflow-x: hidden; }
+    .ai-cart-panel-head { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
+    .ai-cart-panel-body { padding: 10px; gap: 9px; overscroll-behavior: contain; }
+    .ai-cart-panel-item { grid-template-columns: 54px minmax(0, 1fr) 32px; gap: 8px; padding: 9px; }
+    .ai-cart-panel-image { width: 54px; height: 54px; }
+    .ai-cart-panel-name { font-size: 12px; overflow-wrap: anywhere; }
+    .ai-cart-remove { width: 32px; min-height: 44px; padding: 4px; }
+    .ai-cart-bill, .ai-cart-suggestions { padding: 11px; }
+    .ai-cart-bill-row { gap: 8px; }
+    .ai-cart-bill-row span:last-child { text-align: right; }
+    .ai-cart-bill-row.total strong { font-size: 16px; }
+    .ai-cart-panel-foot { padding: 9px 10px calc(9px + env(safe-area-inset-bottom, 0px)); }
+    .ai-reorder-table { min-width: 0; table-layout: auto; }
+    .ai-reorder-table th:nth-child(2), .ai-reorder-table td:nth-child(2) { display: none; }
+    .ai-reorder-table th, .ai-reorder-table td { padding: 7px 5px; }
+    .ai-reorder-image { width: 36px; height: 36px; flex-basis: 36px; }
+    .ai-reorder-table .ai-qty-btn { width: 27px; height: 29px; }
+    .ai-reorder-table .ai-qty-value { min-width: 25px; }
+}
+</style>
+
+<div class="ai-page">
+    <div class="ai-card">
+        <div class="ai-header">
+            <div class="ai-avatar">
+                <img src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" width="160" height="180" alt="Listening">
+            </div>
+            <div class="ai-header-text">
+                <div class="ai-title">AI Order Assistant</div>
+                <div class="ai-status"><span class="ai-status-dot"></span> Online now</div>
+            </div>
+            <button class="ai-header-pill" type="button" id="aiHistoryButton">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+                <span>History</span>
+            </button>
+        </div>
+
+        <section class="ai-history-panel" id="aiHistoryPanel" aria-hidden="true">
+            <div class="ai-history-header">
+                <button class="ai-history-back" type="button" id="aiHistoryBack" aria-label="Back">←</button>
+                <div class="ai-history-heading"><strong id="aiHistoryTitle">Chat history</strong><span id="aiHistorySubtitle">Your saved conversations</span></div>
+                <div class="ai-history-actions"><button class="ai-history-continue" type="button" id="aiHistoryContinue">Continue chat</button></div>
+            </div>
+            <div class="ai-history-body"><div class="ai-history-list" id="aiHistoryContent"></div></div>
+        </section>
+
+        <section class="ai-cart-panel" id="aiCartPanel" aria-hidden="true">
+            <div class="ai-cart-panel-head">
+                <button class="ai-history-back" type="button" id="aiCartBack" aria-label="Back">←</button>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg>
+                <div class="ai-cart-panel-title">Confirmed Order <small id="aiCartCount"></small></div>
+                <button class="ai-cart-clear" type="button" id="aiCartClear">Clear All</button>
+            </div>
+            <div class="ai-cart-panel-body" id="aiCartPanelBody"></div>
+            <div class="ai-cart-panel-foot"><button class="ai-cart-review" type="button" id="aiCartReview">Review Order →</button></div>
+        </section>
+
+        <div class="ai-confirm-overlay" id="aiDeleteConfirm" role="dialog" aria-modal="true" aria-labelledby="aiDeleteConfirmTitle" aria-hidden="true">
+            <div class="ai-confirm-box">
+                <div class="ai-confirm-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg></div>
+                <h3 id="aiDeleteConfirmTitle">Delete this chat?</h3>
+                <p>This conversation will be permanently removed from your chat history.</p>
+                <div class="ai-confirm-actions">
+                    <button class="ai-confirm-btn" type="button" id="aiDeleteCancel">Cancel</button>
+                    <button class="ai-confirm-btn delete" type="button" id="aiDeleteConfirmButton">Confirm Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-chat-shell">
+            <div class="ai-chat" id="aiChat"></div>
+        </div>
+
+        <div class="ai-composer">
+            <div class="ai-actions">
+                <button class="ai-action-btn" type="button" data-action="repeat" title="Repeat last response" aria-label="Repeat last response">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Repeat</span>
+                </button>
+                <button class="ai-action-btn primary" type="button" data-action="fresh" title="Start a new chat" aria-label="Start a new chat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span>
+                </button>
+                <button class="ai-action-btn cart-shortcut" type="button" id="aiCartShortcut" title="Open cart" aria-label="Open cart" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg><span>Cart</span>
+                </button>
+            </div>
+
+            <div class="ai-input-row">
+                <input type="text" class="ai-input" id="aiInput" placeholder="Type your order..." aria-label="Assistant input">
+                <div class="ai-mic-wrap">
+                    <span class="ai-mic-status" id="aiMicStatus" role="status" aria-live="polite">Mic ready</span>
+                    <button class="ai-mic-btn" type="button" title="Voice input" id="aiMicBtn" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0v-4A2.5 2.5 0 0 1 12 5Z"/><path d="M19 11.5a7 7 0 0 1-14 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </button>
+                </div>
+                <button class="ai-send-btn" type="button" title="Send message" id="aiSendBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-20 9 7.5 2.5L15 21l2-9 5-10Z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const chat = document.getElementById('aiChat');
+        const input = document.getElementById('aiInput');
+        const sendBtn = document.getElementById('aiSendBtn');
+        const micBtn = document.getElementById('aiMicBtn');
+        const micStatus = document.getElementById('aiMicStatus');
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const chatUrl = '{{ route('assistant.chat') }}';
+        const productsUrl = '{{ route('assistant.products') }}';
+        const cartUrl = '{{ route('assistant.cart') }}';
+        const assistantCartBaseUrl = '{{ url('/assistant/cart') }}';
+        const assistantCartQuantityBaseUrl = '{{ url('/assistant/cart') }}';
+        const assistantCartSnapshotUrl = '{{ route('assistant.cart.snapshot') }}';
+        const historyUrl = '{{ route('assistant.history') }}';
+        const selectionUrl = '{{ route('assistant.selection') }}';
+        const transcribeUrl = '{{ route('assistant.transcribe') }}';
+        const speakUrl = '{{ route('assistant.speak') }}';
+        const welcomeUrl = '{{ route('assistant.welcome') }}';
+        const onboardingIntentUrl = '{{ route('assistant.onboarding-intent') }}';
+        const previousOrdersUrl = '{{ route('assistant.previous-orders') }}';
+        const reorderUrl = '{{ route('assistant.reorder') }}';
+        const catalogueEnquiryUrl = '{{ route('assistant.catalogue-enquiry') }}';
+        const assistantCheckoutDataUrl = '{{ route('assistant.checkout-data') }}';
+        const addUrl = '{{ route('cart.add') }}';
+        const checkoutUrl = '{{ route('web.chekout') }}';
+        const historyButton = document.getElementById('aiHistoryButton');
+        const historyPanel = document.getElementById('aiHistoryPanel');
+        const historyBack = document.getElementById('aiHistoryBack');
+        const historyContent = document.getElementById('aiHistoryContent');
+        const historyTitle = document.getElementById('aiHistoryTitle');
+        const historySubtitle = document.getElementById('aiHistorySubtitle');
+        const historyContinue = document.getElementById('aiHistoryContinue');
+        const cartShortcut = document.getElementById('aiCartShortcut');
+        const cartPanel = document.getElementById('aiCartPanel');
+        const cartPanelBody = document.getElementById('aiCartPanelBody');
+        const cartPanelCount = document.getElementById('aiCartCount');
+        const cartBack = document.getElementById('aiCartBack');
+        const cartClear = document.getElementById('aiCartClear');
+        const cartReview = document.getElementById('aiCartReview');
+        const deleteConfirm = document.getElementById('aiDeleteConfirm');
+        const deleteCancel = document.getElementById('aiDeleteCancel');
+        const deleteConfirmButton = document.getElementById('aiDeleteConfirmButton');
+        let pendingDeleteConversation = null;
+        let historyDetailOpen = false;
+        let openedHistoryConversation = null;
+        let mediaRecorder = null;
+        let speechRecognition = null;
+        let speechRecognitionRestartTimer = null;
+        let speechRecognitionStartPending = false;
+        let continuousTalkMode = false;
+        // Default to Indian English for voice input. Detected Hindi, Hinglish
+        // and every other supported language replace this after a message.
+        let conversationLanguage = 'en-IN';
+        let conversationReplyLanguage = 'hinglish';
+        let audioChunks = [];
+        let recordingTimer = null;
+        let responseReminderTimer = null;
+        let responseReminderCount = 0;
+        const maximumResponseReminders = 3;
+        let activeOrderingStage = null;
+        let activeOrderingProductId = null;
+        let activeClarificationOptions = [];
+        let previousOrdersVisible = false;
+        let awaitingNewOrderReady = false;
+        let liveOrderMessage = null;
+        let clarificationMessage = null;
+        let liveOrderEditable = false;
+        let selectedDeliveryDetails = '';
+        let deliveryOptionRequestVersion = 0;
+        let assistantOrderSubmitting = false;
+        let assistantOrderCompleted = false;
+        let cartPanelRequestVersion = 0;
+        let lastUserMessage = '';
+        let welcomeGreetingFinished = false;
+        let onboardingStage = 'choose_order';
+        let onboardingIntentRequestVersion = 0;
+        let customerHasPreviousOrder = false;
+        // The server supplies this with a customer-care workflow. Keeping the
+        // latest safe `tel:` URL lets an affirmative spoken/typed response
+        // open the phone app in the same user interaction, rather than waiting
+        // for the AJAX response (which mobile browsers can treat as a popup).
+        const customerCareFallbackPhone = @json(config('services.customer_care.phone', '+918850268043'));
+        let customerCareDialUrl = '';
+        let lastCustomerCareDialAttemptAt = 0;
+        let lastCustomerCareDialAttemptUrl = '';
+
+        function aiDebug(event, details) {
+            console.log('[AI Assistant][' + new Date().toISOString() + '] ' + event, details === undefined ? '' : details);
+        }
+
+        function customerCareDialUrlFrom(value) {
+            let phone = String(value || '').trim();
+            if (!phone) return '';
+            phone = phone.replace(/^tel:\s*/i, '');
+            const hasPlus = phone.charAt(0) === '+';
+            const digits = phone.replace(/\D/g, '');
+            // A telephone URI must be a phone number, never an arbitrary URL.
+            if (digits.length < 7 || digits.length > 15) return '';
+            return 'tel:' + (hasPlus ? '+' : '') + digits;
+        }
+
+        function rememberCustomerCareDialer(workflow) {
+            const data = workflow || {};
+            const dialUrl = customerCareDialUrlFrom(data.dial_url)
+                || customerCareDialUrlFrom(data.phone)
+                || customerCareDialUrlFrom(customerCareFallbackPhone);
+            if (dialUrl) customerCareDialUrl = dialUrl;
+            return dialUrl;
+        }
+
+        function isCustomerCareDecline(value) {
+            const message = String(value || '');
+            return /\b(?:no|nahi|nahin|nai|nako|cancel|rehne\s+do|mat|nahi\s+chahiye)\b/iu.test(message)
+                || /(?:\u0928\u0939\u0940\u0902|\u0928\u0939\u093f|\u0928\u0939\u0940|\u092e\u0924|\u0930\u0939\u0928\u0947\s*\u0926\u094b|\u0928\u0915\u094b)/u.test(message);
+        }
+
+        function isCustomerCareProductCommand(value) {
+            const message = String(value || '');
+            return /\b(?:add|remove|select|choose|show|search|find|replace|quantity|qty|product|item|cart)\b/iu.test(message)
+                || /(?:\u0910\u0921|\u091c\u094b\u0921|\u0939\u091f\u093e\u0913|\u091a\u0941\u0928|\u0926\u093f\u0916\u093e\u0913|\u0922\u0942\u0902\u0922|\u092c\u0926\u0932|\u092e\u093e\u0924\u094d\u0930\u093e|\u092a\u094d\u0930\u094b\u0921\u0915\u094d\u091f|\u0906\u0907\u091f\u092e|\u0915\u093e\u0930\u094d\u091f)/u.test(message);
+        }
+
+        function isCustomerCareAffirmative(value) {
+            const message = String(value || '');
+            if (isCustomerCareDecline(message)
+                || (isCustomerCareProductCommand(message) && !isExplicitCustomerCareCallRequest(message))) return false;
+            return /\b(?:yes|yeah|yep|haan|han|haa|ha|ji|ok|okay|call|dial|ring|lagao|laga\s+do|connect|milao|mila\s+do|baat\s+(?:karo|karao|karwao))\b/iu.test(message)
+                || /(?:\u0939\u093e\u0901|\u0939\u093e\u0902|\u0939\u093e\u0901\s*\u091c\u0940|\u091c\u0940|\u0915\u0949\u0932|\u0921\u093e\u092f\u0932|\u0932\u0917(?:\u093e\u0913|\u093e\s*\u0926\u094b)|\u0915\u0928\u0947\u0915\u094d\u091f|\u092e\u093f\u0932(?:\u093e\u0913|\u093e\s*\u0926\u094b)|\u092c\u093e\u0924\s*(?:\u0915\u0930\u094b|\u0915\u0930\u093e\u0913|\u0915\u0930\u0935\u093e(?:\u0913|\u0926\u094b)))/u.test(message);
+        }
+
+        function isExplicitCustomerCareCallRequest(value) {
+            const message = String(value || '');
+            if (isCustomerCareDecline(message)) return false;
+            const mentionsCustomerCare = /\b(?:customer\s*care|support|helpline)\b/iu.test(message)
+                || /(?:\u0915\u0938\u094d\u091f\u092e\u0930\s*\u0915\u0947\u092f\u0930|\u0917\u094d\u0930\u093e\u0939\u0915\s*\u0938\u0947\u0935\u093e|\u0938\u092a\u094b\u0930\u094d\u091f|\u0939\u0947\u0932\u094d\u092a\u0932\u093e\u0908\u0928)/u.test(message);
+            const asksToDial = /\b(?:call|phone|dial|ring|connect|lagao|laga\s+do|milao|mila\s+do|baat\s+(?:karo|karao|karwao|karwa\s+do))\b/iu.test(message)
+                || /(?:\u0915\u0949\u0932|\u0921\u093e\u092f\u0932|\u0915\u0928\u0947\u0915\u094d\u091f|\u0932\u0917(?:\u093e\u0913|\u093e\s*\u0926\u094b)|\u092e\u093f\u0932(?:\u093e\u0913|\u093e\s*\u0926\u094b)|\u092c\u093e\u0924\s*(?:\u0915\u0930\u094b|\u0915\u0930\u093e\u0913|\u0915\u0930\u0935\u093e(?:\u0913|\u0926\u094b)))/u.test(message);
+            return mentionsCustomerCare && asksToDial;
+        }
+
+        function isStandaloneCustomerCareCallRequest(value) {
+            const message = String(value || '').trim();
+            if (isCustomerCareDecline(message) || isCustomerCareProductCommand(message)) return false;
+            // A short imperative such as "call karo" has only one sensible
+            // Zonik meaning: connect the customer to support. Keeping this
+            // intentionally narrow prevents ordinary questions containing the
+            // word "call" from opening the phone app.
+            return /^(?:(?:please|pls|mujhe|mujhko|mere\s+liye|ek)\s+)*(?:call|dial|phone)\s*(?:karo|karao|kar\s+do|karwao|karwa\s+do|lagao|laga\s+do|milao|mila\s+do|connect\s+karo)?\s*[.!?]*$/iu.test(message)
+                || /^(?:\u092e\u0941\u091d\u0947\s+)?(?:\u0915\u0949\u0932|\u0921\u093e\u092f\u0932|\u092b\u094b\u0928)\s*(?:\u0915\u0930\u094b|\u0915\u0930\u093e\u0913|\u0915\u0930\s*\u0926\u094b|\u0915\u0930\u0935\u093e\u0913|\u0915\u0930\u0935\u093e\s*\u0926\u094b|\u0932\u0917\u093e\u0913|\u0932\u0917\u093e\s*\u0926\u094b|\u092e\u093f\u0932\u093e\u0913|\u092e\u093f\u0932\u093e\s*\u0926\u094b)?\s*[.!?]*$/u.test(message);
+        }
+
+        function openCustomerCareDialer(value, source, preferUserActivation) {
+            const dialUrl = customerCareDialUrlFrom(value)
+                || customerCareDialUrl
+                || customerCareDialUrlFrom(customerCareFallbackPhone);
+            if (!dialUrl) {
+                aiDebug('Customer-care dialer skipped: invalid phone', {source: source});
+                return false;
+            }
+
+            const now = Date.now();
+            // The local fast path and the confirmed server response can both
+            // arrive within a moment. One attempt is enough; do not present
+            // two dialer prompts for the same consent.
+            if (lastCustomerCareDialAttemptAt && now - lastCustomerCareDialAttemptAt < 12000) {
+                aiDebug('Customer-care duplicate dialer prevented', {
+                    source: source,
+                    dialUrl: dialUrl,
+                    previousDialUrl: lastCustomerCareDialAttemptUrl
+                });
+                return false;
+            }
+
+            customerCareDialUrl = dialUrl;
+            lastCustomerCareDialAttemptAt = now;
+            lastCustomerCareDialAttemptUrl = dialUrl;
+            aiDebug('Opening customer-care dialer', {source: source, dialUrl: dialUrl, userActivated: Boolean(preferUserActivation)});
+
+            if (preferUserActivation) {
+                try {
+                    // This runs inside the tap/Enter event and is the most
+                    // reliable path on iOS/Android browsers.
+                    window.location.assign(dialUrl);
+                    return true;
+                } catch (error) {
+                    aiDebug('Direct customer-care dialer navigation failed', {source: source, error: String(error)});
+                }
+            }
+
+            // A programmatic anchor is the best available fallback for voice
+            // recognition and asynchronous server confirmations.
+            const dialLink = document.createElement('a');
+            dialLink.href = dialUrl;
+            dialLink.style.position = 'fixed';
+            dialLink.style.left = '-9999px';
+            dialLink.style.width = '1px';
+            dialLink.style.height = '1px';
+            dialLink.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(dialLink);
+            try {
+                dialLink.click();
+                return true;
+            } catch (error) {
+                aiDebug('Customer-care dialer anchor failed', {source: source, error: String(error)});
+                try {
+                    window.location.assign(dialUrl);
+                    return true;
+                } catch (fallbackError) {
+                    aiDebug('Customer-care dialer fallback failed', {source: source, error: String(fallbackError)});
+                    return false;
+                }
+            } finally {
+                window.setTimeout(function () { dialLink.remove(); }, 0);
+            }
+        }
+
+        function setMicStatus(label, state) {
+            if (!micStatus) return;
+            micStatus.textContent = label;
+            micStatus.classList.toggle('listening', state === 'listening');
+            micStatus.classList.toggle('processing', state === 'processing');
+            micBtn?.setAttribute('aria-pressed', state === 'listening' ? 'true' : 'false');
+        }
+
+        function cancelSpeechRecognitionRestart() {
+            if (speechRecognitionRestartTimer) window.clearTimeout(speechRecognitionRestartTimer);
+            speechRecognitionRestartTimer = null;
+            speechRecognitionStartPending = false;
+        }
+
+        function scheduleSpeechRecognitionRestart(delay) {
+            if (!continuousTalkMode || speechRecognition || speechRecognitionStartPending) return;
+            speechRecognitionStartPending = true;
+            setMicStatus('Listening…', 'listening');
+            micBtn?.classList.add('listening');
+            speechRecognitionRestartTimer = window.setTimeout(function () {
+                speechRecognitionRestartTimer = null;
+                speechRecognitionStartPending = false;
+                if (continuousTalkMode && !speechRecognition && !activeAssistantAudio
+                    && !assistantAudioQueue.length && !window.speechSynthesis?.speaking) {
+                    startBrowserSpeechRecognition(true);
+                }
+            }, Math.max(150, Number(delay) || 250));
+        }
+
+        function startAutoListening() {
+            setMicStatus('Starting…', 'processing');
+            window.setTimeout(function () {
+                if (speechRecognition) return;
+                if (activeAssistantAudio || window.speechSynthesis?.speaking) {
+                    window.setTimeout(startAutoListening, 500);
+                    return;
+                }
+                if (!startBrowserSpeechRecognition()) setMicStatus('Tap mic', 'idle');
+            // Wait until the post-speech echo guard has cleared.
+            }, 1200);
+        }
+
+        function finishWelcomeAndListen() {
+            if (welcomeGreetingFinished) return;
+            welcomeGreetingFinished = true;
+            startAutoListening();
+        }
+        const assistantLanguageLocales = {
+            english: 'en-IN', 'indian english': 'en-IN', hindi: 'hi-IN', hinglish: 'en-IN', marathi: 'mr-IN',
+            bengali: 'bn-IN', bangla: 'bn-IN', tamil: 'ta-IN', telugu: 'te-IN',
+            gujarati: 'gu-IN', punjabi: 'pa-IN', kannada: 'kn-IN', malayalam: 'ml-IN',
+            odia: 'or-IN', urdu: 'ur-IN', arabic: 'ar-SA', spanish: 'es-ES',
+            french: 'fr-FR', german: 'de-DE', portuguese: 'pt-BR', italian: 'it-IT',
+            russian: 'ru-RU', japanese: 'ja-JP', korean: 'ko-KR', chinese: 'zh-CN',
+            mandarin: 'zh-CN', indonesian: 'id-ID', turkish: 'tr-TR', thai: 'th-TH',
+            vietnamese: 'vi-VN', nepali: 'ne-NP', persian: 'fa-IR', farsi: 'fa-IR',
+            hebrew: 'he-IL', sinhala: 'si-LK', swahili: 'sw-KE', khmer: 'km-KH',
+            lao: 'lo-LA', burmese: 'my-MM', myanmar: 'my-MM', armenian: 'hy-AM',
+            georgian: 'ka-GE'
+        };
+
+        function localeForAssistantLanguage(language) {
+            const value = String(language || '').trim();
+            if (/^[a-z]{2,3}(?:-[a-z0-9]{2,8})+$/i.test(value)) {
+                const parts = value.split('-');
+                return parts.map(function (part, index) {
+                    return index === 0 ? part.toLowerCase() : (part.length === 2 ? part.toUpperCase() : part);
+                }).join('-');
+            }
+            const normalized = value.toLowerCase();
+            const match = Object.keys(assistantLanguageLocales).find(function (name) { return normalized.includes(name); });
+            return match ? assistantLanguageLocales[match] : null;
+        }
+
+        function inferredAssistantLanguage(value) {
+            const text = String(value || '');
+            // Marathi uses Devanagari too, so it must be identified before
+            // the generic Hindi-script rule below. This also keeps browser
+            // voice recognition on mr-IN for longer Marathi requests.
+            if (/(?:मला|माझ|तुम्ह|आम्ह|पाहिजे|द्या|आहे|आहेत|नको|किती|काय|कसा|कशी|कोणत|हवे|हवं|कार्टमध्ये|आणखी|झाले|झालं|एवढेच|इतकेच|निश्चित करा)/u.test(text)) return 'marathi';
+            if (/[஀-௿]/.test(text)) return 'tamil';
+            if (/[ঀ-৿]/.test(text)) return 'bengali';
+            if (/[઀-૿]/.test(text)) return 'gujarati';
+            if (/[਀-੿]/.test(text)) return 'punjabi';
+            if (/[ఀ-౿]/.test(text)) return 'telugu';
+            if (/[ಀ-೿]/.test(text)) return 'kannada';
+            if (/[ഀ-ൿ]/.test(text)) return 'malayalam';
+            if (/[଀-୿]/.test(text)) return 'odia';
+            if (/[؀-ۿ]/.test(text)) return 'arabic';
+            if (/[぀-ヿ]/.test(text)) return 'japanese';
+            if (/[一-鿿]/.test(text)) return 'chinese';
+            if (/[가-힯]/.test(text)) return 'korean';
+            if (/[Ѐ-ӿ]/.test(text)) return 'russian';
+            if (/[฀-๿]/.test(text)) return 'thai';
+            if (/[ऀ-ॿ]/.test(text)) return 'hindi';
+            if (/[\u0590-\u05FF]/.test(text)) return 'hebrew';
+            if (/[\u0D80-\u0DFF]/.test(text)) return 'sinhala';
+            if (/[\u1780-\u17FF]/.test(text)) return 'khmer';
+            if (/[\u0E80-\u0EFF]/.test(text)) return 'lao';
+            if (/[\u1000-\u109F]/.test(text)) return 'burmese';
+            if (/[\u0530-\u058F]/.test(text)) return 'armenian';
+            if (/[\u10A0-\u10FF]/.test(text)) return 'georgian';
+            const marathiWords = text.match(/\b(?:mala|pahije|dya|nako|kiti|aahe|ahe|ahet|hava|havi|majha|maza|majhi|tumcha|tumhi|madhe|madhye|kay|kaay|konata|konate|dakhva|dakhawa|milta|milte|pahila|udya|aamhi|aamcha|kasa|kashi|baram|bara|nakki|evdhech|itkech|zale|zhalay)\b/gi) || [];
+            if (new Set(marathiWords.map(function (word) { return word.toLowerCase(); })).size >= 2) return 'marathi';
+            if (/\b(?:mai|main|aaj|mujhe|muje|usme|isme|kya|hoga|banaunga|banaungi|chahiye|haan|nahi|purana|pichla|naya|karo|batao)\b/i.test(text)) return 'hinglish';
+            if (/\b(?:the|please|need|want|show|hello|thanks|order|product)\b/i.test(text)) return 'english';
+            return '';
+        }
+
+        function applyDetectedLanguage(language, sampleText) {
+            const explicit = String(language || '').trim();
+            const inferred = inferredAssistantLanguage(sampleText);
+            const locale = localeForAssistantLanguage(explicit) || localeForAssistantLanguage(inferred);
+            if (locale) conversationLanguage = locale;
+            if (explicit) conversationReplyLanguage = explicit.toLowerCase();
+            else if (inferred) conversationReplyLanguage = inferred;
+            return locale;
+        }
+        function typeAssistantText(node, text) {
+            if (!node) return;
+            const value = String(text || '');
+            node.textContent = '';
+            let index = 0;
+            const interval = window.setInterval(function () {
+                index = Math.min(value.length, index + 1);
+                node.textContent = value.slice(0, index);
+                chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
+                if (index >= value.length) window.clearInterval(interval);
+            }, 45);
+        }
+        let conversationId = window.crypto?.randomUUID ? window.crypto.randomUUID() : ('chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function (character) {
+                return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'}[character];
+            });
+        }
+
+        // Voice recognition produces many variants: "main new order karunga",
+        // "naya order karu ga", and even reversed wording such as "order new
+        // karna hai". Keep this local so the customer is never dependent on a
+        // remote intent request merely to start a fresh order.
+        function isNewOrderIntent(value) {
+            const message = String(value || '');
+            const latinPhrase = /\b(?:(?:new|fresh|naya|nayaa|nayi)(?:\s+(?:wala|ka))?(?:\s+order)?|order\s+(?:new|fresh|naya|nayaa|nayi)|(?:mai|main|me|hum|ham)\s+(?:new|fresh|naya|nayaa|nayi))\b/i;
+            // Browser speech recognition uses hi-IN here, so it can return
+            // Devanagari even when the customer speaks Hinglish. `\b` only
+            // understands Latin word characters, hence the separate pattern.
+            const devanagariPhrase = /(?:\u0928\u092f\u093e|\u0928\u0908|\u0928\u092f\u0940|\u0928\u094d\u092f\u0942|\u092b\u094d\u0930\u0947\u0936)(?:\s+(?:\u0935\u093e\u0932\u093e|\u0915\u093e))?(?:\s+(?:\u0911\u0930\u094d\u0921\u0930|\u0906\u0930\u094d\u0921\u0930))?|(?:\u092e\u0948\u0902|\u092e\u0948|\u092e\u0941\u091d\u0947|\u0939\u092e)\s+(?:\u0928\u092f\u093e|\u0928\u0908|\u0928\u092f\u0940|\u0928\u094d\u092f\u0942|\u092b\u094d\u0930\u0947\u0936)/u;
+            return latinPhrase.test(message) || devanagariPhrase.test(message);
+        }
+
+        function renderOnboardingHandledReply(data) {
+            const response = data || {};
+            const workflow = response.workflow || {};
+            const workflowStage = String(workflow.stage || response.workflow_stage || '');
+            const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakti hoon.');
+            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer'];
+
+            onboardingStage = null;
+            activeOrderingStage = supportedStages.includes(workflowStage) ? workflowStage : null;
+            appendMessage('assistant', escapeHtml(reply));
+
+            if (workflowStage === 'customer_care_offer') {
+                const dialUrl = rememberCustomerCareDialer(workflow);
+                const dialUrlAttribute = dialUrl ? ' data-customer-care-dial-url="' + escapeHtml(dialUrl) + '"' : '';
+                appendMessage('assistant', '<div class="ai-product-actions"><button type="button" class="ai-product-btn primary" data-customer-care-call="yes"' + dialUrlAttribute + '>Call Customer Care</button><button type="button" class="ai-product-btn" data-customer-care-call="no">Continue Here</button></div>');
+            } else if (workflowStage === 'call_customer_care') {
+                const dialUrl = rememberCustomerCareDialer(workflow);
+                if (dialUrl) {
+                    appendMessage('assistant', '<div class="ai-product-actions"><a class="ai-product-btn primary" href="' + escapeHtml(dialUrl) + '">Opening Customer Care call…</a></div>');
+                    openCustomerCareDialer(dialUrl, 'onboarding-customer-care-response', false);
+                }
+                activeOrderingStage = null;
+            }
+
+            if (response.voice_base64) playVoice(response.voice_base64, response.voice_mime, scheduleResponseReminder);
+            else loadVoiceAsync(reply, scheduleResponseReminder);
+        }
+
+        function forwardOnboardingMessageToChat(message, selectedProductId, options) {
+            // The user message is already visible. Re-use the normal chat
+            // pipeline so product commands, support requests, and Zonik FAQs
+            // get their actual answer without duplicating the message bubble.
+            onboardingStage = null;
+            awaitingNewOrderReady = false;
+            onboardingIntentRequestVersion++;
+            const forwardOptions = Object.assign({}, options || {}, {
+                skipOrderChoice: true,
+                alreadyRenderedUserMessage: true
+            });
+            sendMessage(message, selectedProductId, forwardOptions);
+        }
+
+        function beginNewOrder() {
+            // Ignore an older onboarding response that may arrive after the
+            // customer has clearly selected a fresh order.
+            onboardingIntentRequestVersion++;
+            onboardingStage = null;
+            awaitingNewOrderReady = false;
+            previousOrdersVisible = false;
+            // Only clear the idle state. We never discard the cart or an
+            // in-progress checkout merely because the customer said "new".
+            if (!activeOrderingStage || activeOrderingStage === 'anything_else') activeOrderingStage = null;
+            const reply = 'Theek hai, product ka naam aur quantity saath mein bataiye.';
+            appendMessage('assistant', escapeHtml(reply));
+            loadVoiceAsync(reply);
+            input.focus();
+        }
+
+        function normalizeCatalogLanguage(text) {
+            const aliases = {'रियल':'real','जूस':'juice','रस':'juice','टमाटर':'tomato','टोमॅटो':'tomato','प्याज':'onion','कांदा':'onion','आलू':'potato','बटाटा':'potato','चावल':'rice','तांदूळ':'rice','दूध':'milk','तेल':'oil','चीनी':'sugar','साखर':'sugar','आटा':'flour','पीठ':'flour','नमक':'salt','मीठ':'salt','बॉक्स':'box','कार्टन':'carton','पॅकेट':'packet','पैकेट':'packet','एक':'1','दो':'2','तीन':'3','डालें':'add','डालो':'add','दें':'add','द्या':'add','टाका':'add','मुझे':'','चाहिए':''};
+            return Object.keys(aliases).reduce(function (result, word) { return result.split(word).join(' ' + aliases[word] + ' '); }, text);
+        }
+
+        function getOrderDetails(text) {
+            const normalizedText = normalizeCatalogLanguage(text);
+            const quantity = normalizedText.match(/\d+(?:\.\d+)?/);
+            const unit = normalizedText.match(/kg|kgs|kilo|kilogram|gram|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen/i);
+            const name = normalizedText.toLowerCase()
+                .replace(/\d+(?:\.\d+)?/g, ' ')
+                .replace(/\b(add|also|please|mujhe|chahiye|do|de|dena|karo|cart|order|kg|kgs|kilo|kilogram|gram|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/gi, ' ')
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ').trim();
+            return { name: name, quantity: Math.max(1, Math.round(Number(quantity?.[0] || 1))), unit: unit?.[0] || 'unit' };
+        }
+
+        function normalizeSpokenQuantity(text) {
+            let result = String(text || '')
+                .replace(/(?:सोनिक|ज़ोनिक|झोनिक)/g, 'zonik')
+                .replace(/\b(?:sonic|zonic|jonik|zone\s*ik|zo\s*nik)\b/gi, 'zonik')
+                .replace(/\b(?:fire|file|fife)\s*box(?:es)?\b/gi, '5 box')
+                .replace(/\b(?:fire|file|fife)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '5 $1')
+                .replace(/\b(?:search|surge|church|turn|term|then|den|tan|tin)\s*box(?:es)?\b/gi, '10 box')
+                .replace(/\b(?:turn|term|then|den|tan|tin)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '10 $1');
+            const numbers = {zero:0, one:1, won:1, ek:1, two:2, to:2, too:2, do:2, three:3, tree:3, teen:3, four:4, for:4, char:4, chaar:4, five:5, fife:5, panch:5, paanch:5, six:6, che:6, chhe:6, seven:7, saat:7, eight:8, aath:8, nine:9, nau:9, ten:10, das:10};
+            const units = '(?=\\s*(?:boxes?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\\b)';
+            Object.keys(numbers).forEach(function (word) {
+                result = result.replace(new RegExp('\\b' + word + '\\b' + units, 'gi'), String(numbers[word]));
+                result = result.replace(new RegExp('^(\\s*(?:add|give|order|please\\s+add)?\\s*)' + word + '\\b', 'i'), '$1' + numbers[word]);
+                result = result.replace(new RegExp('\\b(mujhe|muje|mala|add|give|order)\\s+' + word + '\\b', 'gi'), '$1 ' + numbers[word]);
+                if (new RegExp('^\\s*' + word + '\\s*$', 'i').test(result)) result = String(numbers[word]);
+            });
+            return result.replace(/\s+/g, ' ').trim();
+        }
+
+        function productCard(product, quantity, unit, label, requiresQuantity, workflowStage) {
+            const image = product.image ? '<img class="ai-product-image" src="' + escapeHtml(product.image) + '" alt="' + escapeHtml(product.name) + '">' : '';
+            const brand = product.brand ? '<div class="ai-product-meta">Brand: ' + escapeHtml(product.brand) + '</div>' : '';
+            const available = product.available_in_outlet !== false;
+            const price = '<div class="ai-product-price">₹' + Number(product.price || 0).toFixed(2) + ' / ' + escapeHtml(product.unit || 'unit') + '</div>' + (!available ? '<div class="ai-product-meta"><strong>Catalogue product</strong></div>' : '');
+            const safeQty = Math.max(1, Math.round(Number(quantity) || 1));
+            const action = !available
+                ? (product.enquiry_sent
+                    ? '<button type="button" class="ai-product-btn primary" disabled>Enquiry Sent ✓</button>'
+                    : '<button type="button" class="ai-product-btn primary" data-catalogue-enquiry="' + product.id + '">Send Price Enquiry</button>')
+                : requiresQuantity
+                ? '<button type="button" class="ai-product-btn primary" data-choose-product="' + escapeHtml(product.name) + '" data-choose-product-id="' + product.id + '">Select</button>'
+                : '<span class="ai-qty-control"><button type="button" class="ai-qty-btn" data-qty-change="-1">−</button><span class="ai-qty-value">' + safeQty + '</span><button type="button" class="ai-qty-btn" data-qty-change="1">+</button></span><button type="button" class="ai-product-btn primary" data-add-product="' + product.id + '" data-qty="' + safeQty + '" data-price="' + product.price + '" data-workflow-stage="' + escapeHtml(workflowStage || '') + '">' + escapeHtml(label || 'Add') + '</button>';
+            return '<div class="ai-product-card">' + image + '<div class="ai-product-details"><div class="ai-product-title">' + escapeHtml(product.name) + '</div>' + brand + '<div class="ai-product-meta">Carton size: ' + escapeHtml(product.carton_size || 'N/A') + '</div>' + price + '</div></div><div class="ai-product-actions">' + action + '<button type="button" class="ai-product-btn" data-action="change-item">Change item</button></div>';
+        }
+
+        function suggestionCard(product) {
+            const image = product.image
+                ? '<img class="ai-suggestion-image" src="' + escapeHtml(product.image) + '" alt="' + escapeHtml(product.name) + '">'
+                : '<div class="ai-suggestion-image"></div>';
+            return '<button type="button" class="ai-suggestion-card" data-add-product="' + escapeHtml(product.id) + '" data-qty="1" data-price="' + escapeHtml(product.price || 0) + '" data-workflow-stage="order_suggestions" data-suggestion-source="order" aria-label="Add ' + escapeHtml(product.name) + ' to order">' + image + '<span class="ai-suggestion-name">' + escapeHtml(product.name) + '</span><span class="ai-suggestion-add">+ Add</span></button>';
+        }
+
+        function historyProductCard(product) {
+            const image = product.image ? '<img class="ai-product-image" src="' + escapeHtml(product.image) + '" alt="' + escapeHtml(product.name) + '">' : '';
+            const selected = product.selected ? '<span class="ai-history-badge">✓ Selected × ' + escapeHtml(product.selected_quantity || 1) + '</span>' : '';
+            const price = product.available_in_outlet === false ? '<div class="ai-product-meta"><strong>Not available in selected outlet</strong></div>' : '<div class="ai-product-price">₹' + Number(product.price || 0).toFixed(2) + ' / ' + escapeHtml(product.unit || 'unit') + '</div>';
+            return '<div class="ai-product-card">' + image + '<div class="ai-product-details"><div class="ai-product-title">' + escapeHtml(product.name) + '</div><div class="ai-product-meta">Carton size: ' + escapeHtml(product.carton_size || 'N/A') + '</div>' + price + selected + '</div></div>';
+        }
+
+        function savedMessageHtml(message) {
+            if (message.message === 'Live Order List') {
+                let list = '<strong>Live Order List</strong><div class="ai-cart-summary">';
+                (message.products || []).forEach(function (product) {
+                    const image = product.image ? '<img class="ai-live-order-image" src="' + escapeHtml(product.image) + '" alt="' + escapeHtml(product.name) + '">' : '<div class="ai-live-order-image"></div>';
+                    list += '<div class="ai-live-order-item">' + image + '<div><div class="ai-live-order-name">' + escapeHtml(product.name) + '</div><div class="ai-live-order-meta">Quantity: ' + escapeHtml(product.selected_quantity || 1) + ' ' + escapeHtml(product.unit || 'unit') + '</div></div><div class="ai-live-order-price">' + money(product.line_total || 0) + '</div></div>';
+                });
+                return list + '</div>';
+            }
+            let html = '';
+            (message.products || []).forEach(function (product) {
+                html += historyProductCard(product);
+            });
+            return html;
+        }
+
+        function openHistoryList() {
+            historyDetailOpen = false;
+            openedHistoryConversation = null;
+            historyContinue.style.display = 'none';
+            historyPanel.classList.add('open');
+            historyPanel.setAttribute('aria-hidden', 'false');
+            historyTitle.textContent = 'Chat history';
+            historySubtitle.textContent = 'Your saved conversations';
+            historyContent.innerHTML = '<div class="ai-history-empty">Loading chats…</div>';
+            fetch(historyUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json()).then(function (data) {
+                    const conversations = data.conversations || [];
+                    if (!conversations.length) { historyContent.innerHTML = '<div class="ai-history-empty">No saved chat history yet.</div>'; return; }
+                    historyContent.innerHTML = conversations.map(function (item) {
+                        return '<div class="ai-history-row"><button type="button" class="ai-history-item" data-history-conversation="' + escapeHtml(item.id) + '"><span class="ai-history-item-title">' + escapeHtml(item.title) + '</span><span class="ai-history-item-meta"><span>👤 ' + escapeHtml(item.customer_name) + '</span>' + (item.outlet_name ? '<span>🏪 ' + escapeHtml(item.outlet_name) + '</span>' : '') + '<span>📅 ' + escapeHtml(item.date) + '</span><span>🕒 ' + escapeHtml(item.time) + '</span></span></button><button type="button" class="ai-history-delete" data-delete-conversation="' + escapeHtml(item.id) + '" aria-label="Delete conversation" title="Delete chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg></button></div>';
+                    }).join('');
+                }).catch(function () { historyContent.innerHTML = '<div class="ai-history-empty">Could not load chat history.</div>'; });
+        }
+
+        function openHistoryDetail(id) {
+            historyDetailOpen = true;
+            openedHistoryConversation = id;
+            historyContinue.style.display = 'inline-flex';
+            historyTitle.textContent = 'Conversation';
+            historySubtitle.textContent = 'Messages and selected products';
+            historyContent.innerHTML = '<div class="ai-history-empty">Loading conversation…</div>';
+            fetch(historyUrl + '?conversation_id=' + encodeURIComponent(id), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json()).then(function (data) {
+                    const messages = data.messages || [];
+                    if (!messages.length) { historyContent.innerHTML = '<div class="ai-history-empty">No messages found.</div>'; return; }
+                    historyContent.innerHTML = '<div class="ai-history-detail">' + messages.map(function (message) {
+                        const content = savedMessageHtml(message);
+                        if (!content.trim()) return '';
+                        const bubble = '<div class="ai-message ' + escapeHtml(message.role) + '">' + content + '<span class="ai-message-time">' + escapeHtml(message.time) + '</span></div>';
+                        return '<div class="ai-message-row ' + escapeHtml(message.role) + '">' + (message.role === 'assistant' ? '<img class="ai-reply-avatar" src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" alt="AI assistant">' : '') + bubble + '</div>';
+                    }).join('') + '</div>';
+                }).catch(function () { historyContent.innerHTML = '<div class="ai-history-empty">Could not load this conversation.</div>'; });
+        }
+
+        historyButton?.addEventListener('click', openHistoryList);
+        historyBack?.addEventListener('click', function () {
+            if (historyDetailOpen) openHistoryList();
+            else { historyPanel.classList.remove('open'); historyPanel.setAttribute('aria-hidden', 'true'); }
+        });
+        historyContent?.addEventListener('click', function (event) {
+            const deleteButton = event.target.closest('[data-delete-conversation]');
+            if (deleteButton) {
+                pendingDeleteConversation = deleteButton.dataset.deleteConversation;
+                deleteConfirm.classList.add('open');
+                deleteConfirm.setAttribute('aria-hidden', 'false');
+                return;
+            }
+            const item = event.target.closest('[data-history-conversation]');
+            if (item) openHistoryDetail(item.dataset.historyConversation);
+        });
+        function closeDeleteConfirm() {
+            pendingDeleteConversation = null;
+            deleteConfirmButton.disabled = false;
+            deleteConfirmButton.textContent = 'Confirm Delete';
+            deleteConfirm.classList.remove('open');
+            deleteConfirm.setAttribute('aria-hidden', 'true');
+        }
+        deleteCancel?.addEventListener('click', closeDeleteConfirm);
+        deleteConfirm?.addEventListener('click', function (event) { if (event.target === deleteConfirm) closeDeleteConfirm(); });
+        deleteConfirmButton?.addEventListener('click', function () {
+            if (!pendingDeleteConversation) return;
+            const id = pendingDeleteConversation;
+            deleteConfirmButton.disabled = true;
+            deleteConfirmButton.textContent = 'Deleting…';
+            fetch(historyUrl + '/' + encodeURIComponent(id), {method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}})
+                .then(function (response) { if (!response.ok) throw new Error('Delete failed'); return response.json(); })
+                .then(function () { closeDeleteConfirm(); openHistoryList(); })
+                .catch(function () { deleteConfirmButton.textContent = 'Try Again'; })
+                .finally(function () { deleteConfirmButton.disabled = false; if (deleteConfirmButton.textContent !== 'Try Again') deleteConfirmButton.textContent = 'Confirm Delete'; });
+        });
+        historyContinue?.addEventListener('click', function () {
+            if (!openedHistoryConversation) return;
+            conversationId = openedHistoryConversation;
+            fetch(historyUrl + '?conversation_id=' + encodeURIComponent(conversationId), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json()).then(function (data) {
+                    chat.innerHTML = '';
+                    (data.messages || []).forEach(function (message) {
+                        let html = escapeHtml(message.message).replace(/\n/g, '<br>');
+                        (message.products || []).forEach(function (product) { html += historyProductCard(product); });
+                        appendMessage(message.role, html, message.time);
+                    });
+                    historyPanel.classList.remove('open');
+                    historyPanel.setAttribute('aria-hidden', 'true');
+                    input.focus();
+                });
+        });
+
+        function appendMessage(role, html, time) {
+            const wrap = document.createElement('div');
+            const timestamp = time || new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            wrap.className = 'ai-message-row ' + role;
+            const bubble = '<div class="ai-message ' + role + '">' + html + '<span class="ai-message-time">' + escapeHtml(timestamp) + '</span></div>';
+            wrap.innerHTML = role === 'assistant'
+                ? '<img class="ai-reply-avatar" src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" alt="AI assistant">' + bubble
+                : bubble;
+
+            // Voice-only chat: keep plain conversational text off-screen and
+            // render only actionable product/order UI.
+            const hasVisualContent = role === 'assistant'
+                && /<(?:div|button|table|img|strong|ul|ol)\b/i.test(String(html || ''));
+            if (!hasVisualContent) return wrap;
+
+            chat.appendChild(wrap);
+            chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
+            return wrap;
+        }
+
+        function appendTyping() {
+            const wrap = document.createElement('div');
+            wrap.className = 'ai-message assistant';
+            wrap.innerHTML = '<span>Thinking…</span>';
+            chat.appendChild(wrap);
+            chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
+            return wrap;
+        }
+
+        function removeTyping(node) {
+            if (node && node.parentNode) node.parentNode.removeChild(node);
+        }
+
+        let queuedWelcomeAudio = null;
+        let activeAssistantAudio = null;
+        let assistantAudioQueue = [];
+        let speechRequestGeneration = 0;
+        let assistantSpeechEndedAt = 0;
+        let lastAssistantSpokenText = '';
+        // Once ElevenLabs fails, use one stable browser voice for the rest of
+        // a short recovery window instead of alternating every reply.
+        let voiceProviderMode = 'auto';
+        let elevenLabsRetryAt = 0;
+        function useBrowserVoiceTemporarily() {
+            voiceProviderMode = 'browser';
+            elevenLabsRetryAt = Date.now() + 30000;
+        }
+        function resumeListeningAfterReply() {
+            if (!continuousTalkMode || speechRecognition) return;
+            scheduleSpeechRecognitionRestart(1100);
+        }
+
+        function playNextAssistantAudio() {
+            if (activeAssistantAudio || !assistantAudioQueue.length) return;
+            const item = assistantAudioQueue.shift();
+            const audio = new Audio('data:' + (item.mime || 'audio/mpeg') + ';base64,' + item.base64);
+            audio.playbackRate = 0.92;
+            audio.preservesPitch = true;
+            activeAssistantAudio = audio;
+            const finish = function () {
+                if (activeAssistantAudio === audio) activeAssistantAudio = null;
+                assistantSpeechEndedAt = Date.now();
+                if (typeof item.onEnded === 'function') item.onEnded();
+                playNextAssistantAudio();
+                // Restart the microphone only after every queued assistant clip
+                // has finished, otherwise it can transcribe the next clip.
+                if (!activeAssistantAudio && !assistantAudioQueue.length) resumeListeningAfterReply();
+            };
+            audio.addEventListener('ended', finish, {once: true});
+            audio.addEventListener('error', finish, {once: true});
+            audio.play().then(function () {
+                if (typeof item.onStart === 'function') item.onStart();
+            }).catch(function () {
+                // Keep only the first autoplay-blocked welcome clip. Normal
+                // replies are always serialized and never overlap.
+                if (typeof item.onStart === 'function') item.onStart();
+                if (!queuedWelcomeAudio) queuedWelcomeAudio = audio;
+                activeAssistantAudio = null;
+                if (typeof item.onEnded === 'function') item.onEnded();
+                else resumeListeningAfterReply();
+            });
+        }
+
+        function playVoice(base64, mime, onEnded, onStart) {
+            if (!base64) return;
+            assistantAudioQueue.push({base64: base64, mime: mime, onEnded: onEnded, onStart: onStart});
+            playNextAssistantAudio();
+        }
+
+        function speakWithBrowser(text, onEnded, onStart) {
+            if (!window.speechSynthesis || !text) {
+                if (typeof onEnded === 'function') onEnded();
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const cleanText = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            // A server/transcriber detected locale is more accurate than a
+            // broad Unicode-script guess for mixed text or Kanji-only text.
+            const knownLocale = localeForAssistantLanguage(conversationReplyLanguage);
+            if (knownLocale && conversationReplyLanguage !== 'hinglish') {
+                utterance.lang = knownLocale;
+            } else {
+            if (/(झाले|आणखी|किती|हवे|कोणता|पर्याय|मध्ये)/u.test(cleanText)) utterance.lang = 'mr-IN';
+            else if (/[\u0900-\u097F]/.test(cleanText)) utterance.lang = 'hi-IN';
+            else if (/[\u0B80-\u0BFF]/.test(cleanText)) utterance.lang = 'ta-IN';
+            else if (/[\u0980-\u09FF]/.test(cleanText)) utterance.lang = 'bn-IN';
+            else if (/[\u0A80-\u0AFF]/.test(cleanText)) utterance.lang = 'gu-IN';
+            else if (/[\u0A00-\u0A7F]/.test(cleanText)) utterance.lang = 'pa-IN';
+            else if (/[\u0C00-\u0C7F]/.test(cleanText)) utterance.lang = 'te-IN';
+            else if (/[\u0C80-\u0CFF]/.test(cleanText)) utterance.lang = 'kn-IN';
+            else if (/[\u0D00-\u0D7F]/.test(cleanText)) utterance.lang = 'ml-IN';
+            else if (/[\u0B00-\u0B7F]/.test(cleanText)) utterance.lang = 'or-IN';
+            else if (/[\u0600-\u06FF]/.test(cleanText)) utterance.lang = conversationLanguage.startsWith('ur') ? 'ur-IN' : 'ar-SA';
+            else if (/[\u4E00-\u9FFF]/.test(cleanText)) utterance.lang = 'zh-CN';
+            else if (/[\u3040-\u30FF]/.test(cleanText)) utterance.lang = 'ja-JP';
+            else if (/[\uAC00-\uD7AF]/.test(cleanText)) utterance.lang = 'ko-KR';
+            else if (/[\u0400-\u04FF]/.test(cleanText)) utterance.lang = 'ru-RU';
+            else if (/[\u0E00-\u0E7F]/.test(cleanText)) utterance.lang = 'th-TH';
+            else utterance.lang = conversationLanguage || navigator.language || 'en-IN';
+            }
+            utterance.rate = 0.90;
+            utterance.pitch = 1.02;
+            const finishBrowserSpeech = function () {
+                assistantSpeechEndedAt = Date.now();
+                resumeListeningAfterReply();
+                if (typeof onEnded === 'function') onEnded();
+            };
+            utterance.onend = finishBrowserSpeech;
+            utterance.onerror = finishBrowserSpeech;
+            utterance.onstart = function () { if (typeof onStart === 'function') onStart(); };
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function loadVoiceAsync(text, onEnded, onStart) {
+            lastAssistantSpokenText = String(text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (voiceProviderMode === 'browser' && Date.now() < elevenLabsRetryAt) {
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                return;
+            }
+            if (voiceProviderMode === 'browser') voiceProviderMode = 'auto';
+            const requestGeneration = speechRequestGeneration;
+            const controller = window.AbortController ? new AbortController() : null;
+            let completed = false;
+            const requestTimeout = window.setTimeout(function () {
+                if (completed || requestGeneration !== speechRequestGeneration) return;
+                completed = true;
+                if (controller) controller.abort();
+                useBrowserVoiceTemporarily();
+                console.info('ElevenLabs audio timed out; browser voice locked for this session.');
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+            }, 18000);
+            fetch(speakUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                // The backend rewrites speech to the customer's latest
+                // detected language/script before ElevenLabs synthesis.
+                body: JSON.stringify({
+                    text: text,
+                    match_language_to: lastUserMessage || conversationReplyLanguage || conversationLanguage
+                }),
+                signal: controller ? controller.signal : undefined
+            }).then(response => response.json()).then(function (data) {
+                if (completed || requestGeneration !== speechRequestGeneration) return;
+                completed = true;
+                window.clearTimeout(requestTimeout);
+                const localizedText = data.text || text;
+                lastAssistantSpokenText = String(localizedText).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                if (data.voice_base64 && voiceProviderMode !== 'browser') {
+                    voiceProviderMode = 'elevenlabs';
+                    playVoice(data.voice_base64, data.voice_mime, onEnded, onStart);
+                }
+                else {
+                    useBrowserVoiceTemporarily();
+                    console.info('ElevenLabs unavailable; browser voice locked for this session.');
+                    speakWithBrowser(localizedText, onEnded, onStart);
+                }
+            }).catch(function () {
+                if (completed || requestGeneration !== speechRequestGeneration) return;
+                completed = true;
+                window.clearTimeout(requestTimeout);
+                useBrowserVoiceTemporarily();
+                console.info('ElevenLabs request failed; browser voice locked for this session.');
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+            });
+        }
+
+        function cancelResponseReminder() {
+            if (responseReminderTimer) window.clearTimeout(responseReminderTimer);
+            responseReminderTimer = null;
+        }
+
+        function resetResponseReminders() {
+            cancelResponseReminder();
+            responseReminderCount = 0;
+        }
+
+        function stopAssistantAudio(clearQueue) {
+            speechRequestGeneration++;
+            if (activeAssistantAudio) {
+                activeAssistantAudio.pause();
+                activeAssistantAudio.currentTime = 0;
+                activeAssistantAudio = null;
+            }
+            if (clearQueue !== false) assistantAudioQueue = [];
+        }
+
+        function responseReminderText() {
+            if (responseReminderCount === 2) {
+                const finalReminderByStage = {
+                    confirm_product: 'Main is product par ruki hoon. Jab free ho, haan ya nahi bol dena.',
+                    clarify_product: 'Options screen par hain. Product ka naam bolkar cart mein add ya enquiry bata dijiye.',
+                    await_quantity: 'Main quantity ka wait kar rahi hoon. Free hoke sirf number bol dena.',
+                    confirm_quantity: 'Quantity pending hai. Jab ready ho, confirm ya change bol dena.',
+                    anything_else: 'Aap busy ho toh koi problem nahi. Baad mein yahin se order continue ho jayega.',
+                    confirm_order: 'Order summary safe hai. Free hone par confirm karke delivery continue kar lena.',
+                    delivery_details: 'Cart safe hai. Jab free ho, delivery location aur slot select kar lena.',
+                    payment_method: 'Order details safe hain. Free hone par payment option choose kar lena.',
+                    checkout_ready: 'Order abhi submit nahi hua hai. Ready hone par Place Order button dabana.',
+                    customer_care_offer: 'Main yahin ruk rahi hoon. Free hone par call ya continue bol dena.'
+                };
+                return finalReminderByStage[activeOrderingStage] || 'Aap busy ho toh koi problem nahi. Free hone par yahin se continue kar lena.';
+            }
+            const remindersByStage = {
+                confirm_product: ['Jab ready ho, bas haan ya nahi bol dijiye—main isi product ke saath aage badh jaungi.', 'Koi jaldi nahi hai. Yeh product rakhna hai ya koi aur option dekhna hai?'],
+                clarify_product: ['Product ka naam ya brand bolkar saath mein cart mein add ya enquiry bol dijiye.', 'Kaunsa flavour chahiye aur usko cart mein add karna hai ya price enquiry bhejni hai?'],
+                await_quantity: ['Bas quantity bata dijiye, jaise 1, 2 ya 3—phir main add kar dungi.', 'Is product ki kitni quantity rakhni hai? Aap araam se bata dijiye.'],
+                confirm_quantity: ['Quantity confirm kar dijiye, phir main order list update kar dungi.', 'Jo quantity batayi thi, wahi rakhni hai ya change karni hai?'],
+                anything_else: ['Aur kuch chahiye ho toh bata dijiye. Nahi toh order confirm bol dijiye, main summary dikha dungi.', 'Main yahin hoon—kuch add karna hai, ya order summary ke liye confirm bolna hai?'],
+                confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir address aur delivery slot le lungi.', 'Order ready hai. Aapki haan milte hi next delivery details poochungi.'],
+                delivery_details: ['Delivery ke liye address ya location aur convenient slot bata dijiye.', 'Bas delivery details pending hain. Address aur time slot share kar dijiye, phir payment par aate hain.'],
+                payment_method: ['Payment ka option select kar dijiye, phir place order ka final button aa jayega.', 'Ab sirf payment method choose karna hai—online, delivery par, ya jo option dikh raha ho.'],
+                checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar rahi hoon—Place Order button dabaiye.'],
+                customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.']
+            };
+            const options = remindersByStage[activeOrderingStage] || ['Main yahin hoon. Jab ready ho, bata dijiye aage kya karna hai.'];
+            return options[responseReminderCount % options.length];
+        }
+
+        function loadResponseReminder() {
+            if (!activeOrderingStage || responseReminderCount >= maximumResponseReminders) return;
+            const reminder = responseReminderText();
+            responseReminderCount++;
+            const requestGeneration = speechRequestGeneration;
+            // A reminder must still be useful when the speech provider is
+            // out of quota or the customer is not using microphone mode.
+            // It is deliberately display-only state: no workflow is changed.
+            appendMessage('assistant', escapeHtml(reminder));
+            fetch(speakUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({text: reminder, match_language_to: lastUserMessage || 'Hinglish mein jawab dijiye.'})
+            }).then(function (response) { return response.json(); }).then(function (data) {
+                if (requestGeneration !== speechRequestGeneration) return;
+                const localizedText = data.text || reminder;
+                if (speechRecognition) {
+                    try { speechRecognition.abort(); } catch (error) {}
+                    speechRecognition = null;
+                }
+                if (data.voice_base64 && voiceProviderMode !== 'browser') playVoice(data.voice_base64, data.voice_mime, scheduleResponseReminder);
+                else {
+                    useBrowserVoiceTemporarily();
+                    speakWithBrowser(localizedText, scheduleResponseReminder);
+                }
+            }).catch(function () {
+                if (requestGeneration === speechRequestGeneration) {
+                    useBrowserVoiceTemporarily();
+                    speakWithBrowser(reminder, scheduleResponseReminder);
+                }
+            });
+        }
+
+        function rememberUserLanguage(text) {
+            // Do not turn an unfamiliar or short reply into English. Keep the
+            // last reliable language until a transcript/model identifies it.
+            applyDetectedLanguage('', text);
+        }
+
+        function scheduleResponseReminder() {
+            cancelResponseReminder();
+            if (!activeOrderingStage || responseReminderCount >= maximumResponseReminders) return;
+            responseReminderTimer = window.setTimeout(function () {
+                responseReminderTimer = null;
+                if (!activeOrderingStage) return;
+                loadResponseReminder();
+            }, [12000, 25000, 45000][responseReminderCount] || 45000);
+        }
+
+        document.addEventListener('click', function playQueuedWelcome() {
+            if (!queuedWelcomeAudio) return;
+            queuedWelcomeAudio.play().then(function () { queuedWelcomeAudio = null; }).catch(function () {});
+        });
+
+        // Render the first sentence immediately; network/TTS work continues in
+        // parallel so the customer never sees a silent blank assistant.
+        const instantWelcomeText = {!! json_encode('Namaste ' . (auth()->user()->name ?? 'there') . ' ji. Aap voice se ya text se order kar sakte hain. Aap naya order karna chahenge ya purana order?') !!};
+        appendMessage('assistant', escapeHtml(instantWelcomeText));
+        // Most returning users have history. Do not start welcome DB + TTS
+        // requests until history confirms this is a new conversation.
+        let welcomePromise = null;
+        function loadWelcome() {
+            if (welcomePromise) return welcomePromise;
+            welcomePromise = fetch(welcomeUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(function (response) { return response.json(); })
+                .then(function (welcome) {
+                    customerHasPreviousOrder = !!welcome.has_previous_order;
+                    return welcome;
+                });
+            return welcomePromise;
+        }
+        function playWelcome() {
+            return loadWelcome().then(function (welcome) {
+                return new Promise(function (resolve) {
+                    loadVoiceAsync(welcome.text || instantWelcomeText, function () {
+                        finishWelcomeAndListen();
+                        resolve();
+                    });
+                });
+            });
+        }
+        fetch(historyUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(response => response.json())
+            .then(data => {
+                if (!data.messages || !data.messages.length) {
+                    playWelcome()
+                        .catch(finishWelcomeAndListen);
+                    return;
+                }
+                if (data.active_conversation_id) conversationId = data.active_conversation_id;
+                const restoredState = data.active_workflow_state || {};
+                const restoredStage = String(restoredState.stage || '');
+                if (restoredStage) {
+                    onboardingStage = null;
+                    activeOrderingStage = restoredStage;
+                    activeOrderingProductId = Number(restoredState.product?.id) || null;
+                    activeClarificationOptions = (restoredState.products || []).map(function (product) {
+                        return {id: Number(product.id), requested_quantity: Number(product.requested_quantity) || 0, requested_unit: String(product.requested_unit || '')};
+                    }).filter(function (product) { return product.id > 0; });
+                    aiDebug('Conversation workflow restored', {conversationId: conversationId, state: restoredState});
+                } else {
+                    onboardingStage = null;
+                    activeOrderingStage = 'anything_else';
+                    aiDebug('Conversation restored with cart fallback', {conversationId: conversationId});
+                }
+                chat.innerHTML = '';
+                data.messages.forEach(function (message) {
+                    const html = savedMessageHtml(message);
+                    if (html.trim()) appendMessage(message.role, html, message.time);
+                });
+                renderLiveOrderList();
+                finishWelcomeAndListen();
+            })
+            .catch(finishWelcomeAndListen);
+        // Safety attempt for browsers that block welcome audio autoplay and
+        // therefore never fire the audio-ended callback.
+        window.setTimeout(function () {
+            if (welcomeGreetingFinished && !speechRecognition && !continuousTalkMode) startAutoListening();
+        }, 6000);
+
+        function sendMessage(message, selectedProductId, options) {
+            const text = (message || '').trim();
+            if (!text) return;
+            const sendOptions = options || {};
+            const alreadyRenderedUserMessage = Boolean(sendOptions.alreadyRenderedUserMessage);
+            aiDebug('Command received', {
+                text: text,
+                conversationId: conversationId,
+                activeStage: activeOrderingStage,
+                selectedProductId: selectedProductId || activeOrderingProductId || null,
+                clarificationOptions: activeClarificationOptions,
+                replayingOnboardingMessage: alreadyRenderedUserMessage
+            });
+            if (/^\s*(?:stop|ruko|ruk jao|bas chup|band karo|pause)\s*[.!?]*$/iu.test(text)) {
+                stopAssistantAudio(true);
+                continuousTalkMode = false;
+                cancelSpeechRecognitionRestart();
+                setMicStatus('Mic ready', 'idle');
+                return;
+            }
+            if (/^\s*(?:repeat|dobara|phir se|wapas bolo|kya kaha)\s*[.!?]*$/iu.test(text) && lastAssistantSpokenText) {
+                stopAssistantAudio(true);
+                loadVoiceAsync(lastAssistantSpokenText);
+                return;
+            }
+            if (!alreadyRenderedUserMessage) {
+                resetResponseReminders();
+                stopAssistantAudio(true);
+                rememberUserLanguage(text);
+                lastUserMessage = text;
+                appendMessage('user', escapeHtml(text));
+            }
+
+            const intent = text.toLowerCase();
+            const directCustomerCareCallRequest = isExplicitCustomerCareCallRequest(text)
+                || isStandaloneCustomerCareCallRequest(text);
+            // Starting a fresh order is a safe local decision. Do this before
+            // the onboarding request so a slow/failed request can never put a
+            // recognised phrase such as "main new order karunga" back into the
+            // previous/new clarification loop.
+            if (!sendOptions.skipOrderChoice && (onboardingStage === 'choose_order' || onboardingStage === 'resolving_order') && isNewOrderIntent(intent)) {
+                input.value = '';
+                beginNewOrder();
+                return;
+            }
+            if (!sendOptions.skipOrderChoice
+                && (onboardingStage === 'choose_order' || onboardingStage === 'resolving_order')
+                && directCustomerCareCallRequest) {
+                // Do not put a direct call behind the onboarding classifier:
+                // mobile browsers allow the tel: launch only in the original
+                // tap/Enter event.
+                onboardingIntentRequestVersion++;
+                onboardingStage = null;
+            }
+            if (!sendOptions.skipOrderChoice && onboardingStage === 'choose_order') {
+                input.value = '';
+                onboardingStage = 'resolving_order';
+                const requestVersion = ++onboardingIntentRequestVersion;
+                setMicStatus('Processing…', 'processing');
+                fetch(onboardingIntentUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                    body: JSON.stringify({message: text})
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('Could not understand order choice');
+                    return response.json();
+                }).then(function (data) {
+                    if (requestVersion !== onboardingIntentRequestVersion) return;
+                    if (data.choice === 'previous') {
+                        onboardingStage = null;
+                        showPreviousOrders();
+                        return;
+                    }
+                    if (data.choice === 'new') {
+                        beginNewOrder();
+                        return;
+                    }
+                    if (data.choice === 'handled') {
+                        renderOnboardingHandledReply(data);
+                        return;
+                    }
+                    if (data.choice === 'forward_to_chat' || data.forward_to_chat) {
+                        forwardOnboardingMessageToChat(text, selectedProductId, sendOptions);
+                        return;
+                    }
+                    onboardingStage = 'choose_order';
+                    const clarifyReply = String(data.fallback_reply || 'Aap Zonik ke product, order, delivery, payment ya customer care ke baare mein pooch sakte hain. Naya ya previous order shuru karna ho to woh bhi bol dijiye.');
+                    appendMessage('assistant', escapeHtml(clarifyReply));
+                    loadVoiceAsync(clarifyReply);
+                }).catch(function () {
+                    if (requestVersion !== onboardingIntentRequestVersion) return;
+                    // Keep the known local intent usable even if the request
+                    // failed after the user spoke it.
+                    if (isNewOrderIntent(intent)) {
+                        beginNewOrder();
+                        return;
+                    }
+                    // An onboarding classifier failure must never swallow a
+                    // real support question, a customer-care request, or a
+                    // product command. The regular assistant has the full
+                    // conversation and is the safe fallback.
+                    forwardOnboardingMessageToChat(text, selectedProductId, sendOptions);
+                });
+                return;
+            }
+            if (!sendOptions.skipOrderChoice && onboardingStage === 'resolving_order') {
+                // A newer sentence should win over an old, slow onboarding
+                // classifier response. Route it to the normal assistant
+                // instead of silently dropping it.
+                onboardingIntentRequestVersion++;
+                onboardingStage = null;
+            }
+
+            if (awaitingNewOrderReady) {
+                input.value = '';
+                awaitingNewOrderReady = false;
+                onboardingStage = 'resolving_ready';
+                const requestVersion = ++onboardingIntentRequestVersion;
+                setMicStatus('Processing…', 'processing');
+                fetch(onboardingIntentUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                    body: JSON.stringify({message: text, stage: 'readiness'})
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('Could not understand readiness');
+                    return response.json();
+                }).then(function (data) {
+                    if (requestVersion !== onboardingIntentRequestVersion) return;
+                    onboardingStage = null;
+                    if (data.choice === 'handled') {
+                        renderOnboardingHandledReply(data);
+                        return;
+                    }
+                    if (data.choice === 'forward_to_chat' || data.forward_to_chat) {
+                        forwardOnboardingMessageToChat(text, selectedProductId, sendOptions);
+                        return;
+                    }
+                    let readyReply = '';
+                    if (data.choice === 'yes') {
+                        readyReply = 'Okay, ab product ka naam aur quantity saath mein bataiye.';
+                    } else if (data.choice === 'no') {
+                        readyReply = 'Theek hai, jab ready hon tab new order bol dijiye.';
+                    } else {
+                        awaitingNewOrderReady = true;
+                        readyReply = 'Main samajh nahi paayi; please ek baar phir bataiye.';
+                    }
+                    appendMessage('assistant', escapeHtml(readyReply));
+                    loadVoiceAsync(readyReply);
+                }).catch(function () {
+                    if (requestVersion !== onboardingIntentRequestVersion) return;
+                    onboardingStage = null;
+                    // A readiness-check outage must not turn an ordinary
+                    // Zonik question into a dead end.
+                    forwardOnboardingMessageToChat(text, selectedProductId, sendOptions);
+                });
+                return;
+            }
+            if (!sendOptions.skipOrderChoice && onboardingStage === 'resolving_ready') {
+                // Do not drop a newer request while a readiness reply is
+                // still being classified; the newest message owns the chat.
+                onboardingIntentRequestVersion++;
+                onboardingStage = null;
+                awaitingNewOrderReady = false;
+            }
+            if (previousOrdersVisible && !isNewOrderIntent(intent) && /(?:\b(?:same|yahi|yehi|confirm|direct|first|second|third|pehla|dusra|doosra|teesra|last)\b|\border\b|\u0915\u0902\u092b\u0930\u094d\u092e|\u0911\u0930\u094d\u0921\u0930|\u092a\u0939\u0932|\u0926\u0942\u0938\u0930|\u0924\u0940\u0938\u0930|\u0906\u0916\u093f\u0930)/i.test(intent)) {
+                input.value = '';
+                const cards = Array.from(chat.querySelectorAll('[data-reorder-card]'));
+                let selectedCard = null;
+                if (/(?:\b(?:first|1st|pehla|pehli)\b|\u092a\u0939\u0932)/i.test(intent)) selectedCard = cards[0] || null;
+                else if (/(?:\b(?:second|2nd|dusra|doosra|dusri|doosri)\b|\u0926\u0942\u0938\u0930)/i.test(intent)) selectedCard = cards[1] || null;
+                else if (/(?:\b(?:third|3rd|teesra|tisra|last|aakhri)\b|\u0924\u0940\u0938\u0930|\u0906\u0916\u093f\u0930)/i.test(intent)) selectedCard = cards[2] || cards[cards.length - 1] || null;
+                if (!selectedCard) {
+                    const namedCards = cards.filter(function (card) {
+                        const orderNumber = String(card.querySelector('.ai-reorder-head strong')?.textContent || '').toLowerCase();
+                        return orderNumber && intent.includes(orderNumber);
+                    });
+                    if (namedCards.length === 1) selectedCard = namedCards[0];
+                }
+                if (selectedCard) {
+                    selectedCard.querySelector('[data-reorder-order]')?.click();
+                } else {
+                    const chooseReply = 'Kaunsa previous order chahiye? First, second, third, ya order number boliye.';
+                    appendMessage('assistant', escapeHtml(chooseReply));
+                    loadVoiceAsync(chooseReply);
+                }
+                return;
+            }
+            if (!activeOrderingStage && /\b(previous|last|old|repeat|reorder|purana|pichla|pehle wala)\s*(?:order)?\b/i.test(intent)) {
+                input.value = '';
+                showPreviousOrders();
+                return;
+            }
+            if ((!activeOrderingStage || activeOrderingStage === 'anything_else') && isNewOrderIntent(intent)) {
+                input.value = '';
+                beginNewOrder();
+                return;
+            }
+            if (false && !activeOrderingStage && /\b(checkout|place order)\b/.test(intent)) {
+                input.value = '';
+                appendMessage('assistant', 'Order complete karne ke liye pehle delivery location aur slot confirm kijiye. Main yahin se payment aur order placement complete karungi.');
+                return;
+            }
+            if (false && !activeOrderingStage && /\b(delivery|slot)\b/.test(intent)) {
+                input.value = '';
+                appendMessage('assistant', 'Choose a delivery slot:<div class="ai-product-actions"><button class="ai-product-btn primary">Morning (8 AM–12 PM)</button><button class="ai-product-btn primary">Afternoon (12 PM–4 PM)</button><button class="ai-product-btn primary">Evening (4 PM–8 PM)</button></div>');
+                return;
+            }
+            if (false && !activeOrderingStage && /\b(payment|prepaid|cod|net 30)\b/.test(intent)) {
+                input.value = '';
+                const paymentReply = 'Checkout par Pay Online, Cash on Delivery, ya eligible ho to Pay on Credit choose kijiye.';
+                appendMessage('assistant', escapeHtml(paymentReply));
+                loadVoiceAsync(paymentReply);
+                return;
+            }
+            const typing = appendTyping();
+            input.value = '';
+            const requestStage = activeOrderingStage;
+            const customerCareConsent = (requestStage === 'customer_care_offer' && isCustomerCareAffirmative(text))
+                || directCustomerCareCallRequest;
+            const customerCareDialerUrl = customerCareConsent
+                ? (customerCareDialUrlFrom(sendOptions.customerCareDialUrl) || customerCareDialUrl)
+                : '';
+
+            // Start the state/history request before handing control to the
+            // dialer. On a real tap or Enter press, launch it in this same
+            // synchronous event so mobile browser popup rules cannot force a
+            // second tap on the phone number.
+            const chatRequest = fetch(chatUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    message: text,
+                    conversation_id: conversationId,
+                    selected_product_id: selectedProductId || activeOrderingProductId || null,
+                    workflow_stage: activeOrderingStage || null,
+                    clarification_options: activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
+                    delivery_details: selectedDeliveryDetails || null
+                })
+            });
+            if (customerCareConsent) {
+                openCustomerCareDialer(
+                    customerCareDialerUrl,
+                    requestStage === 'customer_care_offer' ? 'customer-care-consent' : 'customer-care-direct-request',
+                    Boolean(sendOptions.customerCareUserGesture || navigator.userActivation?.isActive)
+                );
+            }
+            chatRequest
+            .then(function (response) {
+                if (!response.ok) {
+                    return response.json().catch(function () { return {}; }).then(function (error) {
+                        throw new Error(error.message || 'Assistant request failed');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                aiDebug('Chat API response', {
+                    reply: data.reply,
+                    intent: data.intent,
+                    workflow: data.workflow,
+                    products: (data.products || []).map(function (product) {
+                        return {id: product.id, name: product.name, requestedQuantity: product.requested_quantity};
+                    }),
+                    autoAdded: data.auto_added
+                });
+                removeTyping(typing);
+                const reply = data.reply || 'I can help with that.';
+                const order = getOrderDetails(text);
+                const products = data.products || [];
+                const aiIntent = data.intent || {};
+                applyDetectedLanguage(aiIntent.language, text);
+                const quantity = aiIntent.quantity || order.quantity;
+                const unit = aiIntent.unit || order.unit;
+                const workflow = data.workflow || {};
+                // Only the latest checkout payload is valid. This is also
+                // required when the user changes payment method while already
+                // on the Place Order step; an older button contains the old
+                // payment method in its data attribute.
+                document.querySelectorAll('[data-place-ai-order]').forEach(function (button) {
+                    button.closest('.ai-message-row')?.remove();
+                });
+                if (requestStage === 'delivery_details' && workflow.stage === 'payment_method') {
+                    selectedDeliveryDetails = text;
+                }
+                if (workflow.stage === 'payment_method' && workflow.delivery_details) {
+                    selectedDeliveryDetails = String(workflow.delivery_details);
+                }
+                // A completed delivery choice must retire the old location /
+                // slot controls. Keeping those controls active lets a second
+                // tap submit an outdated choice against the next workflow
+                // state and makes the assistant appear to repeat itself.
+                if (requestStage === 'delivery_details' && workflow.stage !== 'delivery_details') {
+                    clearAssistantDeliveryOptions();
+                }
+                liveOrderEditable = workflow.stage === 'confirm_order';
+                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer'].includes(workflow.stage)
+                    ? workflow.stage
+                    : null;
+                aiDebug('Workflow state updated', {previousStage: requestStage, currentStage: activeOrderingStage, workflow: workflow});
+                if (workflow.stage === 'confirm_product' && products.length === 1) {
+                    activeOrderingProductId = Number(products[0].id) || null;
+                } else if (!activeOrderingStage || ['anything_else', 'delivery_details', 'payment_method'].includes(workflow.stage)) {
+                    activeOrderingProductId = null;
+                }
+                if (workflow.stage === 'clarify_product') {
+                    activeClarificationOptions = products.map(function (product) {
+                        return {
+                            id: Number(product.id),
+                            requested_quantity: Number(product.requested_quantity) || 0,
+                            requested_unit: String(product.requested_unit || '')
+                        };
+                    }).filter(function (product) { return product.id > 0; });
+                } else if (workflow.stage !== 'clarify_product') {
+                    activeClarificationOptions = [];
+                }
+                if (aiIntent.intent === 'cart') {
+                    removeTyping(typing);
+                    showCart();
+                    return;
+                }
+                appendMessage('assistant', escapeHtml(reply));
+                if (data.auto_added || ['added', 'cart_updated'].includes(workflow.stage)) cartShortcut.hidden = false;
+                if (workflow.show_cart) window.setTimeout(renderLiveOrderList, 100);
+                if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
+                if (data.auto_added && workflow.stage === 'anything_else') {
+                    clarificationMessage?.remove();
+                    clarificationMessage = null;
+                    renderLiveOrderList();
+                    loadVoiceAsync(reply);
+                    return;
+                }
+                if (products.length) {
+                    let html = '';
+                    if (workflow.stage === 'order_suggestions') {
+                        html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 3).map(suggestionCard).join('') + '</div>'
+                            + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
+                    } else if (!['added', 'cart_updated', 'cart_removed', 'await_quantity'].includes(workflow.stage)) products.forEach(function (product) {
+                        const productQuantity = Number(product.requested_quantity || quantity || 1);
+                        const label = workflow.stage === 'choose_cart_item' ? ('Set ' + productQuantity) : (workflow.stage === 'choose_cart_remove' ? 'Remove' : 'Add to Cart');
+                        const needsSpokenQuantity = ['choose_product', 'choose_brand', 'confirm_product'].includes(workflow.stage) && !Number(product.requested_quantity);
+                        let card = productCard(product, productQuantity, product.requested_unit || unit, label, needsSpokenQuantity, workflow.stage);
+                        if (workflow.stage === 'choose_cart_remove') {
+                            card = card.replace('data-add-product="' + product.id + '"', 'data-remove-product="' + escapeHtml(product.name) + '"');
+                        }
+                        html += card;
+                    });
+                    if (html.trim()) {
+                        const renderedMessage = appendMessage('assistant', html);
+                        if (workflow.stage === 'order_suggestions') renderedMessage.classList.add('ai-suggestion-message');
+                        if (workflow.stage === 'clarify_product') clarificationMessage = renderedMessage;
+                    }
+                }
+                if (workflow.stage === 'delivery_details') {
+                    renderAssistantDeliveryOptions(workflow);
+                    if (data.voice_base64) playVoice(data.voice_base64, data.voice_mime, scheduleResponseReminder);
+                    else loadVoiceAsync(reply, scheduleResponseReminder);
+                    return;
+                }
+                if (workflow.stage === 'payment_method') {
+                    let paymentHtml = '';
+                    Object.keys(workflow.payment_options || {}).forEach(function (method) {
+                        paymentHtml += '<button type="button" class="ai-product-btn primary" data-payment-option="' + escapeHtml(method) + '">' + escapeHtml(workflow.payment_options[method]) + '</button>';
+                    });
+                    if (paymentHtml) appendMessage('assistant', '<div class="ai-product-actions">' + paymentHtml + '</div>');
+                }
+                if (workflow.stage === 'customer_care_offer') {
+                    const dialUrl = rememberCustomerCareDialer(workflow);
+                    const dialUrlAttribute = dialUrl ? ' data-customer-care-dial-url="' + escapeHtml(dialUrl) + '"' : '';
+                    appendMessage('assistant', '<div class="ai-product-actions"><button type="button" class="ai-product-btn primary" data-customer-care-call="yes"' + dialUrlAttribute + '>Call Customer Care</button><button type="button" class="ai-product-btn" data-customer-care-call="no">Continue Here</button></div>');
+                }
+                if (workflow.stage === 'call_customer_care') {
+                    const dialUrl = rememberCustomerCareDialer(workflow);
+                    if (dialUrl) {
+                        // Keep a normal tel link only as an accessibility
+                        // fallback. The dialer itself is launched immediately.
+                        appendMessage('assistant', '<div class="ai-product-actions"><a class="ai-product-btn primary" href="' + escapeHtml(dialUrl) + '">Opening Customer Care call…</a></div>');
+                        openCustomerCareDialer(dialUrl, 'customer-care-workflow-response', false);
+                    }
+                    activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready'].includes(workflow.resume_stage)
+                        ? workflow.resume_stage
+                        : 'anything_else';
+                }
+                if (data.voice_base64) {
+                    playVoice(data.voice_base64, data.voice_mime, scheduleResponseReminder);
+                } else {
+                    loadVoiceAsync(reply, scheduleResponseReminder);
+                }
+                if (workflow.stage === 'checkout_ready') {
+                    const checkoutData = encodeURIComponent(JSON.stringify({payment_method: workflow.payment_method, delivery_details: workflow.delivery_details || ''}));
+                    appendMessage('assistant', '<div class="ai-cart-actions"><button type="button" class="ai-cart-btn primary" data-place-ai-order="' + checkoutData + '">Place Order</button></div>');
+                }
+            })
+            .catch((error) => {
+                aiDebug('Chat API failed', {message: String(error), text: text, stage: requestStage});
+                removeTyping(typing);
+                const failureReply = 'Sorry, abhi reply connect nahi hua. Ek baar phir boliye; main sun rahi hoon.';
+                appendMessage('assistant', escapeHtml(failureReply));
+                // Keep hands-free mode alive after a failed network request.
+                // Previously this branch produced no audio, so the normal
+                // speech-ended hook never restarted recognition.
+                loadVoiceAsync(failureReply, function () {
+                    if (continuousTalkMode) resumeListeningAfterReply();
+                });
+            });
+        }
+
+        function renderAssistantDeliveryOptions(workflow) {
+            // There is only one active delivery-choice screen. Replace an
+            // older copy rather than leaving stale location/slot buttons in
+            // the chat for the customer to tap again.
+            clearAssistantDeliveryOptions();
+            let html = '';
+            const locations = Array.isArray(workflow.locations) ? workflow.locations : Object.values(workflow.locations || {});
+            const slots = Array.isArray(workflow.slots) ? workflow.slots : Object.values(workflow.slots || {});
+            const selectedLocation = workflow.selected_location || null;
+
+            locations.forEach(function (location) {
+                const isSelected = selectedLocation && Number(selectedLocation.outlet_id) === Number(location.outlet_id);
+                const command = location.outlet_name || location.label || '';
+                html += '<button type="button" class="ai-product-btn ' + (isSelected ? 'primary' : '') + '" data-delivery-option="' + escapeHtml(command) + '">&#128205; ' + escapeHtml(location.label || command) + '</button>';
+            });
+            slots.forEach(function (slot) {
+                const locationLabel = selectedLocation ? String(selectedLocation.label || '') : '';
+                const command = (locationLabel ? locationLabel + ', ' : '') + String(slot.label || '');
+                html += '<button type="button" class="ai-product-btn primary" data-delivery-option="' + escapeHtml(command) + '">&#128336; ' + escapeHtml(slot.label || '') + '</button>';
+            });
+
+            if (!html) html = '<div class="ai-product-meta"><strong>Delivery options load nahi hue. Please location ka naam boliye ya dobara confirm kijiye.</strong></div>';
+            appendMessage('assistant', '<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
+        }
+
+        function clearAssistantDeliveryOptions() {
+            // Invalidate the retry timer created by an earlier click before
+            // replacing this screen with fresh server-verified choices.
+            deliveryOptionRequestVersion++;
+            chat?.querySelectorAll('[data-assistant-delivery-options]').forEach(function (options) {
+                const message = options.closest('.ai-message-row');
+                if (message) message.remove();
+                else options.remove();
+            });
+        }
+
+        function showPreviousOrders() {
+            const typing = appendTyping();
+            fetch(previousOrdersUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}}).then(function (response) {
+                if (!response.ok) throw new Error('Previous orders failed');
+                return response.json();
+            }).then(function (data) {
+                removeTyping(typing);
+                const orders = data.orders || [];
+                if (!orders.length) {
+                    const emptyReply = conversationReplyLanguage === 'english' ? 'I could not find a previous order. Shall we start a new one?' : 'Aapka koi previous order nahi mila. Naya order shuru karein?';
+                    appendMessage('assistant', emptyReply); loadVoiceAsync(emptyReply); return;
+                }
+                previousOrdersVisible = true;
+                let html = '<strong>Aapke previous orders:</strong><div class="ai-cart-summary">';
+                orders.forEach(function (order) {
+                    html += '<div class="ai-cart-bill ai-reorder-card" data-reorder-card="' + order.id + '"><div class="ai-reorder-head"><strong>' + escapeHtml(order.order_no) + '</strong><span>' + escapeHtml(order.date) + '</span></div><div class="ai-reorder-table-wrap"><table class="ai-reorder-table"><thead><tr><th style="width:42%">Product</th><th>Price</th><th>Quantity</th><th>Amount</th></tr></thead><tbody>';
+                    order.items.forEach(function (item) {
+                        const image = item.image ? '<img class="ai-reorder-image" src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '">' : '<span class="ai-reorder-image"></span>';
+                        html += '<tr data-reorder-item data-product-id="' + item.product_id + '" data-price="' + Number(item.price || 0) + '"><td><div class="ai-reorder-product">' + image + '<span class="ai-reorder-name">' + escapeHtml(item.name) + '<small class="ai-product-meta">' + escapeHtml(item.unit || 'unit') + '</small></span></div></td><td>' + money(item.price) + '</td><td><span class="ai-qty-control"><button type="button" class="ai-qty-btn" data-reorder-qty="-1">−</button><span class="ai-qty-value">' + item.quantity + '</span><button type="button" class="ai-qty-btn" data-reorder-qty="1">+</button></span></td><td><strong data-line-total>' + money(item.line_total) + '</strong></td></tr>';
+                    });
+                    html += '</tbody></table></div><div class="ai-reorder-total"><span>Order Total</span><strong data-reorder-total>' + money(order.items.reduce(function (sum, item) { return sum + Number(item.line_total || 0); }, 0)) + '</strong></div><div class="ai-product-actions"><button type="button" class="ai-product-btn primary" data-reorder-order="' + order.id + '">Order Same / Updated Qty</button></div></div>';
+                });
+                html += '</div>';
+                appendMessage('assistant', html);
+                const listReply = conversationReplyLanguage === 'english'
+                    ? 'Here are your previous orders. You can adjust the quantities, or confirm the same order.'
+                    : (conversationReplyLanguage === 'marathi' ? 'हे तुमचे मागील ऑर्डर आहेत. प्रमाण कमी-जास्त करा किंवा हाच ऑर्डर निश्चित करा.' : 'Ye aapke previous orders hain. Quantity kam ya zyada kar sakte hain, ya same order confirm kar dijiye.');
+                loadVoiceAsync(listReply);
+            }).catch(function () { removeTyping(typing); appendMessage('assistant', 'Previous orders abhi load nahi ho paaye. Dobara try karein.'); });
+        }
+
+        function placeOrderInsideAssistant(encoded) {
+            if (assistantOrderSubmitting || assistantOrderCompleted) return;
+            assistantOrderSubmitting = true;
+            document.querySelectorAll('[data-place-ai-order]').forEach(function (button) { button.disabled = true; });
+            let selection = {};
+            try { selection = JSON.parse(decodeURIComponent(encoded)); } catch (error) {}
+            appendTyping();
+            fetch(assistantCheckoutDataUrl, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({delivery_details: selection.delivery_details || ''})})
+                .then(function (response) { if (!response.ok) return response.json().then(function (data) { throw new Error(data.message || 'Checkout data unavailable'); }); return response.json(); })
+                .then(function (data) {
+                    const payload = data.payload;
+                    const method = String(selection.payment_method || '').toLowerCase();
+                    if (method.includes('online') || method.includes('upi') || method.includes('card') || method.includes('wallet')) {
+                        payload.payment_status = 'paid';
+                        return fetch('/create-order', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || ''}, body: JSON.stringify(payload)})
+                            .then(function (response) { return response.json(); }).then(function (razorpayOrder) {
+                                if (razorpayOrder.error) throw new Error(razorpayOrder.error);
+                                new Razorpay({key: razorpayOrder.razorpay_key || '{{ env('RAZORPAY_KEY') }}', amount: razorpayOrder.amount, currency: 'INR', name: 'Zonik', description: 'Order payment', order_id: razorpayOrder.order_id,
+                                    handler: function (payment) {
+                                        fetch('{{ route('razorpay.payment.success') }}', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify(payment)})
+                                            .then(function (response) { if (!response.ok) throw new Error('Payment verification failed'); return response.json(); })
+                                            .then(showAssistantOrderSuccess).catch(function () { appendMessage('assistant', 'Payment verify nahi ho paya. Support se contact karein.'); });
+                                    }}).open();
+                            });
+                    }
+                    payload.payment_status = method.includes('credit') ? 'credit' : 'pay_on_delivery';
+                    const body = new URLSearchParams();
+                    payload.assistant_order_token = conversationId;
+                    Object.keys(payload).forEach(function (key) { if (key === 'cart') payload.cart.forEach(function (item, index) { Object.keys(item).forEach(function (field) { body.append('cart[' + index + '][' + field + ']', item[field] ?? ''); }); }); else body.append(key, payload[key] ?? ''); });
+                    return fetch('/insert-order', {method: 'POST', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: body}).then(function (response) { if (!response.ok) throw new Error('Order failed'); return response.json(); }).then(showAssistantOrderSuccess);
+                }).catch(function (error) { assistantOrderSubmitting = false; document.querySelectorAll('[data-place-ai-order]').forEach(function (button) { button.disabled = false; }); chat.querySelector('.ai-message.ai-typing')?.remove(); appendMessage('assistant', escapeHtml(error.message || 'Order place nahi ho paya.')); });
+        }
+
+        function showAssistantOrderSuccess(data) {
+            assistantOrderSubmitting = false;
+            assistantOrderCompleted = true;
+            document.querySelectorAll('[data-place-ai-order]').forEach(function (button) { button.disabled = true; button.remove(); });
+            chat.querySelector('.ai-message.ai-typing')?.remove();
+            cartShortcut.hidden = true;
+            data = data || {};
+            const orderNumber = data.order_id || '';
+            const trackingCode = data.tracking_code || '';
+            const trackerUrl = @json(route('web.order.tracker'));
+            const customerCarePhone = '+918850268043';
+            const message = 'Thank you. Aapka order successfully place ho gaya. Ab tracker page par order status dekh sakte hain; query ke liye customer care call kijiye.';
+            const tracking = (orderNumber ? '<div class="ai-product-meta"><strong>Order Number: ' + escapeHtml(orderNumber) + '</strong></div>' : '')
+                + (trackingCode ? '<div class="ai-product-meta">Tracking Code: ' + escapeHtml(trackingCode) + '</div>' : '');
+            appendMessage('assistant', '<strong>✓ Order Placed! Thank you.</strong>' + tracking + '<div class="ai-cart-actions"><a class="ai-cart-btn primary" href="' + escapeHtml(trackerUrl) + '">Track Order</a><a class="ai-cart-btn" href="tel:' + customerCarePhone + '">Customer Care</a></div>');
+            let redirected = false;
+            const openTracker = function () {
+                if (redirected) return;
+                redirected = true;
+                window.location.assign(trackerUrl);
+            };
+            loadVoiceAsync(message, openTracker);
+            window.setTimeout(openTracker, 9000);
+        }
+
+        sendBtn?.addEventListener('click', function () {
+            sendMessage(input.value);
+        });
+
+        input?.addEventListener('keydown', function (event) {
+            cancelResponseReminder();
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage(input.value);
+            }
+        });
+
+        function startBrowserSpeechRecognition(fromContinuousMode) {
+            const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!Recognition) return false;
+            if (speechRecognition || speechRecognitionStartPending) return true;
+            if (!fromContinuousMode) continuousTalkMode = true;
+            if (activeAssistantAudio || assistantAudioQueue.length || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 1000) {
+                const retryDelay = Math.max(250, 1050 - (Date.now() - assistantSpeechEndedAt));
+                scheduleSpeechRecognitionRestart(retryDelay);
+                return true;
+            }
+            cancelSpeechRecognitionRestart();
+            const recognition = new Recognition();
+            speechRecognition = recognition;
+            recognition.lang = conversationLanguage;
+            recognition.interimResults = false;
+            recognition.continuous = false;
+            recognition.maxAlternatives = 3;
+            let receivedSpeech = false;
+            let speechStartedAt = 0;
+            recognition.onspeechstart = function () { speechStartedAt = Date.now(); };
+            recognition.onstart = function () {
+                micBtn.classList.add('listening');
+                setMicStatus('Listening…', 'listening');
+                scheduleResponseReminder();
+            };
+            recognition.addEventListener('start', cancelResponseReminder, {once: true});
+            recognition.onresult = function (event) {
+                if (activeAssistantAudio || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 900) return;
+                const alternatives = Array.from(event.results[event.resultIndex]);
+                const ranked = alternatives.map(function (alternative) {
+                    const normalized = normalizeSpokenQuantity(alternative.transcript);
+                    let score = (alternative.confidence || 0) * 10;
+                    if (/\d+/.test(normalized)) score += 20;
+                    if (/\b(box(?:es)?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\b/i.test(normalized)) score += 10;
+                    if (/\bzonik\b/i.test(normalized)) score += 25;
+                    return {text: normalized, score: score, confidence: Number(alternative.confidence || 0)};
+                }).sort(function (a, b) { return b.score - a.score; });
+                const bestMatch = ranked[0];
+                const transcript = bestMatch?.text;
+                const speechDuration = speechStartedAt ? Date.now() - speechStartedAt : 0;
+                aiDebug('Voice recognition result', {alternatives: ranked, selectedTranscript: transcript, speechDuration: speechDuration});
+                if (transcript) {
+                    if (isLikelyBackgroundSpeech(transcript, bestMatch.confidence, speechDuration, !!fromContinuousMode)) {
+                        aiDebug('Ignored probable background speech', {transcript: transcript, confidence: bestMatch.confidence, speechDuration: speechDuration});
+                        setMicStatus('Listening…', 'listening');
+                        return;
+                    }
+                    receivedSpeech = true;
+                    if ((bestMatch.confidence > 0 && bestMatch.confidence < 0.08) || transcript.length < 2) {
+                        const retryReply = 'Sorry, kya aap ek baar phir clearly bol sakte hain?';
+                        appendMessage('assistant', escapeHtml(retryReply));
+                        loadVoiceAsync(retryReply);
+                        return;
+                    }
+                    setMicStatus('Processing…', 'processing');
+                    sendMessage(transcript);
+                }
+            };
+            recognition.onerror = function (event) {
+                if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
+                    continuousTalkMode = false;
+                    cancelSpeechRecognitionRestart();
+                    setMicStatus('Tap mic to allow', 'idle');
+                } else if (['audio-capture'].includes(event.error)) {
+                    continuousTalkMode = false;
+                    cancelSpeechRecognitionRestart();
+                    setMicStatus('Mic unavailable', 'idle');
+                } else if (event.error !== 'aborted') {
+                    setMicStatus(event.error === 'no-speech' ? 'Listening…' : 'Try again', event.error === 'no-speech' ? 'listening' : 'idle');
+                }
+            };
+            recognition.onend = function () {
+                speechRecognition = null;
+                if (continuousTalkMode && !receivedSpeech) {
+                    // Chrome ends a recognition session after silence. Keep
+                    // the UI and continuous mode active while one controlled
+                    // restart bridges that browser-imposed boundary.
+                    scheduleSpeechRecognitionRestart(250);
+                } else if (continuousTalkMode && receivedSpeech) {
+                    micBtn.classList.remove('listening');
+                    setMicStatus('Processing…', 'processing');
+                } else if (!receivedSpeech) {
+                    micBtn.classList.remove('listening');
+                    setMicStatus('Mic ready', 'idle');
+                }
+            };
+            try {
+                recognition.start();
+                return true;
+            } catch (error) {
+                speechRecognition = null;
+                cancelSpeechRecognitionRestart();
+                micBtn.classList.remove('listening');
+                setMicStatus('Tap mic', 'idle');
+                aiDebug('Voice recognition could not start', {error: String(error)});
+                return false;
+            }
+        }
+
+        function isLikelyBackgroundSpeech(transcript, confidence, speechDuration, fromContinuousMode) {
+            const text = String(transcript || '').trim().toLowerCase();
+            if (!text || text.length < 2) return true;
+
+            // Web Speech confidence is inconsistent on mobile: Chrome often
+            // returns 0 for a perfectly valid phrase. Product-only answers
+            // such as "Basmati rice" also contain no command keyword. Trust
+            // every real transcript and reject only an explicitly reported,
+            // extremely-low-confidence fragment. Echo is already blocked by
+            // the assistant-audio and post-speech guards in onresult.
+            return confidence > 0 && confidence < 0.08;
+        }
+
+        function browserSpeechFallback() {
+            if (!startBrowserSpeechRecognition()) {
+                appendMessage('assistant', 'Voice input is not supported here. Please use HTTPS or type your order.');
+            }
+        }
+
+        function uploadRecordedAudio(blob) {
+            const form = new FormData();
+            form.append('audio', blob, 'voice-order.webm');
+            const typing = appendTyping();
+            fetch(transcribeUrl, {method: 'POST', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: form})
+                .then(function (response) { if (!response.ok) throw new Error('Transcription failed'); return response.json(); })
+                .then(function (data) {
+                    removeTyping(typing);
+                    if (!data.transcript) throw new Error('Empty transcript');
+                    applyDetectedLanguage(data.language, data.transcript);
+                    sendMessage(data.transcript);
+                })
+                .catch(function () {
+                    removeTyping(typing);
+                    const retryReply = 'Sorry, kya aap ek baar phir clearly bol sakte hain? Aap text bhi type kar sakte hain.';
+                    appendMessage('assistant', escapeHtml(retryReply));
+                    loadVoiceAsync(retryReply);
+                });
+        }
+
+        micBtn?.addEventListener('click', async function () {
+            // Barge-in: tapping the microphone while the assistant is speaking
+            // immediately stops playback and hands control to the customer.
+            if (activeAssistantAudio || assistantAudioQueue.length || window.speechSynthesis?.speaking) {
+                stopAssistantAudio(true);
+                assistantSpeechEndedAt = 0;
+                continuousTalkMode = true;
+                window.setTimeout(function () { startBrowserSpeechRecognition(true); }, 100);
+                return;
+            }
+            if (speechRecognition || speechRecognitionStartPending) {
+                continuousTalkMode = false;
+                cancelSpeechRecognitionRestart();
+                if (speechRecognition) speechRecognition.stop();
+                setMicStatus('Mic off', 'idle');
+                return;
+            }
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                clearTimeout(recordingTimer);
+                mediaRecorder.stop();
+                return;
+            }
+            // Native recognition streams speech while the customer is talking,
+            // avoiding a full audio upload and a separate transcription request.
+            if (startBrowserSpeechRecognition()) return;
+            if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+                browserSpeechFallback();
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+                const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+                mediaRecorder = new MediaRecorder(stream, preferredMime ? {mimeType: preferredMime} : undefined);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = function (event) { if (event.data.size) audioChunks.push(event.data); };
+                mediaRecorder.onstop = function () {
+                    micBtn.classList.remove('listening');
+                    setMicStatus('Processing…', 'processing');
+                    stream.getTracks().forEach(function (track) { track.stop(); });
+                    if (audioChunks.length) uploadRecordedAudio(new Blob(audioChunks, {type: mediaRecorder.mimeType || 'audio/webm'}));
+                };
+                mediaRecorder.start();
+                micBtn.classList.add('listening');
+                setMicStatus('Listening…', 'listening');
+                recordingTimer = setTimeout(function () { if (mediaRecorder?.state === 'recording') mediaRecorder.stop(); }, 12000);
+            } catch (error) {
+                setMicStatus('Tap mic to allow', 'idle');
+            }
+        });
+
+        function showCart() {
+            const typing = appendTyping();
+            fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json())
+                .then(data => {
+                    removeTyping(typing);
+                    if (!data.items || !data.items.length) return appendMessage('assistant', 'Your order is empty. Tell me an item and quantity to begin.');
+                    let html = '<strong>Your current order</strong><div class="ai-cart-summary">';
+                    data.items.forEach(function (item) { html += '<div class="ai-cart-row"><span>' + escapeHtml(item.name) + ' × ' + escapeHtml(item.qty) + '</span><span>₹' + Number(item.total).toFixed(2) + '</span></div>'; });
+                    html += '<div class="ai-cart-row ai-cart-total"><span>Total</span><span>₹' + Number(data.total).toFixed(2) + '</span></div></div><div class="ai-cart-actions"><button type="button" class="ai-cart-btn primary" data-action="checkout">Checkout</button></div>';
+                    appendMessage('assistant', html);
+                })
+                .catch(function () { removeTyping(typing); appendMessage('assistant', 'I could not load your order. Please try again.'); });
+        }
+
+        function money(value) { return '₹' + Number(value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+        function renderLiveOrderList() {
+            aiDebug('Loading live order list', {conversationId: conversationId, stage: activeOrderingStage});
+            return fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json()).then(function (data) {
+                    aiDebug('Live order list loaded', {items: data.items, total: data.total, count: data.count});
+                    const items = data.items || [];
+                    if (!items.length) {
+                        liveOrderMessage?.remove();
+                        liveOrderMessage = null;
+                        return;
+                    }
+                    let html = '<strong>Live Order List</strong><div class="ai-cart-summary">';
+                    items.forEach(function (item) {
+                        const image = item.image
+                            ? '<img class="ai-live-order-image" src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '">'
+                            : '<div class="ai-live-order-image"></div>';
+                        const quantityDisplay = liveOrderEditable
+                            ? '<div class="ai-qty-control"><button type="button" class="ai-qty-btn" data-live-qty="-1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '">−</button><span class="ai-qty-value">' + escapeHtml(item.qty) + '</span><button type="button" class="ai-qty-btn" data-live-qty="1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '">+</button></div>'
+                            : '<div class="ai-live-order-meta">Quantity: ' + escapeHtml(item.qty) + ' ' + escapeHtml(item.unit || 'unit') + '</div>';
+                        html += '<div class="ai-live-order-item">' + image
+                            + '<div><div class="ai-live-order-name">' + escapeHtml(item.name) + '</div>' + quantityDisplay + '</div>'
+                            + '<div class="ai-live-order-price">' + money(item.total) + '</div></div>';
+                    });
+                    html += '<div class="ai-cart-row ai-cart-total"><span>Total</span><span>' + money(data.total) + '</span></div></div>';
+                    if (!liveOrderMessage || !liveOrderMessage.isConnected) {
+                        liveOrderMessage = appendMessage('assistant', html);
+                        liveOrderMessage.classList.add('ai-live-order-message');
+                    } else {
+                        liveOrderMessage.querySelector('.ai-message').innerHTML = html;
+                        chat.appendChild(liveOrderMessage);
+                    }
+                    chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
+                    fetch(assistantCartSnapshotUrl, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                        body: JSON.stringify({conversation_id: conversationId})
+                    }).catch(function () {});
+                }).catch(function () {});
+        }
+
+        function cartSuggestionChip(product) {
+            const productId = Number(product.id || 0);
+            const price = Number(product.price || 0);
+            if (!Number.isInteger(productId) || productId <= 0 || !Number.isFinite(price) || price <= 0) return '';
+            const name = String(product.name || 'Suggested product');
+            return '<button type="button" class="ai-cart-chip" data-cart-suggestion-add="true" data-add-product="' + escapeHtml(productId) + '" data-qty="1" data-price="' + escapeHtml(price) + '" data-workflow-stage="anything_else" data-suggestion-source="cart" aria-label="Add ' + escapeHtml(name) + ' to order">+ Add ' + escapeHtml(name) + '</button>';
+        }
+
+        function openCartPanel() {
+            const requestVersion = ++cartPanelRequestVersion;
+            cartPanel.classList.add('open');
+            cartPanel.setAttribute('aria-hidden', 'false');
+            cartPanelBody.innerHTML = '<div class="ai-history-empty">Loading your order…</div>';
+            fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(response => response.json()).then(function (data) {
+                    if (requestVersion !== cartPanelRequestVersion || !cartPanel.classList.contains('open')) return;
+                    const items = data.items || [];
+                    cartPanelCount.textContent = '(' + items.length + ' ' + (items.length === 1 ? 'item' : 'items') + ')';
+                    cartClear.hidden = !items.length;
+                    cartReview.disabled = !items.length;
+                    if (!items.length) {
+                        cartPanelBody.innerHTML = '<div class="ai-history-empty"><strong>Your cart is empty</strong><br>Ask the AI assistant to add a product.<br><br><button type="button" class="ai-cart-add-more" data-cart-close>＋ Add items via AI</button></div>';
+                        cartShortcut.hidden = true;
+                        return;
+                    }
+                    let html = items.map(function (item) {
+                        const image = item.image ? '<img class="ai-cart-panel-image" src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '">' : '<div class="ai-cart-panel-image"></div>';
+                        return '<div class="ai-cart-panel-item">' + image + '<div class="ai-cart-panel-info"><div class="ai-cart-panel-name">' + escapeHtml(item.name) + '</div><div class="ai-cart-panel-meta">' + escapeHtml(item.qty) + ' × ' + escapeHtml(item.unit || 'unit') + '</div><div class="ai-cart-panel-meta">' + money(item.price) + ' / ' + escapeHtml(item.unit || 'unit') + '</div><div class="ai-cart-panel-price">' + money(item.total) + '</div></div><button class="ai-cart-remove" type="button" data-remove-cart="' + escapeHtml(item.cart_id) + '" aria-label="Remove ' + escapeHtml(item.name) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg></button></div>';
+                    }).join('');
+                    html += '<button type="button" class="ai-cart-add-more" data-cart-close>＋ Add more items via AI</button>';
+                    html += '<div class="ai-cart-bill"><div class="ai-cart-bill-row"><span>Items (' + items.length + ')</span><span>' + money(data.subtotal) + '</span></div><div class="ai-cart-bill-row"><span>Estimated GST</span><span>' + money(data.gst) + '</span></div><div class="ai-cart-bill-row"><span>Delivery charges</span><span>Calculated at checkout</span></div><div class="ai-cart-bill-row total"><span>Estimated Total</span><strong>' + money(data.total) + '</strong></div></div>';
+                    // Adding a product while address, slot, or payment is
+                    // pending must not overwrite that state. Show quick-add
+                    // suggestions only in the normal shopping stage.
+                    const showQuickSuggestions = !activeOrderingStage || activeOrderingStage === 'anything_else';
+                    if (showQuickSuggestions) {
+                        html += '<div class="ai-cart-suggestions"><strong>✦ AI Smart Suggestions</strong><div class="ai-cart-chips" id="aiCartSuggestions"><span class="ai-product-meta">Loading suggestions…</span></div></div>';
+                    }
+                    cartPanelBody.innerHTML = html;
+                    if (!showQuickSuggestions) return;
+                    fetch(productsUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}}).then(response => response.json()).then(function (result) {
+                        if (requestVersion !== cartPanelRequestVersion || !cartPanel.classList.contains('open')) return;
+                        const existing = new Set(items.map(item => Number(item.product_id)));
+                        const suggestions = (result.products || []).filter(function (item) {
+                            return !existing.has(Number(item.id)) && Number(item.id) > 0 && Number(item.price) > 0;
+                        }).slice(0, 5);
+                        const area = cartPanelBody.querySelector('#aiCartSuggestions');
+                        const chips = suggestions.map(cartSuggestionChip).filter(Boolean);
+                        if (area) area.innerHTML = chips.length ? chips.join('') : '<span class="ai-product-meta">Ask AI for more products</span>';
+                    }).catch(function () {
+                        if (requestVersion !== cartPanelRequestVersion) return;
+                        const area = cartPanelBody.querySelector('#aiCartSuggestions');
+                        if (area) area.innerHTML = '<span class="ai-product-meta">Suggestions could not load right now.</span>';
+                    });
+                }).catch(function () { cartPanelBody.innerHTML = '<div class="ai-history-empty">Could not load your cart.</div>'; });
+        }
+
+        cartBack?.addEventListener('click', function () { cartPanelRequestVersion++; cartPanel.classList.remove('open'); cartPanel.setAttribute('aria-hidden', 'true'); });
+        cartReview?.addEventListener('click', function () {
+            if (cartReview.disabled) return;
+            cartPanelRequestVersion++;
+            cartPanel.classList.remove('open');
+            appendMessage('assistant', 'Order complete karne ke liye voice ya message mein boliye: bas itna hi. Phir main location, slot aur payment yahin confirm karungi.');
+            input.focus();
+        });
+        cartClear?.addEventListener('click', function () {
+            if (!window.confirm('Remove all items from this order?')) return;
+            fetch(assistantCartBaseUrl, {method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}}).then(openCartPanel);
+        });
+        cartPanelBody?.addEventListener('click', function (event) {
+            const remove = event.target.closest('[data-remove-cart]');
+            if (remove) {
+                remove.disabled = true;
+                fetch(assistantCartBaseUrl + '/' + encodeURIComponent(remove.dataset.removeCart), {method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}}).then(openCartPanel);
+                return;
+            }
+            const suggestion = event.target.closest('[data-cart-suggestion-add]');
+            if (suggestion) {
+                addAssistantProductCard(suggestion);
+                return;
+            }
+            if (event.target.closest('[data-cart-close]')) {
+                cartPanelRequestVersion++;
+                cartPanel.classList.remove('open');
+                input.focus();
+            }
+        });
+
+        function showReorderDelivery(workflow) {
+            if (!workflow || workflow.stage !== 'delivery_details') {
+                aiDebug('Reorder delivery workflow missing', {workflow: workflow});
+                return;
+            }
+            activeOrderingStage = 'delivery_details';
+            previousOrdersVisible = false;
+            cartShortcut.hidden = false;
+            selectedDeliveryDetails = '';
+            activeOrderingProductId = null;
+            activeClarificationOptions = [];
+            renderLiveOrderList();
+            const reply = workflow.reply || 'Saved address aur delivery slot confirm kijiye.';
+            appendMessage('assistant', escapeHtml(reply));
+            renderAssistantDeliveryOptions(workflow);
+            loadVoiceAsync(reply);
+            aiDebug('Reorder delivery shown', {locations: workflow.locations || [], slots: workflow.slots || []});
+        }
+
+        function assistantJsonResponse(response, fallbackMessage) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+                data = data && typeof data === 'object' ? data : {};
+                if (!response.ok) throw new Error(data.message || fallbackMessage);
+                return data;
+            });
+        }
+
+        // Product cards carry their own originating stage.  Using only the
+        // mutable global stage made a delayed tap on a recommendation look
+        // like a normal product add, so the server never advanced from the
+        // suggestion/review flow.
+        function addAssistantProductCard(button) {
+            const productId = Number(button.dataset.addProduct || 0);
+            const quantity = Math.max(1, Math.round(Number(button.dataset.qty) || 1));
+            const price = Number(button.dataset.price || 0);
+            const selectionStage = String(button.dataset.workflowStage || activeOrderingStage || '');
+            const isOrderSuggestion = button.dataset.suggestionSource === 'order' || selectionStage === 'order_suggestions';
+            const keepCartOpen = button.dataset.suggestionSource === 'cart';
+            const sourceMessage = keepCartOpen ? null : button.closest('.ai-message-row');
+            const compactCard = button.classList.contains('ai-suggestion-card');
+            const originalLabel = button.textContent;
+            let cartAdded = false;
+
+            if (!Number.isInteger(productId) || productId <= 0) {
+                appendMessage('assistant', '<strong>This suggested product is unavailable. Please choose another item.</strong>');
+                return;
+            }
+            if (button.disabled || button.dataset.addPending === 'true') return;
+
+            aiDebug('Product card action', {productId: productId, quantity: quantity, stage: selectionStage, suggestion: button.dataset.suggestionSource || null});
+            button.disabled = true;
+            button.dataset.addPending = 'true';
+            button.setAttribute('aria-busy', 'true');
+            if (!compactCard) button.textContent = 'Adding…';
+
+            fetch(addUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({product_id: productId, quantity: quantity, price: Number.isFinite(price) ? price : 0})
+            })
+                .then(function (response) { return assistantJsonResponse(response, 'Could not add this item. Please try again.'); })
+                .then(function (addResult) {
+                    if (!addResult.success) throw new Error(addResult.message || 'Could not add this item. Please try again.');
+                    cartAdded = true;
+                    return fetch(selectionUrl, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                        body: JSON.stringify({conversation_id: conversationId, product_id: productId, quantity: quantity, success: true, workflow_stage: selectionStage || null})
+                    }).then(function (response) { return assistantJsonResponse(response, 'Product was added, but the order flow could not be updated.'); });
+                })
+                .then(function (selection) {
+                    const next = selection.workflow || {};
+                    const nextStage = String(next.stage || '');
+                    button.disabled = false;
+                    delete button.dataset.addPending;
+                    button.removeAttribute('aria-busy');
+                    if (!compactCard) button.textContent = originalLabel;
+
+                    cartShortcut.hidden = false;
+                    activeOrderingProductId = null;
+                    clarificationMessage = null;
+                    if (nextStage === 'delivery_details') {
+                        activeOrderingStage = 'delivery_details';
+                        liveOrderEditable = false;
+                    } else if (nextStage === 'confirm_order' || isOrderSuggestion) {
+                        activeOrderingStage = 'confirm_order';
+                        liveOrderEditable = true;
+                    } else {
+                        activeOrderingStage = 'anything_else';
+                        liveOrderEditable = false;
+                    }
+
+                    // Retire the source cards only after both cart mutation and
+                    // workflow persistence succeeded. This avoids a tap that
+                    // looks accepted but leaves the customer with no retry UI.
+                    sourceMessage?.remove();
+                    if (isOrderSuggestion) {
+                        chat?.querySelectorAll('[data-order-suggestions]').forEach(function (suggestions) {
+                            suggestions.closest('.ai-message-row')?.remove();
+                        });
+                    }
+                    renderLiveOrderList();
+
+                    if (nextStage === 'delivery_details') {
+                        const reply = next.reply || 'Saved address aur delivery slot confirm kijiye.';
+                        renderAssistantDeliveryOptions(next);
+                        loadVoiceAsync(reply);
+                    } else {
+                        loadVoiceAsync(next.reply || (isOrderSuggestion
+                            ? 'Suggested product add ho gaya. Updated order summary confirm kijiye.'
+                            : 'Product add ho gaya. Aur kuch chahiye?'));
+                    }
+                    if (keepCartOpen) openCartPanel();
+                })
+                .catch(function (error) {
+                    aiDebug('Product card add failed', {productId: productId, cartAdded: cartAdded, error: String(error)});
+                    button.disabled = false;
+                    delete button.dataset.addPending;
+                    button.removeAttribute('aria-busy');
+                    if (!compactCard) button.textContent = originalLabel;
+
+                    // The cart route can succeed even if the bookkeeping
+                    // request times out. Keep the item visible instead of
+                    // falsely reporting that it was not added.
+                    if (cartAdded) {
+                        cartShortcut.hidden = false;
+                        activeOrderingStage = isOrderSuggestion ? 'confirm_order' : 'anything_else';
+                        liveOrderEditable = isOrderSuggestion;
+                        renderLiveOrderList();
+                        if (keepCartOpen) openCartPanel();
+                        appendMessage('assistant', '<strong>✓ Product added to your order.</strong><div class="ai-product-meta">Order screen refresh nahi hui; please continue from the updated list.</div>');
+                        return;
+                    }
+                    appendMessage('assistant', '<strong>' + escapeHtml(error.message || 'Could not add this item. Please try again.') + '</strong>');
+                });
+        }
+
+        chat?.addEventListener('click', function (event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+            if (button.dataset.liveQty) {
+                const current = Number(button.dataset.currentQty || 1);
+                const quantity = Math.max(1, current + Number(button.dataset.liveQty));
+                aiDebug('Cart quantity action', {cartId: button.dataset.cartId, from: current, to: quantity});
+                button.disabled = true;
+                fetch(assistantCartQuantityBaseUrl + '/' + encodeURIComponent(button.dataset.cartId) + '/quantity', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                    body: JSON.stringify({quantity: quantity})
+                }).then(function (response) { if (!response.ok) throw new Error('Quantity update failed'); return response.json(); })
+                    .then(renderLiveOrderList).catch(function () { button.disabled = false; });
+            } else if (button.dataset.qtyChange) {
+                const actions = button.closest('.ai-product-actions');
+                const value = actions?.querySelector('.ai-qty-value');
+                const add = actions?.querySelector('[data-add-product]');
+                if (!value || !add) return;
+                const next = Math.max(1, Math.min(99999, Number(value.textContent || 1) + Number(button.dataset.qtyChange)));
+                value.textContent = next;
+                add.dataset.qty = next;
+            } else if (button.dataset.reorderQty) {
+                const row = button.closest('[data-reorder-item]');
+                const value = row?.querySelector('.ai-qty-value');
+                if (value) {
+                    value.textContent = Math.max(1, Number(value.textContent || 1) + Number(button.dataset.reorderQty));
+                    const card = row.closest('[data-reorder-card]');
+                    const lineTotal = Number(row.dataset.price || 0) * Number(value.textContent);
+                    const lineNode = row.querySelector('[data-line-total]');
+                    if (lineNode) lineNode.textContent = money(lineTotal);
+                    const total = Array.from(card.querySelectorAll('[data-reorder-item]')).reduce(function (sum, itemRow) { return sum + Number(itemRow.dataset.price || 0) * Number(itemRow.querySelector('.ai-qty-value')?.textContent || 1); }, 0);
+                    const totalNode = card.querySelector('[data-reorder-total]');
+                    if (totalNode) totalNode.textContent = money(total);
+                }
+            } else if (button.dataset.reorderOrder) {
+                const card = button.closest('[data-reorder-card]');
+                const items = Array.from(card.querySelectorAll('[data-reorder-item]')).map(function (row) {
+                    return {product_id: Number(row.dataset.productId), quantity: Number(row.querySelector('.ai-qty-value')?.textContent || 1)};
+                });
+                button.disabled = true;
+                fetch(reorderUrl, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({order_id: Number(button.dataset.reorderOrder), items: items, conversation_id: conversationId})})
+                    .then(function (response) { if (!response.ok) throw new Error('Reorder failed'); return response.json(); })
+                    .then(function (data) {
+                        button.disabled = false;
+                        aiDebug('Reorder API response', data);
+                        if (!data.success) throw new Error(data.message || 'Reorder failed');
+                        showReorderDelivery(data.workflow);
+                    })
+                    .catch(function (error) { button.disabled = false; aiDebug('Reorder failed', {error: String(error)}); appendMessage('assistant', 'Order cart mein add nahi ho paya. Dobara try karein.'); });
+            } else if (button.hasAttribute('data-start-previous')) {
+                showPreviousOrders();
+            } else if (button.hasAttribute('data-start-new')) {
+                beginNewOrder();
+            } else if (button.dataset.skipOrderSuggestions) {
+                const suggestionRow = button.closest('.ai-message-row');
+                suggestionRow?.querySelectorAll('button').forEach(function (choice) { choice.disabled = true; });
+                sendMessage('No, continue delivery');
+            } else if (button.dataset.removeProduct) {
+                sendMessage(button.dataset.removeProduct + ' remove kar do');
+            } else if (button.dataset.chooseProduct) {
+                sendMessage(button.dataset.chooseProduct, Number(button.dataset.chooseProductId));
+            } else if (button.dataset.catalogueEnquiry) {
+                button.disabled = true;
+                fetch(catalogueEnquiryUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                    body: JSON.stringify({product_id: Number(button.dataset.catalogueEnquiry)})
+                }).then(function (response) {
+                    return response.json().then(function (data) { if (!response.ok) throw new Error(data.message || 'Enquiry failed'); return data; });
+                }).then(function (data) {
+                    button.textContent = data.already_available ? 'Available in Price List' : 'Enquiry Sent';
+                    appendMessage('assistant', escapeHtml(data.message || 'Price-list enquiry customer care ko bhej di hai.'));
+                    loadVoiceAsync(data.message || 'Price-list enquiry customer care ko bhej di hai. Ab doosra product bataiye.');
+                    activeOrderingStage = 'anything_else';
+                }).catch(function (error) {
+                    button.disabled = false;
+                    appendMessage('assistant', escapeHtml(error.message || 'Enquiry nahi bhej paayi. Dobara try karein.'));
+                });
+            } else if (button.dataset.addProduct) {
+                addAssistantProductCard(button);
+            } else if (button.dataset.action === 'change-item') appendMessage('assistant', 'Sure—tell me the item you want instead.');
+            else if (button.dataset.deliveryOption) {
+                // A slot/location choice is a state-changing request. Lock
+                // the complete current choice set until it returns so a
+                // double tap cannot submit the same choice twice and race
+                // the server-side flow state.
+                if (button.disabled || button.dataset.deliverySelectionPending === 'true') return;
+                const requestVersion = ++deliveryOptionRequestVersion;
+                const choiceButtons = Array.from(chat.querySelectorAll('[data-delivery-option]'));
+                choiceButtons.forEach(function (choice) {
+                    choice.disabled = true;
+                    choice.dataset.deliverySelectionPending = 'true';
+                    choice.setAttribute('aria-busy', 'true');
+                });
+                window.setTimeout(function () {
+                    if (requestVersion !== deliveryOptionRequestVersion) return;
+                    choiceButtons.forEach(function (choice) {
+                        if (!chat.contains(choice)) return;
+                        choice.disabled = false;
+                        delete choice.dataset.deliverySelectionPending;
+                        choice.removeAttribute('aria-busy');
+                    });
+                }, 12000);
+                sendMessage(button.dataset.deliveryOption);
+            }
+            else if (button.dataset.paymentOption) {
+                const labels = {online: 'Pay Online', pay_on_delivery: 'Pay on Delivery', credit: 'Pay on Credit'};
+                sendMessage(labels[button.dataset.paymentOption] || button.dataset.paymentOption);
+            }
+            else if (button.dataset.customerCareCall) {
+                const wantsCall = button.dataset.customerCareCall === 'yes';
+                if (wantsCall) {
+                    // Stop rapid duplicate taps before the request returns.
+                    const actions = button.closest('.ai-product-actions');
+                    actions?.querySelectorAll('[data-customer-care-call]').forEach(function (choice) {
+                        choice.disabled = true;
+                        choice.setAttribute('aria-busy', 'true');
+                    });
+                }
+                sendMessage(
+                    wantsCall ? 'haan call laga do' : 'nahi yahin continue karo',
+                    null,
+                    {
+                        customerCareDialUrl: button.dataset.customerCareDialUrl || '',
+                        customerCareUserGesture: wantsCall
+                    }
+                );
+            }
+            else if (button.dataset.placeAiOrder) {
+                continuousTalkMode = false;
+                cancelSpeechRecognitionRestart();
+                if (speechRecognition) {
+                    try { speechRecognition.abort(); } catch (error) {}
+                    speechRecognition = null;
+                }
+                if (mediaRecorder?.state === 'recording') {
+                    clearTimeout(recordingTimer);
+                    audioChunks = [];
+                    try { mediaRecorder.stop(); } catch (error) {}
+                }
+                micBtn?.classList.remove('listening');
+                setMicStatus('Mic off', 'idle');
+                button.disabled = true;
+                placeOrderInsideAssistant(button.dataset.placeAiOrder);
+            }
+            else if (button.dataset.action === 'checkout') appendMessage('assistant', 'Delivery location aur slot confirm karke payment yahin complete karte hain.');
+            else if (button.dataset.conversation) {
+                fetch(historyUrl + '?conversation_id=' + encodeURIComponent(button.dataset.conversation), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                    .then(response => response.json()).then(function (data) {
+                        if (!data.messages) return;
+                        chat.innerHTML = '';
+                        data.messages.forEach(function (message) { appendMessage(message.role, savedMessageHtml(message), message.time); });
+                    });
+            }
+        });
+
+        document.querySelectorAll('.ai-action-btn[data-action]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const action = button.getAttribute('data-action');
+                if (action === 'fresh') {
+                    conversationId = window.crypto?.randomUUID ? window.crypto.randomUUID() : ('chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+                    chat.innerHTML = '';
+                    liveOrderMessage = null;
+                    clarificationMessage = null;
+                    activeOrderingStage = null;
+                    activeOrderingProductId = null;
+                    previousOrdersVisible = false;
+                    awaitingNewOrderReady = false;
+                    liveOrderEditable = false;
+                    selectedDeliveryDetails = '';
+                    assistantOrderSubmitting = false;
+                    assistantOrderCompleted = false;
+                    customerCareDialUrl = '';
+                    lastCustomerCareDialAttemptAt = 0;
+                    lastCustomerCareDialAttemptUrl = '';
+                    const freshReply = @json('Hi ' . (auth()->user()->name ?? 'there') . '! I am ready for a new order. Tell me the first item.');
+                    loadVoiceAsync(freshReply, startAutoListening);
+                    input.focus();
+                } else if (action === 'history') {
+                    openHistoryList();
+                } else {
+                    showCart();
+                }
+            });
+        });
+        cartShortcut?.addEventListener('click', openCartPanel);
+        fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(response => response.json())
+            .then(function (data) { cartShortcut.hidden = !(Number(data.count) > 0); })
+            .catch(function () {});
+    });
+</script>
+@endsection

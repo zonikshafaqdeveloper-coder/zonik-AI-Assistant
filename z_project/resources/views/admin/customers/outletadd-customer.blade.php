@@ -1,0 +1,224 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<div class="page-body">
+
+    <div class="container-fluid">
+
+        <div class="row">
+            <div class="col-12 my-5">
+                <div class="row">
+                    <div class="col-sm-8 m-auto">
+
+                        <div class="card">
+                            <div class="card-body">
+
+                                <div class="card-header-2 mb-3">
+                                    <h5>Outlet Add</h5>
+                                </div>
+
+                                <form action="{{ route('outlet.save') }}" method="POST" enctype="multipart/form-data">
+                                    @csrf
+
+                                    <input type="hidden" name="user_id" value="{{ $user_id }}">
+
+                                    {{-- Account Type --}}
+                                    <div class="col-md-12 mb-3">
+                                        <label class="form-label">Account Type <span class="text-danger">*</span></label>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="account_type" id="personal" value="personal" {{ old('account_type', 'personal') == 'personal' ? 'checked' : '' }}>
+                                            <label class="btn btn-outline-primary" for="personal">Personal</label>
+
+                                            <input type="radio" class="btn-check" name="account_type" id="business" value="business" {{ old('account_type') == 'business' ? 'checked' : '' }}>
+                                            <label class="btn btn-outline-primary" for="business">Business</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3">
+
+                                        {{-- Customer Name --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Customer Name <span class="text-danger">*</span></label>
+                                            <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" placeholder="Enter customer name">
+                                            @error('name')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Outlet Name --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Outlet Name <span class="text-danger">*</span></label>
+                                            <input type="text" name="outlet_name" class="form-control @error('outlet_name') is-invalid @enderror" value="{{ old('outlet_name') }}" placeholder="Enter outlet name">
+                                            @error('outlet_name')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Mobile --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Mobile Number <span class="text-danger">*</span></label>
+                                            <input type="text" name="mobile_number" class="form-control @error('mobile_number') is-invalid @enderror" value="{{ old('mobile_number') }}" placeholder="Enter mobile number" maxlength="15">
+                                            @error('mobile_number')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Email --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Email <span class="text-danger">*</span></label>
+                                            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="Enter email">
+                                            @error('email')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Location --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Location <span class="text-danger">*</span></label>
+                                            <input type="text" name="location" class="form-control @error('location') is-invalid @enderror" value="{{ old('location') }}" placeholder="Enter location">
+                                            @error('location')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Pincode --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Pincode <span class="text-danger">*</span></label>
+                                            <input type="text" name="pincode" class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode') }}" placeholder="Enter pincode">
+                                            @error('pincode')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Pancard --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Pancard Number <span class="text-danger">*</span></label>
+                                            <input type="text" name="pancard" class="form-control @error('pancard') is-invalid @enderror" value="{{ old('pancard') }}" placeholder="Enter pancard number" maxlength="15">
+                                            @error('pancard')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Pancard Document --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Pancard Document <span class="text-danger">*</span></label>
+                                            <input type="file" name="pancard_docs" class="form-control @error('pancard_docs') is-invalid @enderror" accept=".jpg,.jpeg,.png,.pdf">
+                                            @error('pancard_docs')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        <div class="col-12">
+                                            <div id="businessFields" class="row g-3 d-none">
+
+                                                {{-- GST No --}}
+                                                <div class="col-md-6">
+                                                    <label class="form-label">GST Number <span class="text-danger">*</span></label>
+                                                    <input type="text" name="gst_no" class="form-control @error('gst_no') is-invalid @enderror" value="{{ old('gst_no') }}" placeholder="Enter GST number" maxlength="15">
+                                                    @error('gst_no')<small class="text-danger">{{ $message }}</small>@enderror
+                                                </div>
+
+                                                {{-- GST Document --}}
+                                                <div class="col-md-6">
+                                                    <label class="form-label">GST Document <span class="text-danger">*</span></label>
+                                                    <input type="file" name="gst_docs" class="form-control @error('gst_docs') is-invalid @enderror" accept=".jpg,.jpeg,.png,.pdf">
+                                                    @error('gst_docs')<small class="text-danger">{{ $message }}</small>@enderror
+                                                </div>
+
+                                                {{-- FSSAI --}}
+                                                <div class="col-md-6">
+                                                    <label class="form-label">FSSAI Number <span class="text-danger">*</span></label>
+                                                    <input type="text" name="fssai" class="form-control @error('fssai') is-invalid @enderror" value="{{ old('fssai') }}" placeholder="Enter FSSAI number" maxlength="15">
+                                                    @error('fssai')<small class="text-danger">{{ $message }}</small>@enderror
+                                                </div>
+
+                                                {{-- FSSAI Document --}}
+                                                <div class="col-md-6">
+                                                    <label class="form-label">FSSAI Document <span class="text-danger">*</span></label>
+                                                    <input type="file" name="fssai_docs" class="form-control @error('fssai_docs') is-invalid @enderror" accept=".jpg,.jpeg,.png,.pdf">
+                                                    @error('fssai_docs')<small class="text-danger">{{ $message }}</small>@enderror
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Billing Address --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Billing Address <span class="text-danger">*</span></label>
+                                            <textarea name="billing_address" rows="2" class="form-control @error('billing_address') is-invalid @enderror" placeholder="Enter billing address">{{ old('billing_address') }}</textarea>
+                                            @error('billing_address')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Billing Pincode --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Billing Pincode</label>
+                                            <input type="text" name="billing_pincode" class="form-control @error('billing_pincode') is-invalid @enderror" value="{{ old('billing_pincode') }}" placeholder="Enter billing pincode">
+                                            @error('billing_pincode')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Outlet Address --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Outlet Address <span class="text-danger">*</span></label>
+                                            <textarea name="outlet_address" rows="2" class="form-control @error('outlet_address') is-invalid @enderror" placeholder="Enter outlet address">{{ old('outlet_address') }}</textarea>
+                                            @error('outlet_address')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                        {{-- Outlet Pincode --}}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Outlet Pincode</label>
+                                            <input type="text" name="outlet_pincode" class="form-control @error('outlet_pincode') is-invalid @enderror" value="{{ old('outlet_pincode') }}" placeholder="Enter outlet pincode">
+                                            @error('outlet_pincode')<small class="text-danger">{{ $message }}</small>@enderror
+                                        </div>
+
+                                    </div>
+
+                                    <div class="mt-4 text-end">
+                                        <button type="submit" class="btn btn-primary px-4">Save Outlet</button>
+                                    </div>
+
+                                </form>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const businessFields = document.getElementById("businessFields");
+    const personalBtn = document.getElementById("personal");
+    const businessBtn = document.getElementById("business");
+
+    function toggleFields() {
+        if (businessBtn.checked) {
+            businessFields.classList.remove("d-none");
+        } else {
+            businessFields.classList.add("d-none");
+        }
+    }
+
+    toggleFields();
+
+    personalBtn.addEventListener("change", toggleFields);
+    businessBtn.addEventListener("change", toggleFields);
+
+    @if (session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: @json(session('success')),
+            confirmButtonText: 'OK'
+        });
+    @endif
+
+    @if (session('error'))
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: @json(session('error')),
+            confirmButtonText: 'OK'
+        });
+    @endif
+
+    @if ($errors->any())
+        Swal.fire({
+            icon: 'error',
+            title: 'Validation Error',
+            html: `{!! implode('<br>', $errors->all()) !!}`,
+            confirmButtonText: 'OK'
+        });
+    @endif
+});
+</script>
+
+@endsection

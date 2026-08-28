@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tax Invoice - IGIN-{{ $orders->first()->invoice_id }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="margin:0;padding:0;font:14px/1.4 'Segoe UI',Arial,sans-serif;color:#222;">
+
+  <table style="max-width:900px;margin:0px auto;background:#fff;border:1px solid #ddd;border-collapse:collapse;box-shadow:0 2px 10px rgba(0,0,0,.06);" cellpadding="0" cellspacing="0" width="100%">
+    <tr>
+      <td style="padding:24px;">
+
+        <!-- Header -->
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <tr>
+            <td style="width:60%;vertical-align:top;">
+              <p style="margin:0;font-weight:700;font-size:14px;letter-spacing:.3px;">Infigourmet networks private limited</p>
+              <p style="margin:0;color:#555;">Unit B 45, Shanti Industrial Estate, Tambe Nagar, Mulund West, Mumbai, Maharashtra 400080, India</p>
+              <p style="margin:0;font-size:11px;color:#777;">Customer Care #: 8850268043 • Email: connect@zonik.in • Website: zonik.in</p>
+            </td>
+            <td style="width:40%;vertical-align:top;text-align:right;">
+              <div style="display:inline-block;padding:2px 8px;border:1px solid #ddd;border-radius:12px;font-size:12px;background:#fafafa;color:#333;">TAX INVOICE</div>
+              <table style="margin-top:8px;width:100%;border-collapse:collapse;">
+                <tr><td style="color:#777;">Invoice #</td><td>: IGIN-{{ $orders->first()->invoice_id }}</td></tr>
+                <tr><td style="color:#777;">Invoice Date</td><td>: {{ $orders->first()->invoice_date ? \Carbon\Carbon::parse($orders->first()->invoice_date)->format('d-m-Y') : '' }}</td></tr>
+                <tr><td style="color:#777;">Terms</td><td>: Net 07</td></tr>
+                <tr><td style="color:#777;">Delivery Date</td><td>: {{ $orders->first()->delivery_date ? \Carbon\Carbon::parse($orders->first()->delivery_date)->format('d-m-Y') : '' }}</td></tr>
+                <tr><td style="color:#777;">Delivery Time Slot</td><td>: {{ $orders->first()->delivery_time_slot 
+    ? preg_replace_callback('/(\d{1,2}:\d{2}\s*)(am|pm)\s*to\s*(\d{1,2}:\d{2}\s*)(am|pm)/i', 
+        function($matches) {
+            return $matches[1] . strtoupper($matches[2]) . ' - ' . $matches[3] . strtoupper($matches[4]);
+        }, $orders->first()->delivery_time_slot) 
+    : '10:00 AM - 07:00 PM' }}
+</td></tr>
+                <tr><td style="color:#777;">Place Of Supply</td><td>: Maharashtra (27)</td></tr>
+                <tr><td style="color:#777;">FSSAI No</td><td>: 11525009000305</td></tr>
+                <tr><td style="color:#777;">GST No</td><td>: 27AAICI2086H1ZE</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Bill To / Ship To -->
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="width:50%;vertical-align:top;">
+      <div style="border:1px solid #ddd;padding:12px 14px;border-radius:8px;margin-right:8px;">
+        <h3 style="margin:0 0 6px 0;color:#555;font-weight:normal;font-size:14px;">Bill To</h3>
+        <p style="margin:0;">{{$orders->first()->user?->name }}</p>
+        <p style="margin:0;">{{ $orderInvoice->first()->order->billing_address }}</p>
+        <p style="margin:0;">{{$orders->first()->user?->pincode }}</p>
+        <p style="margin:0;">GSTIN: {{ $orderss->first()->gst_no ? $orderss->first()->gst_no : 'NA' }}</p>
+      </div>
+    </td>
+    <td style="width:50%;vertical-align:top;">
+      <div style="border:1px solid #ddd;padding:12px 14px;border-radius:8px;margin-left:8px;">
+        <h3 style="margin:0 0 6px 0;color:#555;font-weight:normal;font-size:14px;">Ship To</h3>
+   <p style="margin:0;">{{$orders->first()->user?->name }}</p>
+        <p style="margin:0;">{{ $orderInvoice->first()->order->billing_address }}</p>
+        <p style="margin:0;">{{$orders->first()->user?->pincode }}</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+
+     <div style="margin-top:16px;">
+    <!--<table style="width:100%;border-collapse:collapse;font-size:10px;border:1px solid #ddd;border-radius:8px;table-layout:fixed;">-->
+        <!--<table style="width:100%; border-collapse: separate; border-spacing:0; font-size:10px; border:1px solid #ddd; border-radius:8px; table-layout:fixed;">-->
+<table style="width:100%; border-collapse: separate; border-spacing:0; font-size:10px; border:1px solid #ddd; border-radius:8px; table-layout:fixed; overflow:hidden;">
+        <thead>
+            <tr style="background:#f2f4f7;color:#333;">
+                <th style="width:30px;padding:8px;text-align:left;border-bottom:1px solid #ddd;">Sr No.</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">Item</th>
+                <th style="width:100px;padding:8px;text-align:left;border-bottom:1px solid #ddd;">HSN</th>
+                <th style="width:60px;padding:8px;text-align:center;border-bottom:1px solid #ddd;">Qty</th>
+                <th style="width:80px;padding:8px;text-align:right;border-bottom:1px solid #ddd;">Unit Price (Basic)</th>
+                <th style="width:60px;padding:8px;text-align:right;border-bottom:1px solid #ddd;">Pre Tax</th>
+                <th style="width:80px;padding:8px;text-align:right;border-bottom:1px solid #ddd;">Total Discount Value</th>
+                <th style="padding:3px;text-align:right;border-bottom:1px solid #ddd;">(CGST + SGST + IGST + CESS)%</th>
+                <th style="width:80px;padding:8px;text-align:right;border-bottom:1px solid #ddd;">Total Tax Amount</th>
+                <th style="width:120px;padding:8px;text-align:right;border-bottom:1px solid #ddd;">Total Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+        @php
+                        $words = '';
+                        $serialNumber = 1;
+                        $totaltaxabletotalamount = 0;
+                        $totalcgstamount = 0;
+                        $totalsgstamount = 0;
+                        $totaligstamount = 0;
+                        $totalcessamount = 0;
+                        $totaltaxamount = 0;
+                        $totalsumamount = 0;
+                        $totalpretaxamount = 0;
+                        $totaldiscountvalue = 0;
+                        $totalproductDiscount = 0;
+                        $lastamount = 0;
+                        $finalamount = 0;
+                        $correctamount = 0;
+
+                        @endphp
+                        @foreach($orderInvoice as $orderItem)
+                        
+          @php
+    // Calculate GST rate
+    $gstRate = $orderItem->product->cgst + $orderItem->product->sgst;
+
+    // Calculate selling price per item including GST
+    $sellingPriceWithGst = $orderItem->offer_price * (1 + ($gstRate / 100));
+
+    // Calculate discount (ensure it does not result in a negative value)
+    $discount = ($orderItem->mrp - $sellingPriceWithGst) * $orderItem->quantity;
+    $discount = $discount > 0 ? $discount : 0;
+    $subTotal = $orderItem->price;
+    $productDiscount = $orderItem->product->total_discount > 0 ? ($subTotal * $orderItem->product->total_discount) / 100 : 0;
+    $totalproductDiscount += $productDiscount;
+@endphp
+                <tr>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:left;">{{ $serialNumber }}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:left;">{{ $orderItem->product->product_name }}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:left;">{{ $orderItem->product->hsn_code }}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:center;">{{ $orderItem->quantity }}</td>
+          
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">{{ number_format($orderItem->offer_price) }}.00</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">
+                        
+                    @php
+                                if($orderItem->qty_type == 'box'){
+                                $pretax = (float) $orderItem->quantity * (float) $orderItem->offer_price;
+                                $totalpretaxamount += $pretax;
+                                }else{
+                                $pretax = (float) $orderItem->quantity * (float) $orderItem->offer_price;
+                                $totalpretaxamount += $pretax;
+                                }
+
+                                @endphp {{ $pretax }}.00
+                                
+                                </td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">   @php
+                                $taxableAmount = 0;
+                                $taxableAmountTotal = 0;
+                                $taxableAmountTotal1 = 0;
+                                $couponDiscount = 0;
+                                $totaldiscount = 0;
+                                if($orderItem->product->total_discount <= 0){ $totaldiscount=0; }else{
+
+                                    if($orderInvoice->first()->order->coupon_discount){
+
+                                        $couponDiscount = $orderInvoice->first()->order->coupon_discount;
+                                    }
+
+
+                                    $totaldiscount = $orderItem->product->total_discount;
+                                        $totaldiscount = $totaldiscount ;
+                                    }
+
+                                    $totaldiscountvalue += $totaldiscount;
+
+                                  
+
+                                     $taxableAmountTotal = $pretax;
+                                    $totaltaxabletotalamount += $taxableAmountTotal;
+
+                                    @endphp
+                                    {{ number_format($productDiscount,2)}}   </td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">
+                        
+                        
+                          @php
+                                
+                                  
+                                $taxableAmount = 0;
+                                $taxableAmountTotal = 0;
+                                $taxableAmountTotal1 = 0;
+                                $couponDiscount = 0;
+                                $totaldiscount = 0;
+                                if($orderItem->product->total_discount <= 0){ $totaldiscount=0; }else{
+
+                                    if($orderInvoice->first()->order->coupon_discount){
+
+                                        $couponDiscount = $orderInvoice->first()->order->coupon_discount;
+                                    }
+
+
+                                    $totaldiscount = $orderItem->product->total_discount;
+                                        $totaldiscount = $totaldiscount ;
+                                    }
+
+                                    $totaldiscountvalue += $totaldiscount;
+
+                                  
+
+                                     $taxableAmountTotal = $pretax;
+                                    $totaltaxabletotalamount += $taxableAmountTotal;
+
+
+                                    
+                                    
+                                    
+                                $cess = 0;
+                                if($maharashtrian === 'False'){
+                                    $igst = $orderItem->product->igst;
+                                    $sgst = 0;
+                                    $cgst = 0;
+                                }else{
+                                    $sgst = $orderItem->product->sgst;
+                                    $cgst = $orderItem->product->cgst;
+                                    $igst = 0;
+                                }
+
+                                $totalTaxes = $sgst + $cgst + $igst + $cess;
+
+                                $totalcgstamount += (($cgst * $taxableAmountTotal)/100);
+                                $totalsgstamount += (($sgst * $taxableAmountTotal)/100);
+                                $totaligstamount += (($igst * $taxableAmountTotal)/100);
+                                $totalcessamount += (($cess * $taxableAmountTotal)/100);
+
+                                @endphp
+
+                                {{ $sgst }}+ {{ $cgst }} +{{ $igst }}+{{ $cess }}
+                    
+                    </td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">
+                        
+                         @php
+                                $taxableAmountTotal1 = ($taxableAmountTotal * $totalTaxes)/100;
+                                $totaltaxamount += $taxableAmountTotal1;
+
+                                $totalamount = $pretax + $taxableAmountTotal1;
+                                $totalsumamount += $totalamount;
+
+                                @endphp
+                                {{ number_format($taxableAmountTotal1,2) }}
+                        
+                        
+                        </td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd;text-align:right;">
+                        
+                        @php
+                                    $lastamount = ($totalamount - $orderItem->coupon_discount);
+                                    $finalamount += $lastamount;
+                                    
+                                    $correctamount += $totalamount;
+                                    
+                                @endphp
+                                {{ number_format($totalamount, 2) }}
+                        
+                        
+                        </td>
+                </tr>
+                @php $serialNumber++; @endphp
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="9" style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>Sub Total</strong></td>
+                <td style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>
+                       @php
+                                $totalsumamount = $totalsumamount - $couponDiscount;
+                            @endphp
+                            
+                    {{ number_format($correctamount,2) }}</strong></td>
+            </tr>
+            <tr>
+                <td colspan="9" style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>Coupon Discount</strong></td>
+                <td style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>{{ $orderItem->coupon_discount ?? 0.00 }}</strong></td>
+            </tr>
+            <tr>
+                <td colspan="9" style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>Total Chargeable Value</strong></td>
+                <td style="padding:8px;border-top:1px solid #ddd;text-align:right;"><strong>
+                     @php
+                                $totalsumamount = $totalsumamount - $couponDiscount;
+                            @endphp
+                    {{ number_format($finalamount,2) }}</strong></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+
+<!-- Summary and Totals -->
+<table style="width:100%; border-collapse:separate; border-spacing:16px; font-size:10px;">
+
+  <tr>
+    <!-- Left Column -->
+    <td style="width:60%; vertical-align:top;">
+
+      <!-- Items in Total -->
+      <table style="width:100%; border:1px solid #ddd; border-radius:8px; border-collapse:separate; border-spacing:0; overflow:hidden; margin-bottom:12px;">
+        <tr>
+          <td style="padding:8px; color:#777;">Items in Total</td>
+          <td style="padding:8px;">: {{ number_format($orderInvoice->sum('quantity'), 2) }}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px; color:#777;">Total In Words</td>
+          <td style="padding:8px;">
+            @php
+                $words = app('App\Http\Controllers\OrderController')->numberToWords($finalamount);
+            @endphp
+            : Indian Rupee {{ $words }} Only
+          </td>
+        </tr>
+      </table>
+
+      <!-- Terms & Conditions -->
+      <div style="border:1px solid #ddd; border-radius:8px; padding:12px; font-size:12px; color:#333; margin-bottom:12px; overflow:hidden;">
+        <strong>Terms &amp; Conditions</strong><br/>
+        Please give acceptance with Stamp and Sign once Material received at the store. Check the material before accepting for Damages, Rates or any issues; later, once stamp received, no changes will be made to the invoice.
+      </div>
+
+      <!-- Bank Details -->
+      <div style="border:1px solid #ddd; border-radius:8px; padding:12px; font-size:13px; overflow:hidden;">
+        <strong>BANK DETAILS</strong><br/>
+        IFSC: IDFB0040511<br/>
+        ACCOUNT NO: 59869612317<br/>
+        CUSTOMER NAME: INFIGOURMET NETWORKS PRIVATE LIMITED<br/>
+        BANK: IDFC FIRST BANK
+      </div>
+
+    </td>
+
+  @php
+$taxSummary = []; // ['CGST 2.5' => 100.65, ...]
+
+foreach($orderInvoice as $orderItem) {
+    $pretax = $orderItem->quantity * $orderItem->offer_price;
+
+    if($maharashtrian === 'False'){
+        $igst = $orderItem->product->igst;
+        $sgst = 0;
+        $cgst = 0;
+    } else {
+        $sgst = $orderItem->product->sgst;
+        $cgst = $orderItem->product->cgst;
+        $igst = 0;
+    }
+    $cess = 0;
+
+    if($cgst > 0) {
+        $taxSummary['CGST '.$cgst.'%'] = ($taxSummary['CGST '.$cgst.'%'] ?? 0) + ($pretax * $cgst/100);
+    }
+    if($sgst > 0) {
+        $taxSummary['SGST '.$sgst.'%'] = ($taxSummary['SGST '.$sgst.'%'] ?? 0) + ($pretax * $sgst/100);
+    }
+    if($igst > 0) {
+        $taxSummary['IGST '.$igst.'%'] = ($taxSummary['IGST '.$igst.'%'] ?? 0) + ($pretax * $igst/100);
+    }
+    if($cess > 0) {
+        $taxSummary['CESS '.$cess.'%'] = ($taxSummary['CESS '.$cess.'%'] ?? 0) + ($pretax * $cess/100);
+    }
+
+    $totalTaxes = $cgst + $sgst + $igst + $cess;
+    $taxableAmountTotal1 = ($pretax * $totalTaxes)/100;
+  
+}
+@endphp
+
+    <!-- Right Column -->
+    <td style="width:40%; vertical-align:top;">
+
+      <!-- Tax Summary -->
+      <table style="width:100%; border:1px solid #ddd; border-radius:8px; border-collapse:separate; border-spacing:0; overflow:hidden;">
+        @foreach($taxSummary as $taxName => $amount)
+        <tr>
+          <td style="padding:8px;">{{ $taxName }}</td>
+          <td style="padding:8px; text-align:right;">{{ number_format($amount,2) }}</td>
+        </tr>
+        @endforeach
+        <tr>
+          <td style="padding:8px; font-weight:700; font-size:15px;">Total</td>
+          <td style="padding:8px; text-align:right; font-weight:700;">{{ number_format(array_sum($taxSummary),2) }}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;">Balance Due</td>
+          <td style="padding:8px; text-align:right;">{{ number_format($finalamount,2) }}</td>
+        </tr>
+      </table>
+
+      <!-- Authorized Signature -->
+      <div style="margin-top:10px; text-align:center; font-size:12px; color:#777;">
+        Authorized Signature
+        <div style="border:1px dashed #aaa; height:70px; margin:6px 0; border-radius:6px;"></div>
+        Zonik Sales Team
+      </div>
+
+    </td>
+  </tr>
+</table>
+
+
+        
+        
+ 
+
+<div style="display:flex; gap:16px; margin-top:16px; align-items:flex-start;">
+  <!-- Left Box -->
+  <div style="flex:0 0 48%; border:1px solid #ddd; border-radius:8px; padding:12px; text-align:center;">
+    <span style="display:inline-block; background:#f2f4f7; color:#333; padding:4px 8px; border-radius:12px; font-size:12px;">QR Scan to Pay</span>
+    <div style="margin-top:12px;">
+      <img src="{{ asset('https://zonik.in/assets/images/scanner/pay_scan.jpg') }}" 
+           alt="QR Code" 
+           style="width:200px; height:200px; border-radius:8px; display:block; margin:0 auto;">
+      <div style="margin-top:6px; font-size:14px; color:#555;">Zonik</div>
+    </div>
+  </div>
+
+  <!-- Right Box -->
+  <div style="flex:0 0 48%; border:1px solid #ddd; border-radius:8px; padding:12px; display:flex; flex-direction:column; justify-content:center; gap:16px; margin-top:16px">
+    <div style="font-size:12px; color:#555;">
+      <div style="margin-bottom:8px;">
+        <strong style="width:80px; display:inline-block;">Support</strong>: 8850268043 • connect@zonik.in
+      </div>
+      <div>
+        <strong style="width:80px; display:inline-block;">Website</strong>: zonik.in
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+        <!-- Footer -->
+        <!--<div style="padding:12px 16px 18px 16px;font-size:12px;color:#777;text-align:center;">-->
+        <!--  Static HTML/CSS template modeled on a GST-compliant invoice layout with CGST/SGST breakdowns.-->
+        <!--</div>-->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

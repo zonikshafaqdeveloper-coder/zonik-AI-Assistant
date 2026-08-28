@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Product extends Model
+{
+    // use HasFactory;
+
+    use HasFactory;
+
+    protected $fillable = [
+
+        'product_name',
+        'unique_reference_id',
+        'description',
+        'unit',
+        'peices_per_pack',
+        'carton_size',
+        'varieties',
+        'cost_per_item',
+        'gst',
+        'sale_price_loose_pcs',
+        'sale_price_carton',
+        'product_weight_grams',
+        'image',
+        'status',
+        'last_update_price',
+        'product_quantity',
+        'product_mrp',
+        'category_id',
+        'subcategory_id',
+        'slug',
+        'brands',
+        'types',
+        'tags',
+        'sgst',
+        'cgst',
+        'igst',
+        'cess',
+        'total_with_tax',
+        'hsn_code',
+        'supplier_traced',
+        'sale_price_loose_pcs_old',
+        'sale_price_carton_old',
+        'carton_discount_basic',
+        'loose_discount_basic',
+        'total_discount',
+    ];
+
+    public function subcategory()
+    {
+        return $this->belongsTo(Subcategory::class, 'subcategory_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class, 'brand_id');
+    }
+
+    public function type()
+    {
+        return $this->belongsTo(Type::class, 'type_id');
+    }
+
+    public function tag()
+    {
+        return $this->belongsTo(Tag::class, 'tag_id');
+    }
+
+    public function scopeFilterBySubcategory($query, $subcategory_id)
+    {
+        return $query->where('subcategory_id', $subcategory_id);
+    }
+    
+     public function stock()
+    {
+        return $this->hasOne(ProductStock::class, 'product_id');
+    }
+    
+     public function rackStocks()
+    {
+        return $this->hasMany(RackStock::class, 'product_id');
+    }
+
+
+    public function scopeFilterByBrandCategory($query, $brand_category_id)
+    {
+        return $query->whereIn('brand_id', function ($query) use ($brand_id) {
+            $query->select('id')
+                ->from('brands')
+                ->where('id', $brand_id);
+        });
+    }
+
+    public static function boot()
+    {
+        parent::boot();
+        static::creating(function ($model) {
+            if (!isset($model->slug)) {
+                $model->slug = \Str::slug($model->slug, '-');
+            }
+        });
+    }
+}

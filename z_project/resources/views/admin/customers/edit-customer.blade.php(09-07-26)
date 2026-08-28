@@ -1,0 +1,234 @@
+@extends('admin.layouts.appnew')
+@section('content')
+    <div class="page-body">
+
+        <!-- New Product Add Start -->
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12 my-5">
+                    <div class="row">
+                        <div class="col-sm-8 m-auto">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="card-header-2">
+                                        <h5>Edit Customer</h5>
+                                    </div>
+                                    <form method="POST" action="{{ route('update-customer', $customer->id) }}">
+                                        @csrf
+                                        @method('PUT')
+
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label for="name" class="form-label">Customer Name</label>
+                                                <input type="text" class="form-control" id="name" name="name" value="{{ $customer->name }}">
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label for="credit_status" class="form-label">Credit Status</label>
+                                                <select class="form-select form-control" id="credit_status" name="credit_status">
+                                                    <option value="Active" {{ $customer->credit_status == 'Active' ? 'selected' : '' }}>Active</option>
+                                                    <option value="Inactive" {{ $customer->credit_status == 'Inactive' ? 'selected' : '' }}>Inactive</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label for="credit_limit" class="form-label">Credit Limit</label>
+                                                <input type="number" class="form-control" id="credit_limit" name="credit_limit" value="{{ $customer->credit_limit }}">
+                                            </div>
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            <div class="col-md-4">
+                                                <label for="due_days_limit" class="form-label">Due Limit Days</label>
+                                                <input type="number" class="form-control" id="due_days_limit" name="due_days_limit" value="{{ $customer->due_days_limit }}">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="status" class="form-label">Customer Status</label>
+                                               <select class="form-select form-control" id="status" name="status">
+                                                    <option value="Active"   {{ strtolower($customer->status) == 'active' ? 'selected' : '' }}>Active</option>
+                                                    <option value="Inactive" {{ strtolower($customer->status) == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                                                </select>
+
+                                            </div>
+                                            
+                                              <div class="col-md-4">
+                                                <label for="status" class="form-label">Verified Status</label>
+                                                <select class="form-select form-control" id="verified_status" name="verified_status">
+                                                    <option value="verified" {{ $customer->verified_status == 'verified' ? 'selected' : '' }}>verified</option>
+                                                    <option value="unverified" {{ $customer->verified_status == 'unverified' ? 'selected' : '' }}>unverified</option>
+                                                </select>
+                                            </div>
+                                            
+                                        </div>
+
+
+                                          <div class="row mt-3">
+
+                <div class="col-md-2">
+                    <label class="form-label">From Range</label>
+                    <input type="number" name="from_range" class="form-control"
+                        value="{{ $paymentTerm->from_range ?? '' }}" placeholder="0">
+                </div>
+
+                
+                <div class="col-md-2">
+                    <label class="form-label">To Range</label>
+                    <input type="number" name="to_range" class="form-control"
+                        value="{{ $paymentTerm->to_range ?? '' }}" placeholder="0">
+                </div>
+
+                
+                <div class="col-md-2">
+                    <label class="form-label">Days</label>
+                    <input type="number" name="days" class="form-control"
+                        value="{{ $paymentTerm->days ?? '' }}" placeholder="0">
+                </div>
+
+                
+                <div class="col-md-3 d-flex align-items-center mt-4">
+                    <label class="me-2">Custom Payment Term</label>
+                    <input type="checkbox" name="is_active"
+                        value="1"
+                        {{ !empty($paymentTerm->is_active) ? 'checked' : '' }}>
+                </div>
+
+            </div>
+            
+              <div class="row mt-3">
+
+    <div class="col-md-4">
+        <label>Dairy Due Limit Days</label>
+        <input type="number" name="due_limit_days" class="form-control"
+            value="{{ old('due_limit_days', $customer->dairyPaymentTerm->due_limit_days ?? '') }}">
+    </div>
+
+<div class="col-md-4  d-flex align-items-center">
+    <label class="d-block">Dairy Payment Term</label>
+
+    <input type="hidden" name="dairy_is_active" value="0">
+
+    <input type="checkbox"
+           name="dairy_is_active"
+           value="1"
+           {{ optional($customer->dairyPaymentTerm)->is_active == 1 ? 'checked' : '' }}>
+</div>
+
+</div>
+
+
+
+
+
+
+
+
+                                        @if (session('success'))
+                                            <div class="alert alert-success mt-3">
+                                                {{ session('success') }}
+                                            </div>
+                                        @endif
+
+                                        <button type="submit" class="btn btn-primary mt-3">Save</button>
+                                    </form>
+
+                                </div>
+                            </div>
+
+                    </div>
+
+
+
+                        <div class="col-sm-8 m-auto">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="card-header-2">
+                                        <h5>Kyc Documents -  <b>{{ $customer->verified_status}}</b></h5> 
+                                        <br>
+                                    </div>
+       
+
+
+                                    <div class="row">
+    @if(!empty($kyc->gst_no))
+    <div class="col-md-4">
+        <label for="gst_document" class="form-label">GST No</label>
+        <input type="text" class="form-control" id="gstno" name="gstno" value="{{ $kyc->gst_no ?? '' }}" readonly>
+    </div>
+    @endif
+
+    @if(!empty($kyc->pan_no))
+    <div class="col-md-4">
+        <label for="pan_document" class="form-label">PAN No</label>
+        <input type="text" class="form-control" id="panno" name="panno" value="{{ $kyc->pan_no ?? '' }}" readonly>
+    </div>
+    @endif
+
+    @if(!empty($kyc->fssai))
+    <div class="col-md-4">
+        <label for="fassai_document" class="form-label">FSSAI No</label>
+        <input type="text" class="form-control" id="fassaino" name="fassaino" value="{{ $kyc->fssai ?? '' }}" readonly>
+    </div>
+    @endif
+</div>
+
+<div class="row">
+    @if(!empty($kyc->gst_document))
+    <div class="col-md-4">
+        <label for="gst_document" class="form-label">GST Document</label>
+        @php
+            $gstDocumentPath = url('storage/gst_docs/' . basename($kyc->gst_document));
+        @endphp
+        <!-- Option 1: Provide a download/view link -->
+        <a href="{{ $gstDocumentPath }}" target="_blank" class="btn btn-primary mb-2" style="width: -webkit-fill-available;">View GST Document</a>
+    </div>
+    @endif
+
+    @if(!empty($kyc->pan_document))
+    <div class="col-md-4">
+        <label for="pan_document" class="form-label">PAN Document</label>
+        @php
+            $panDocumentPath = url('storage/pancard_docs/' . basename($kyc->pan_document));
+        @endphp
+        <!-- Option 1: Provide a download/view link -->
+        <a href="{{ $panDocumentPath }}" target="_blank" class="btn btn-primary mb-2" style="width: -webkit-fill-available;">View PAN Document</a>
+    </div>
+    @endif
+
+    @if(!empty($kyc->fssai_document))
+    <div class="col-md-4">
+        <label for="fssai_document" class="form-label">FSSAI Document</label>
+        @php
+            $fssaiDocumentPath = url('storage/fssai_docs/' . basename($kyc->fssai_document));
+        @endphp
+        <!-- Option 1: Provide a download/view link -->
+        <a href="{{ $fssaiDocumentPath }}" target="_blank" class="btn btn-primary mb-2" style="width: -webkit-fill-available;">View FSSAI Document</a>
+    </div>
+    @endif
+</div>
+
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- New Product Add End -->
+    @endsection

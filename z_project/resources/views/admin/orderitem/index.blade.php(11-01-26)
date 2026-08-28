@@ -1,0 +1,262 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+    td{
+        text-transform: capitalize;
+
+    }
+    td:nth-child(9){
+        white-space: nowrap;
+    }
+    .box{
+border: 1px solid #f3f3f3;
+border-collapse: collapse;
+padding: 5px 5px;
+    }
+
+    .box p{
+        margin: 5px auto !important;
+    }
+</style>
+<div class="page-body">
+        <div class="container-fluid page-body-wrapper">
+            <div class="main-panel">
+                <div class="content-wrapper ">
+                    <div class="row">
+                        @if(!$orderItems->isEmpty())
+                        <div class="col-lg-12 grid-margin stretch-card">
+                            <div class="card">
+                                <div class="card-body">
+                                    @if (session('success'))
+                                    <div class="alert alert-success">
+                                        {{ session('success') }}
+                                    </div>
+                                    @endif
+                                    <div class="order-details border p-2">
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Order ID:</strong> {{ $orderItems->first()->order->id }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>User Name:</strong> {{$orderItems->first()->order->user->name }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Order Date:</strong> {{ $orderItems->first()->order->created_at }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Outlet Name:</strong> {{$orderItems->first()->order->user->outlet_name }}</p>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Payment Status:</strong> {{ $orderItems->first()->order->payment_status }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Contact:</strong> {{$orderItems->first()->order->user->mobile_number }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Billing Address:</strong> {{ $orderItems->first()->order->billing_address }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="box">
+                                                    <p><strong>Shipping Address:</strong> {{ $orderItems->first()->order->shipping_address }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered">
+                                            <thead class="b-shadow">
+                                                <tr>
+                                                    <th>Order ID</th>
+                                                    <th>Product Name</th>
+                                                    <th>Price</th>
+                                                    <th style="width:165px;">Quantity</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($orderItems as $orderItem)
+                                                <tr>
+                                                    <td>{{ $orderItem->order->id }}</td>
+                                                    <td>{{ $orderItem->product->product_name }}</td>
+                                                    <td>₹{{ $orderItem->price }}</td>
+                                                    <!-- <td>{{ $orderItem->quantity }}</td> -->
+                                                    <td>
+                                                    <input type="number" class="form-control quantity-input" 
+                                                                    data-order-item-id="{{ $orderItem->id }}" 
+                                                                    value="{{ $orderItem->quantity }}" 
+                                                                    id="quantity_{{ $orderItem->id }}" />
+
+
+
+                                                    <td>
+                                                        <a href="#" onclick="confirmDelete('{{ $orderItem->id }}')">
+                                                            <i class="mdi mdi-trash-can-outline menu-icon text-danger font-weight-bold fs-20"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                        <div class="mt-4">
+                                            <button class="btn btn-success" onclick="acceptOrder('{{ $orderItems->first()->order->id }}')">Accept Order</button>
+                                            <button class="btn btn-danger" onclick="cancelOrder('{{ $orderItems->first()->order->id }}')">Cancel Order</button>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+                        @else
+                        <div class="row">
+                            <div class="col-lg-12  stretch-card">
+                                <h2>No Data Found</h2>
+                            </div>
+                        </div>
+                        @endif
+
+                        <script>
+                            function confirmDelete(orderItemId) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: 'You are about to delete this order item. This action cannot be undone.',
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#d33',
+                                    cancelButtonColor: '#3085d6',
+                                    confirmButtonText: 'Yes, delete it!'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        deleteOrderItem(orderItemId);
+                                    }
+                                });
+                            }
+
+                            function deleteOrderItem(orderItemId) {
+                                var token = "{{ csrf_token() }}";
+                                $.ajax({
+                                    url: '/delete-order-item/' + orderItemId,
+                                    data: {
+                                        '_token': token
+                                    },
+                                    type: 'DELETE',
+                                    success: function(response) {
+                                      location.reload();
+                                    },
+                                    error: function(xhr, status, error) {
+
+                                    }
+                                });
+                            }
+
+
+                            function acceptOrder(orderId) {
+                                var token = "{{ csrf_token() }}";
+                                $.ajax({
+                                    url: '/accept-order/' + orderId,
+                                    type: 'POST',
+                                    data: {
+                                        '_token': token
+                                    },
+                                    success: function(response) {
+                                    window.location.href = '{{ route("order.details") }}';
+                                    },
+                                    error: function(xhr, status, error) {
+                                    }
+                                });
+                            }
+
+                            function cancelOrder(orderId) {
+                                var token = "{{ csrf_token() }}";
+                                $.ajax({
+                                    url: '/cancel-order/' + orderId,
+                                    type: 'POST',
+                                    data: {
+                                        '_token': token
+                                    },
+                                    success: function(response) {
+                                        window.location.href = '{{ route("order.details") }}';
+                                    },
+                                    error: function(xhr, status, error) {
+                                        // Handle error
+                                    }
+                                });
+                            }
+                        </script>
+
+<script>
+    $(function() {
+        // Update quantity via AJAX when the quantity input field is changed
+        $("input.quantity-input").on('input', function() {
+            var orderItemId = $(this).data('order-item-id');
+            var newQuantity = $(this).val();  // Get the new value of quantity
+
+            console.log("Order Item ID:", orderItemId);  // Debugging
+            console.log("New Quantity:", newQuantity);   // Debugging
+
+            // Prepare form data for AJAX request
+            var csrfToken = $('meta[name="csrf-token"]').attr('content');
+            var formData = {
+                _token: csrfToken,
+                quantity: newQuantity,
+                order_item_id: orderItemId,
+            };
+
+            // Log the form data being sent in the request
+            console.log("Form Data:", formData);  // Debugging
+
+            // Send the AJAX request to update quantity
+            $.ajax({
+                url: "{{ route('orderItem.updateQuantity') }}",  // Your route to handle the update
+                type: "POST",
+                data: formData,
+                success: function(response) {
+                    // Log the response from the server
+                    console.log("Server Response:", response);  // Debugging response
+
+                    // if (response.success) {
+                    //     alert('Quantity updated successfully!');
+                    // } else {
+                    //     alert('Failed to update quantity.');
+                    // }
+                },
+                error: function(xhr, status, error) {
+                    // Log any errors during the AJAX request
+                    console.error('AJAX error:', error);  // Debugging
+                    console.log("XHR response:", xhr.responseText);  // Debugging response text
+                }
+            });
+        });
+    });
+</script>
+
+
+       @endsection
+

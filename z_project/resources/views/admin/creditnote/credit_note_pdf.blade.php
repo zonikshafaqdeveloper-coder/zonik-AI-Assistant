@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Credit Note - {{ $returnInvoice->credit_note_no }}</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/invoice.css">
+
+<style>
+body, table, th, td {
+    font-family: Abadi, sans-serif;
+    font-size: 11px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    border:1px solid #000;
+    padding:6px;
+}
+
+thead { display:table-header-group; }
+tr { page-break-inside:avoid; }
+
+.text-center { text-align:center; }
+.bold { font-weight:bold; }
+
+.header{
+    font-size:18px;
+    font-weight:bold;
+    text-align:center;
+    padding:8px;
+}
+</style>
+</head>
+
+<body>
+
+@php
+$finalamount = 0;
+@endphp
+
+{{-- ===================== HEADER ===================== --}}
+<table>
+<tr>
+    <td colspan="4" class="header">CREDIT NOTE</td>
+</tr>
+</table>
+
+{{-- ===================== COMPANY ===================== --}}
+<table>
+<tr>
+<td>
+    <b>Infigourmet Networks Private Limited</b><br>
+    Unit no 42  (Near Panchal Furniture),<br>
+    Nav Nandanvan Industrial estate,<br>
+    Asha Nagar, Mulund West,<br>
+    Mumbai 400080. ( Landmark : Gold Gym Mulund West.)<br>
+    Fssai No - 11525009000305<br>
+    GSTIN/UIN: 27AAICI2086H1ZE<br>
+    State Name : Maharashtra, Code : 27<br>
+    Contact : +91-9869612312
+</td>
+</tr>
+</table>
+
+{{-- ===================== CONSIGNEE & BUYER ===================== --}}
+<table>
+<tr>
+    <th width="50%">Consignee (Ship to)</th>
+    <th width="50%">Buyer (Bill to)</th>
+</tr>
+
+<tr>
+<td>
+    <p><b>{{ $company_name1 }}</b></p>
+    <p>User : {{ $order->user->name ?? '' }}</p>
+    <p>Outlet : {{ $order->user->outlet_name ?? '' }}</p>
+    <p>Address : {{ $order->shipping_address }}</p>
+    <p>Pincode : {{ $order->shipping_pincode }}</p>
+    <p>GSTIN : {{ $gst->gst_no ?? 'NA' }}</p>
+
+    @if($maharashtrian)
+        <p>State Name : Maharashtra, Code : 27</p>
+    @else
+        <p>State Name : Other State</p>
+    @endif
+</td>
+
+<td>
+    <p><b>{{ $company_name1 }}</b></p>
+    <p>User : {{ $order->user->name ?? '' }}</p>
+    <p>Outlet : {{ $order->user->outlet_name ?? '' }}</p>
+    <p>Address : {{ $order->billing_address }}</p>
+    <p>Pincode : {{ $order->user->pincode ?? '' }}</p>
+    <p>GSTIN : {{ $gst->gst_no ?? 'NA' }}</p>
+
+    @if($maharashtrian)
+        <p>State Name : Maharashtra, Code : 27</p>
+    @else
+        <p>State Name : Other State</p>
+    @endif
+</td>
+</tr>
+</table>
+
+{{-- ===================== CREDIT NOTE DETAILS ===================== --}}
+<table style="font-size:10px;">
+
+<tr>
+<td width="50%">
+    <b>Credit Note No.</b> :
+    {{ $returnInvoice->credit_note_no }}
+</td>
+
+<td width="50%">
+    <b>Dated</b> :
+    {{ $returnInvoice->created_at->format('d-M-Y') }}
+</td>
+</tr>
+
+<tr>
+<td>
+    <b>Against Invoice No.</b> :
+    {{ $order->invoice_id }}
+</td>
+
+<td>
+    <b>Invoice Date</b> :
+    {{ $order->invoice_date ? \Carbon\Carbon::parse($order->invoice_date)->format('d-M-Y') : 'N/A' }}
+</td>
+</tr>
+
+<tr>
+<td>
+    <b>Order No.</b> :
+    {{ $order->order_id }}
+</td>
+
+<td>
+    <b>Delivery Date</b> :
+    {{ $order->delivery_date ? \Carbon\Carbon::parse($order->delivery_date)->format('d-M-Y') : 'N/A' }}
+</td>
+</tr>
+
+<tr>
+<td colspan="2">
+    <b>Payment Status</b> :
+    {{ $order->payment_status }}
+</td>
+</tr>
+
+</table>
+
+{{-- ===================== RETURNED PRODUCT TABLE ===================== --}}
+<table>
+<thead>
+<tr>
+    <th>Sr</th>
+    <th>Description</th>
+    <th>HSN</th>
+    <th>Return Qty</th>
+    <th>Rate</th>
+    <th>Pre Tax</th>
+    <th>GST %</th>
+    <th>Tax</th>
+    <th>Total</th>
+</tr>
+</thead>
+
+<tbody>
+
+@php $serial = 1; @endphp
+
+@foreach($returnInvoice->items as $item)
+
+@php
+$product = $item->orderItem->product;
+
+$qty = $item->return_qty;
+$rate = $item->price;
+
+$pretax = $qty * $rate;
+
+$cgst = $product->cgst ?? 0;
+$sgst = $product->sgst ?? 0;
+$taxRate = $cgst + $sgst;
+
+$taxAmt = ($pretax * $taxRate)/100;
+
+$lineTotal = $pretax + $taxAmt;
+
+$finalamount += $lineTotal;
+@endphp
+
+<tr>
+<td>{{ $serial++ }}</td>
+<td>{{ $product->product_name }}</td>
+<td>{{ $product->hsn_code }}</td>
+<td>{{ $qty }}</td>
+<td>{{ number_format($rate,2) }}</td>
+<td>{{ number_format($pretax,2) }}</td>
+<td>{{ $taxRate }}%</td>
+<td>{{ number_format($taxAmt,2) }}</td>
+<td>{{ number_format($lineTotal,2) }}</td>
+</tr>
+
+@endforeach
+
+</tbody>
+</table>
+
+{{-- ===================== SUMMARY ===================== --}}
+<table>
+<tr>
+<td colspan="7" class="text-right"><b>Total Credit Amount</b></td>
+<td colspan="2"><b>{{ number_format($finalamount,2) }}</b></td>
+</tr>
+
+<tr>
+<td colspan="2"><b>Amount in Words</b></td>
+<td colspan="7">
+{{ app('App\Http\Controllers\OrderController')->numberToWords($finalamount) }}
+</td>
+</tr>
+</table>
+
+{{-- ===================== FOOTER ===================== --}}
+<table>
+<tr>
+<td width="50%">E. & O.E</td>
+<td width="50%" class="text-center">
+For Infigourmet Networks Private Limited<br><br><br>
+<b>Authorised Signatory</b>
+</td>
+</tr>
+</table>
+
+</body>
+</html>

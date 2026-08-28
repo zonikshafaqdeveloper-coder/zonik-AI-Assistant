@@ -1,0 +1,340 @@
+@extends('admin.layouts.appnew')
+
+@section('content')
+<div class="page-body">
+          <div class="container-fluid page-body-wrapper">
+            <div class="main-panel">
+                <div class="content-wrapper">
+                    <div class="row">
+
+                        <div class="col-lg-12 grid-margin stretch-card">
+                            <div class="card">
+                                <div class="card-body">
+                                    @if (session('success'))
+                                    <div class="alert alert-success">
+                                        {{ session('success') }}
+                                    </div>
+                                    @endif
+
+        <h4 class="mb-4">Logistic List (Warehouse)</h4>
+
+        <div class="table-responsive">
+            
+              <table class="table table-striped all-package theme-table" id="pick_list">
+        <thead class="b-shadow">
+            <tr>
+
+                <th>#</th>
+                <th>Order ID</th>
+                <th>Outlet Name</th>
+                <th>Delivery Location</th>
+                <th>Delivery Selected</th>
+                <th>Delivery Date</th>
+                <th>Order Status</th>
+                <th>Picked Status</th>
+
+                <th>Rack No</th>
+                <th>No of Box</th>
+                <th>Delivery Priority</th>
+                <th>Mode of Delivery</th>
+
+                <th>Invoice Value</th>
+            </tr>
+        </thead>
+
+    <tbody>
+        @foreach($orders as $index => $order)
+            <tr data-order-id="{{ $order->id }}">
+                <td>{{ $index + 1 }}</td>
+
+                <td>{{ $order->order_id }}</td>
+
+                <td>{{ $order->outlet->outlet_name ?? '-' }}</td>
+
+                <td>{{ $order->shipping_address }}</td>
+
+                <td>
+                    @if(!empty($order->delivery_slot_type))
+                        {{ strtoupper($order->delivery_slot_type) }}
+                    @else
+                        {{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}
+                    @endif
+                </td>
+
+               
+                <td>
+                    {{ $order->delivery_date 
+                        ? \Carbon\Carbon::parse($order->delivery_date)->format('d-m-Y') 
+                        : '-' }}
+                </td>
+
+              {{-- Order Status → from Delivery Management --}}
+@php
+    $deliveryStatus = optional($order->latestDelivery)->delivery_status ?? 'pending';
+
+    $statusMap = [
+        'pending'            => 'Received',
+        'in_progress'        => 'Accepted',
+        'ready_for_dispatch' => 'Dispatched',
+        'delivered'          => 'Delivered',
+        'cancelled'          => 'Cancelled',
+    ];
+
+    $statusLabel = $statusMap[$deliveryStatus] ?? 'Pending';
+
+    $statusClass = match ($deliveryStatus) {
+        'delivered'          => 'bg-success',
+        'ready_for_dispatch' => 'bg-primary',
+        'in_progress'        => 'bg-info',
+        'cancelled'          => 'bg-danger',
+        default              => 'bg-warning', // pending / others
+    };
+@endphp
+
+<td>
+    <span class="badge {{ $statusClass }}">
+        {{ $statusLabel }}
+    </span>
+</td>
+
+
+
+
+{{-- Picked Status → from Pick List --}}
+@php
+    $pickedStatus = $order->pickList->status ?? 'PENDING';
+
+    $label = $pickedStatus === 'PICKED' ? 'Completed' : 'Pending';
+
+    $badgeClass = $pickedStatus === 'PICKED' ? 'bg-success' : 'bg-secondary';
+@endphp
+
+<td>
+    <span class="badge {{ $badgeClass }}">
+        {{ $label }}
+    </span>
+</td>
+
+<td>
+   <input type="text" class="form-control rack-no" placeholder="Rack No"  value="{{ $order->logistic->rack_no ?? '' }}">
+</td>
+
+<td>
+    <input type="number" class="form-control no-of-box" min="1" placeholder="Boxes"  value="{{ $order->logistic->no_of_box ?? '' }}">
+</td>
+
+<td>
+<select class="form-control delivery-priority">
+    <option value="">Priority</option>
+    @foreach(['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10'] as $p)
+        <option value="{{ $p }}"
+            {{ isset($order->logistic) && $order->logistic->delivery_priority == $p ? 'selected' : '' }}>
+            {{ $p }}
+        </option>
+    @endforeach
+</select>
+
+</td>
+
+<td>
+<select class="form-control mode-select" name="mode_of_delivery[]"  data-selected="{{ $order->logistic->mode_of_delivery_id ?? '' }}">
+    <option value="">Select Mode</option>
+</select>
+
+</td>
+
+
+<td>
+    ₹ {{ number_format($order->total_discount_value, 2) }}
+</td>
+            </tr>
+        @endforeach
+    </tbody>
+</table>
+
+<div class="modal fade" id="modeModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5>Add Mode of Delivery</h5>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="newModeName" class="form-control" placeholder="Ex: Bike-3, Van-1">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="saveModeBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+        </div>
+
+                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+let currentSelect = null;
+
+/* Load all delivery modes into dropdown */
+function loadDeliveryModes() {
+    $.get("{{ route('delivery.modes.list') }}", function (data) {
+
+        $('.mode-select').each(function () {
+            let selectedMode = $(this).data('selected'); // get DB value
+            let options = '<option value="">Select Mode</option>';
+            options += '<option value="new">+ Add New Mode</option>';
+
+            data.forEach(function (mode) {
+                let selected = (mode.id == selectedMode) ? 'selected' : '';
+                options += `<option value="${mode.id}" ${selected}>${mode.name}</option>`;
+            });
+
+            $(this).html(options);
+        });
+    });
+}
+
+
+loadDeliveryModes();
+
+/* Open modal when + Add New Mode is selected */
+$(document).on('change', '.mode-select', function () {
+    console.log("Dropdown changed:", $(this).val());
+
+    if ($(this).val() === 'new') {
+        console.log("Add New Mode selected, opening modal");
+        currentSelect = $(this);
+
+        let modal = new bootstrap.Modal(document.getElementById('modeModal'));
+        modal.show();
+    }
+});
+</script>
+
+<script>
+/* Save new mode via AJAX */
+$('#saveModeBtn').click(function () {
+    let modeName = $('#newModeName').val().trim();
+    console.log("Save button clicked. Mode name:", modeName);
+
+    if (!modeName) {
+        alert("Mode name is required");
+        return;
+    }
+
+    $.ajax({
+        url: "{{ route('delivery.modes.store') }}",
+        type: "POST",
+        data: {
+            name: modeName,
+            _token: "{{ csrf_token() }}"
+        },
+success: function (res) {
+    console.log("Mode saved in DB:", res);
+
+    // Add new option to all dropdowns
+    $('.mode-select').append(
+        `<option value="${res.id}">${res.name}</option>`
+    );
+
+    // Select and save directly
+    if (currentSelect) {
+        currentSelect.val(res.id);
+
+        let row = currentSelect.closest('tr');
+        let orderId = row.data('order-id');
+
+        console.log("Direct saving new mode for order:", orderId, "Mode:", res.id);
+        saveSingleField(orderId, 'mode_of_delivery_id', res.id);
+    }
+
+    // Close modal
+    let modalElement = document.getElementById('modeModal');
+    let modalInstance = bootstrap.Modal.getInstance(modalElement);
+    modalInstance.hide();
+
+    $('#newModeName').val('');
+},
+
+        error: function (err) {
+            console.error("Error saving mode:", err);
+            alert(err.responseJSON.message);
+        }
+    });
+});
+</script>
+
+<script>
+function saveSingleField(orderId, field, value) {
+    console.log("Saving field:", field, "Order:", orderId, "Value:", value);
+
+    $.ajax({
+        url: "{{ route('order.logistics.store.single') }}",
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            order_id: orderId,
+            field: field,
+            value: value
+        },
+        success: function (res) {
+            console.log("Field saved successfully:", res);
+        },
+        error: function (err) {
+            console.error("Error saving field:", err);
+        }
+    });
+}
+
+/* Triggers */
+
+// Rack No
+$(document).on('keyup', '.rack-no', function () {
+    let orderId = $(this).closest('tr').data('order-id');
+    console.log("Rack changed:", $(this).val());
+    saveSingleField(orderId, 'rack_no', $(this).val());
+});
+
+// No of Box
+// No of Box (save instantly while typing)
+$(document).on('input', '.no-of-box', function () {
+    let orderId = $(this).closest('tr').data('order-id');
+    console.log("Box typing:", $(this).val());
+    saveSingleField(orderId, 'no_of_box', $(this).val());
+});
+
+
+// Priority
+$(document).on('change', '.delivery-priority', function () {
+    let orderId = $(this).closest('tr').data('order-id');
+    console.log("Priority changed:", $(this).val());
+    saveSingleField(orderId, 'delivery_priority', $(this).val());
+});
+
+// Mode of delivery
+$(document).on('change', '.mode-select', function () {
+    let val = $(this).val();
+    console.log("Mode changed:", val);
+
+    if (val === 'new') {
+        console.log("New mode option chosen, skipping save");
+        return;
+    }
+
+    let orderId = $(this).closest('tr').data('order-id');
+    console.log("Saving mode for order:", orderId, "Mode ID:", val);
+
+    saveSingleField(orderId, 'mode_of_delivery_id', val);
+});
+</script>
+
+@endsection
+
+

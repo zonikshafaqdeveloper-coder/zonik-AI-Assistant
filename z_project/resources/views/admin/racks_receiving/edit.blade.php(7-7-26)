@@ -1,0 +1,355 @@
+@extends('admin.layouts.appnew')
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<style>
+table { table-layout: fixed; width: 100%; }
+td { overflow: hidden; }
+
+.select2-container { width: 100% !important; }
+
+.select2-container--default .select2-selection--single {
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    background-color: #e9ecef !important;
+    box-sizing: border-box;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 44px !important;
+    padding-left: 12px !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 44px !important;
+}
+</style>
+
+<div class="page-body">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 my-5">
+                <div class="col-sm-11 m-auto">
+                    <div class="card">
+                        <div class="card-body">
+
+                            <h3 class="mb-4">Rack Receiving – Update Stock Location</h3>
+
+                            {{-- GRN Info --}}
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <label class="form-label">GRN No</label>
+                                    <input type="text" class="form-control"
+                                           value="IGGRN-{{ str_pad($grn->id,5,'0',STR_PAD_LEFT) }}" readonly>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Vendor</label>
+                                    <input type="text" class="form-control"
+                                           value="{{ $grn->purchaseOrder->vendor->name ?? '' }}" readonly>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Receipt Date</label>
+                                    <input type="date" class="form-control"
+                                           value="{{ $grn->receipt_date }}" readonly>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Bill No</label>
+                                    <input type="text" class="form-control"
+                                           value="{{ $grn->bill_no }}" readonly>
+                                </div>
+                            </div>
+
+                            {{-- Rack Table --}}
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle" id="rackTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Product</th>
+                                            <th>Batch</th>
+                                            <th>Expiry</th>
+                                            <th>Received Qty</th>
+                                            <th>Bay</th>
+                                            <th>Column</th>
+                                            <th>Floor</th>
+                                            <th>Store Qty</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    @foreach($grn->rackStocks as $index => $stock)
+                                        <tr data-product="{{ $stock->product_id }}"
+                                            data-product-name="{{ $stock->product->product_name }}">
+
+                                            <td>{{ $index + 1 }}</td>
+
+                                            <td>
+                                                {{ $stock->product->product_name }}
+                                                <input type="hidden" value="{{ $stock->product_id }}">
+                                            </td>
+
+                                             <td>
+                                                    {{ $stock->batch_no ?? '-' }}
+                                                    <input type="hidden" class="batch-no" value="{{ $stock->batch_no }}">
+                                                </td>
+                                            
+                                                <td>
+                                                    {{ $stock->expiry_date ?? '-' }}
+                                                    <input type="hidden" class="expiry-date" value="{{ $stock->expiry_date }}">
+                                                </td>
+
+                                            <td>
+                                                <span class="badge bg-info">{{ $stock->quantity }}</span>
+                                            </td>
+
+                                            <td>
+                                                <select class="form-control select2 rack-select">
+                                                    <option value="">Select</option>
+                                                    @foreach(['A','B','C','D','F1','F2','F3','F4','F5','F6','F7'] as $rack)
+                                                        <option value="{{ $rack }}" {{ $stock->rack_no == $rack ? 'selected' : '' }}>
+                                                            {{ $rack }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </td>
+
+                                            <td>
+                                                <select class="form-control select2 level-select">
+                                                    <option value="">Select</option>
+                                                    @for($i=1;$i<=10;$i++)
+                                                        <option value="{{ $i }}" {{ $stock->level_no == $i ? 'selected' : '' }}>
+                                                            {{ $i }}
+                                                        </option>
+                                                    @endfor
+                                                </select>
+                                            </td>
+
+                                            <td>
+                                                <select class="form-control select2 slot-select">
+                                                    <option value="">Select</option>
+                                                    @for($i=1;$i<=10;$i++)
+                                                        <option value="{{ $i }}" {{ $stock->slot_no == $i ? 'selected' : '' }}>
+                                                            {{ $i }}
+                                                        </option>
+                                                    @endfor
+                                                </select>
+                                            </td>
+
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control store-qty"
+                                                       value="{{ $stock->quantity }}"
+                                                       min="0">
+                                            </td>
+
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-danger remove-row">–</button>
+                                                <button type="button" class="btn btn-sm btn-success add-row">+</button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {{-- Actions --}}
+                            <div class="row mt-4">
+                                <div class="col-md-4 offset-md-8 d-grid gap-2">
+                                    <button type="button" id="saveRackBtn" class="btn btn-warning">
+                                        Update Rack Allocation
+                                    </button>
+
+                                    <a href="{{ route('admin.rack.receiving.index') }}"
+                                       class="btn btn-secondary">Back</a>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+
+<script>
+function reinitSelect2($container) {
+    $container.find('select').select2({ width: '100%' });
+}
+
+$(document).ready(function () {
+    reinitSelect2($(document));
+});
+
+/* Remove row */
+$(document).on('click', '.remove-row', function () {
+    $(this).closest('tr').remove();
+});
+
+/* Add row for same product */
+$(document).on('click', '.add-row', function () {
+
+    const $row = $(this).closest('tr');
+    const productId = $row.data('product');
+
+    const $productRows = $('#rackTable tbody tr').filter(function () {
+        return $(this).data('product') == productId;
+    });
+
+    // destroy select2 before cloning
+    $productRows.find('select').select2('destroy');
+
+    const newRow = $row.clone();
+    newRow.find('.store-qty').val(0);
+    newRow.find('select').val('');
+
+    const $last = $productRows.last();
+    $last.after(newRow);
+
+    // reinit
+    const $updated = $('#rackTable tbody tr').filter(function () {
+        return $(this).data('product') == productId;
+    });
+
+    reinitSelect2($updated);
+});
+
+
+$(document).on('change', '.rack-select', function () {
+
+    const rack = $(this).val();
+    const $row = $(this).closest('tr');
+
+    const $level = $row.find('.level-select');
+    const $slot  = $row.find('.slot-select');
+
+    if (['F1','F2','F3','F4','F5','F6'].includes(rack)) {
+
+        $level.val('').prop('disabled', true).removeAttr('required');
+        $slot.val('').prop('disabled', true).removeAttr('required');
+
+    } else {
+
+        $level.prop('disabled', false).attr('required', true);
+        $slot.prop('disabled', false).attr('required', true);
+    }
+});
+
+
+
+/* Build payload */
+function buildRackReceivingPayload() {
+
+    let items = [];
+    let usedLocations = [];
+    let productTotals = {};
+
+    $('#rackTable tbody tr').each(function () {
+
+        const $row = $(this);
+        const productId = $row.data('product');
+        const productName = $row.data('product-name');
+
+        const rack  = $row.find('.rack-select').val();
+        const level = $row.find('.level-select').val();
+        const slot  = $row.find('.slot-select').val();
+        const qty   = parseFloat($row.find('.store-qty').val()) || 0;
+        const isFridge = ['F1','F2','F3','F4','F5','F6'].includes(rack);
+
+           if (!rack) {
+            throw { title:'Rack Required', message:`Select Rack for ${productName}` };
+        }
+
+        if (!isFridge) {
+            if (!level) {
+                throw { title:'Level Required', message:`Select Level for ${productName}` };
+            }
+            if (!slot) {
+                throw { title:'Slot Required', message:`Select Slot for ${productName}` };
+            }
+        }
+
+        // const key = `${rack}-${level}-${slot}`;
+        // if (usedLocations.includes(key)) {
+        //     throw {
+        //         title:'Duplicate Location',
+        //         message:`Location ${key} already assigned. Choose another for ${productName}`
+        //     };
+        // }
+        // usedLocations.push(key);
+
+        if (!productTotals[productId]) {
+            productTotals[productId] = { total:0, name:productName };
+        }
+        productTotals[productId].total += qty;
+
+        items.push({
+            product_id: productId,
+            rack_no: rack,
+            level_no: level,
+            slot_no: slot,
+            quantity: qty,
+            batch_no    : $row.find('.batch-no').val() || null,
+            expiry_date : $row.find('.expiry-date').val() || null
+
+        });
+    });
+
+    if (items.length === 0) {
+        throw { title:'No Data', message:'No rack allocation found' };
+    }
+
+    return { items: items };
+}
+
+/* Save update */
+$('#saveRackBtn').on('click', function () {
+
+    let payload;
+
+    try {
+        payload = buildRackReceivingPayload();
+    } catch (err) {
+        Swal.fire(err.title, err.message, 'warning');
+        return;
+    }
+
+    Swal.fire({
+        title: 'Updating Rack Allocation...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    fetch("{{ route('admin.rack.receiving.update', $grn->id) }}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(res => {
+        Swal.close();
+        if (res.success) {
+            Swal.fire('Updated', res.message, 'success')
+                .then(() => window.location.href = res.redirect_url);
+        } else {
+            Swal.fire('Failed', res.message, 'error');
+        }
+    })
+    .catch(() => {
+        Swal.close();
+        Swal.fire('Server Error','Something went wrong','error');
+    });
+});
+</script>
+@endsection
