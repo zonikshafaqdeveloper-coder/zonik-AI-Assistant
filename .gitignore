@@ -8,15 +8,15 @@
 **/node_modules/
 
 # Laravel runtime data
-z_project/storage/logs/*
-z_project/storage/framework/cache/data/*
-z_project/storage/framework/sessions/*
-z_project/storage/framework/views/*
-z_project/storage/fonts/*
-z_project/bootstrap/cache/*.php
-z_project/public/uploads/
-z_project/public/uploads.*/
-z_project/public/*_debug_log.txt
+/storage/logs/*
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/fonts/*
+/bootstrap/cache/*.php
+/public/uploads/
+/public/uploads.*/
+/public/*_debug_log.txt
 
 # Test and editor artifacts
 **/.phpunit.result.cache
