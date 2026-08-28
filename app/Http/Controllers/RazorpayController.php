@@ -99,12 +99,17 @@ public function handlePaymentSuccess(Request $request)
         $orderData = session('order_data');
         
         try {
-             $user = auth()->user();
-            $userData = User::where('priority', auth()->id())->first();
+            $user = auth()->user();
+            $selectedOutletId = (int) ($orderData['user_id'] ?? 0);
+            $userData = User::where('id', $selectedOutletId)
+                ->where(function ($query) use ($user) {
+                    $query->where('priority', $user->id)
+                        ->orWhere('id', $user->id);
+                })
+                ->first();
 
             if (!$userData) {
-                // Handle the case when no user is found
-                $userData = User::where('id', auth()->id())->first();
+                throw new \RuntimeException('The selected delivery outlet is invalid.');
             }
             
           // Initialize Razorpay API

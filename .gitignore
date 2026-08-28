@@ -14,7 +14,9 @@
 /storage/framework/views/*
 /storage/fonts/*
 /bootstrap/cache/*.php
-/public/uploads/
+# Product images live directly in /public/uploads and are deployed with the app.
+# Private documents are stored in child directories and must never be committed.
+/public/uploads/*/
 /public/uploads.*/
 /public/*_debug_log.txt
 
