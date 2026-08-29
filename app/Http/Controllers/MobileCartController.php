@@ -3,8 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cart;
-use App\Models\Product;
-use App\Models\CustomerPrice;
+use App\Services\OrderableProductValidator;
 use Illuminate\Http\Request;
 
 class MobileCartController extends Controller
@@ -20,15 +19,13 @@ class MobileCartController extends Controller
     $outletId = auth()->user()->selected_outlet_id;
     // dd($outletId);
 
-    $product = Product::select('id', 'product_mrp', 'sale_price_loose_pcs', 'sale_price_carton')->findOrFail($validated['product_id']);
-
-    $outletPrice = CustomerPrice::where('outlet_id', $outletId)
-        ->where('product_id', $product->id)->value('product_price');
-    $cataloguePrice = (float) ($product->sale_price_loose_pcs ?: $product->sale_price_carton ?: $product->product_mrp);
-    $offerPrice = (float) ($outletPrice ?? $cataloguePrice);
-    if ($offerPrice <= 0) {
-        return response()->json(['success' => false, 'message' => 'Price is unavailable for this product.'], 422);
-    }
+    $authorization = app(OrderableProductValidator::class)->validate(auth()->user(), $outletId, (int) $validated['product_id']);
+    if (!$authorization['approved']) return response()->json([
+        'success' => false, 'code' => $authorization['reason'],
+        'message' => 'This product is not approved for the selected outlet.',
+    ], 422);
+    $product = $authorization['product'];
+    $offerPrice = (float) $authorization['price'];
     $mrp = (float) ($product->product_mrp ?: $offerPrice);
     $discount = $mrp > 0 ? round((($mrp - $offerPrice) / $mrp) * 100, 2) : 0;
     $totalQty = $validated['quantity'];
@@ -72,13 +69,20 @@ public function updateQuantity(Request $request)
         ->where('product_id', $validated['product_id'])
         ->firstOrFail();
 
+    $authorization = app(OrderableProductValidator::class)->validate(auth()->user(), $outletId, (int) $cart->product_id);
+    if (!$authorization['approved']) return response()->json([
+        'success' => false, 'code' => $authorization['reason'],
+        'message' => 'This product is no longer approved for the selected outlet.',
+    ], 422);
+
     $totalQty = $validated['quantity'];
 
     $cart->update([
         'quantity'        => $totalQty,
         'count_value'     => $totalQty,
         'total_qty'       => $totalQty,
-        'total_amt_basic' => round($cart->offer_price * $totalQty, 2),
+        'offer_price'     => (float) $authorization['price'],
+        'total_amt_basic' => round((float) $authorization['price'] * $totalQty, 2),
     ]);
 
     return response()->json([

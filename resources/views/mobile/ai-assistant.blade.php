@@ -237,6 +237,9 @@
 .ai-product-actions, .ai-cart-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .ai-product-btn, .ai-cart-btn { border: 1px solid #4f46e5; background: #fff; color: #3730a3; border-radius: 9px; padding: 7px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .ai-product-btn.primary, .ai-cart-btn.primary { background: #4f46e5; color: #fff; }
+.ai-checkout-choice-group { width:100%; display:grid; gap:7px; margin-top:7px; }
+.ai-checkout-choice-title { color:#475467; font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.ai-checkout-choice-list { display:flex; flex-wrap:wrap; gap:7px; }
 .ai-qty-control { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid #c7d2fe; border-radius: 9px; background: #fff; }
 .ai-qty-btn { width: 32px; height: 32px; border: 0; background: #eef2ff; color: #3730a3; font-size: 18px; font-weight: 800; cursor: pointer; }
 .ai-qty-value { min-width: 34px; text-align: center; color: #111827; font-size: 12px; font-weight: 800; }
@@ -393,25 +396,252 @@
 .ai-action-btn[hidden] { display: none; }
 .ai-mic-btn.listening { background: #dc2626; animation: aiMicPulse 1s infinite; }
 @keyframes aiMicPulse { 50% { box-shadow: 0 0 0 7px rgba(220, 38, 38, .16); } }
-@media (max-width: 640px) {
+@media (min-width: 641px) {
     .ai-page {
-        min-height: calc(100vh - 126px);
+        width: 100%;
+        height: calc(100dvh - 138px);
+        min-height: 560px;
+        background: #fff;
     }
     .ai-card {
-        padding: 12px;
-        border-radius: 20px;
+        width: 100%;
+        max-width: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 18px max(28px, calc((100vw - 1180px) / 2));
     }
     .ai-header {
-        padding: 10px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
+        border-radius: 14px;
+        background: #f7f9ff;
     }
+    .ai-chat-shell {
+        padding: 8px 12px 0;
+        margin: 0;
+    }
+    .ai-chat { max-width: 980px; width: 100%; margin: 0 auto; }
+    .ai-message { max-width: 68%; }
+    .ai-message.user { max-width: 60%; }
+    .ai-product-card { min-width: min(430px, 100%); }
+    .ai-composer {
+        max-width: 980px;
+        width: 100%;
+        margin: auto auto 0;
+        padding: 12px 0 2px;
+    }
+    .ai-history-panel,
+    .ai-cart-panel {
+        left: max(28px, calc((100vw - 1180px) / 2));
+        right: max(28px, calc((100vw - 1180px) / 2));
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 18px 45px rgba(15,23,42,.12);
+    }
+}
+@media (max-width: 640px) {
+    .ai-page {
+        height: calc(100dvh - 126px);
+        min-height: 0;
+        background: #fff;
+    }
+    .ai-card {
+        padding: 8px 12px 6px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .ai-header {
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        padding: 14px 48px 12px;
+        margin-bottom: 2px;
+        border: 0;
+        border-bottom: 1px solid #eef2f6;
+        border-radius: 0;
+        background: #fff;
+        text-align: center;
+    }
+    .ai-avatar {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        position: relative;
+        overflow: visible;
+        background: #eef7ff;
+        border: 1px solid #cfe5f7;
+        box-shadow: 0 0 0 7px rgba(0,103,165,.055), 0 8px 22px rgba(0,103,165,.12);
+        animation: aiAvatarBreathe 2.8s ease-in-out infinite;
+    }
+    .ai-avatar::before,
+    .ai-avatar::after {
+        content: '';
+        position: absolute;
+        inset: -7px;
+        border: 1px solid rgba(0,103,165,.18);
+        border-radius: 50%;
+        pointer-events: none;
+        animation: aiAvatarRing 2.8s ease-out infinite;
+    }
+    .ai-avatar::after { inset: -14px; animation-delay: 1.4s; }
+    .ai-avatar img { border-radius: 50%; position: relative; z-index: 1; }
+    @keyframes aiAvatarBreathe {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-2px) scale(1.035); }
+    }
+    @keyframes aiAvatarRing {
+        0% { opacity: .65; transform: scale(.92); }
+        75%, 100% { opacity: 0; transform: scale(1.12); }
+    }
+    .ai-header-text { justify-items: center; }
     .ai-title {
-        font-size: 16px;
+        font-size: 17px;
+        letter-spacing: -.25px;
     }
-    .ai-action-btn { padding: 6px 8px; }
-    .ai-cart-panel { position: fixed; inset: 0; z-index: 1050; width: 100vw; max-width: 100vw; height: 100dvh; margin: 0; border-radius: 0; overflow-x: hidden; }
-    .ai-cart-panel-head { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
+    .ai-status { color: #159447; font-size: 10.5px; }
+    .ai-status-dot { width: 7px; height: 7px; box-shadow: 0 0 0 3px rgba(34,197,94,.12); }
+    .ai-header-pill { position: absolute; top: 10px; right: 2px; padding: 7px; border: 0; background: transparent; }
+    .ai-header-pill span { display: none; }
+    .ai-chat-shell { padding: 10px 2px 0; margin-bottom: 4px; }
+    .ai-chat { gap: 8px; }
+    .ai-message { max-width: 88%; padding: 10px 12px; font-size: 12.5px; border-radius: 13px 13px 13px 4px; background: #fff; }
+    .ai-message.assistant { background: #f5f9ff; border-color: #dceafb; }
+    .ai-message.user { max-width: 82%; border-radius: 13px 13px 4px 13px; background: #edf6ff; border-color: #d5e8f8; }
+    .ai-reply-avatar { width: 25px; height: 25px; }
+    .ai-composer { gap: 8px; padding-top: 8px; }
+    .ai-actions { gap: 6px; }
+    .ai-action-btn { min-height: 31px; padding: 5px 8px; border-radius: 9px; font-size: 10.5px; }
+    .ai-action-btn.primary { background: #0067a5; }
+    .ai-input { padding: 11px 13px; font-size: 13px; border-radius: 11px; }
+    .ai-send-btn { width: 40px; height: 40px; border-radius: 11px; background: #0067a5; }
+    .ai-mic-wrap { position: relative; }
+    .ai-mic-wrap::before,
+    .ai-mic-wrap::after {
+        content: '';
+        position: fixed;
+        left: 50%;
+        z-index: 6;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+    .ai-mic-wrap::before {
+        bottom: 196px;
+        width: min(230px, 68vw);
+        height: 58px;
+        border-radius: 14px;
+        background: repeating-linear-gradient(90deg, #0874bd 0 3px, transparent 3px 8px);
+        clip-path: polygon(0 47%,4% 40%,8% 55%,12% 29%,16% 64%,20% 20%,24% 72%,28% 35%,32% 58%,36% 12%,40% 82%,44% 27%,48% 66%,52% 16%,56% 78%,60% 31%,64% 62%,68% 22%,72% 74%,76% 38%,80% 59%,84% 30%,88% 67%,92% 42%,96% 56%,100% 47%,100% 53%,96% 62%,92% 50%,88% 76%,84% 42%,80% 69%,76% 46%,72% 83%,68% 30%,64% 70%,60% 39%,56% 87%,52% 24%,48% 75%,44% 35%,40% 90%,36% 20%,32% 67%,28% 43%,24% 80%,20% 28%,16% 72%,12% 37%,8% 63%,4% 48%,0 55%);
+        filter: drop-shadow(0 4px 8px rgba(0,103,165,.2));
+        transform: translateX(-50%) scaleY(.2);
+    }
+    .ai-mic-wrap::after {
+        bottom: 224px;
+        width: min(250px, 74vw);
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(0,103,165,.2), transparent);
+        transform: translateX(-50%);
+    }
+    .ai-mic-wrap:has(.ai-mic-btn.listening)::before {
+        opacity: 1;
+        animation: aiSoundWave 1.05s ease-in-out infinite alternate, aiWaveTravel 2s linear infinite;
+    }
+    .ai-mic-wrap:has(.ai-mic-btn.listening)::after { opacity: 1; }
+    .ai-mic-btn {
+        position: relative;
+        width: 52px;
+        height: 52px;
+        margin: -6px 0;
+        background: #0067a5;
+        border: 4px solid #fff;
+        box-shadow: 0 0 0 1px #cde2f4, 0 8px 20px rgba(0,103,165,.24);
+    }
+    .ai-mic-btn::before,
+    .ai-mic-btn::after {
+        content: '';
+        position: absolute;
+        width: 62px;
+        height: 62px;
+        border: 1px solid rgba(0,103,165,.22);
+        border-radius: 50%;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .ai-mic-btn.listening { background: #0067a5; animation: aiMobileMicGlow 1.15s ease-in-out infinite; }
+    .ai-mic-btn.listening::before { animation: aiMobileVoiceRing 1.25s ease-out infinite; }
+    .ai-mic-btn.listening::after { animation: aiMobileVoiceRing 1.25s .55s ease-out infinite; }
+    @keyframes aiMobileMicGlow {
+        50% { transform: scale(1.06); box-shadow: 0 0 0 7px rgba(0,103,165,.10), 0 10px 24px rgba(0,103,165,.28); }
+    }
+    @keyframes aiMobileVoiceRing {
+        0% { opacity: .7; transform: scale(.85); }
+        100% { opacity: 0; transform: scale(1.45); }
+    }
+    @keyframes aiSoundWave {
+        0% { transform: translateX(-50%) scaleY(.42); filter: drop-shadow(0 3px 6px rgba(0,103,165,.14)); }
+        28% { transform: translateX(-50%) scaleY(.82); }
+        58% { transform: translateX(-50%) scaleY(.55); }
+        100% { transform: translateX(-50%) scaleY(1); filter: drop-shadow(0 6px 12px rgba(0,103,165,.28)); }
+    }
+    @keyframes aiWaveTravel {
+        from { background-position-x: 0; }
+        to { background-position-x: 48px; }
+    }
+    .ai-mic-status { display: none; }
+    .ai-product-card { padding: 9px; border-radius: 11px; background: #fff; }
+    .ai-product-image { width: 52px; height: 52px; object-fit: contain; }
+    .ai-product-title { font-size: 12px; }
+    .ai-product-meta { font-size: 10.5px; }
+    .ai-product-price { color: #0067a5; font-size: 12.5px; }
+    .ai-product-btn.primary, .ai-cart-btn.primary { background: #0067a5; border-color: #0067a5; }
+    .ai-action-btn.cart-shortcut {
+        position: relative;
+        margin-left: auto;
+        padding-inline: 11px;
+        background: #0067a5;
+        border-color: #0067a5;
+        color: #fff;
+    }
+    .ai-action-btn.cart-shortcut span { font-size: 0; }
+    .ai-action-btn.cart-shortcut span::after { content: 'Live Order'; font-size: 10.5px; }
+    .ai-cart-panel {
+        position: fixed;
+        inset: auto 6px calc(68px + env(safe-area-inset-bottom, 0px));
+        z-index: 1050;
+        width: auto;
+        max-width: 520px;
+        height: min(72dvh, 650px);
+        margin: 0 auto;
+        border: 1px solid #dce6ef;
+        border-radius: 19px 19px 12px 12px;
+        overflow-x: hidden;
+        background: #fff;
+        box-shadow: 0 -12px 38px rgba(16,43,67,.16), 0 8px 30px rgba(16,43,67,.10);
+    }
+    .ai-cart-panel::before {
+        content: '';
+        width: 38px;
+        height: 4px;
+        margin: 7px auto 0;
+        border-radius: 99px;
+        background: #d6dee8;
+        flex: 0 0 auto;
+    }
+    .ai-cart-panel-head { padding: 7px 12px 10px; }
+    .ai-cart-panel-head > svg { color: #0067a5; }
+    .ai-cart-panel-title { text-transform: uppercase; letter-spacing: .035em; }
     .ai-cart-panel-body { padding: 10px; gap: 9px; overscroll-behavior: contain; }
     .ai-cart-panel-item { grid-template-columns: 54px minmax(0, 1fr) 32px; gap: 8px; padding: 9px; }
+    .ai-cart-panel.open .ai-cart-panel-item { animation: aiOrderItemIn .24s ease-out both; }
+    .ai-cart-panel.open .ai-cart-panel-item:nth-child(2) { animation-delay: .04s; }
+    .ai-cart-panel.open .ai-cart-panel-item:nth-child(3) { animation-delay: .08s; }
+    @keyframes aiOrderItemIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
     .ai-cart-panel-image { width: 54px; height: 54px; }
     .ai-cart-panel-name { font-size: 12px; overflow-wrap: anywhere; }
     .ai-cart-remove { width: 32px; min-height: 44px; padding: 4px; }
@@ -419,7 +649,9 @@
     .ai-cart-bill-row { gap: 8px; }
     .ai-cart-bill-row span:last-child { text-align: right; }
     .ai-cart-bill-row.total strong { font-size: 16px; }
-    .ai-cart-panel-foot { padding: 9px 10px calc(9px + env(safe-area-inset-bottom, 0px)); }
+    .ai-cart-panel-foot { padding: 9px 10px 10px; }
+    .ai-cart-review { background: #0067a5; }
+    .ai-cart-bill-row.total strong { color: #0067a5; }
     .ai-reorder-table { min-width: 0; table-layout: auto; }
     .ai-reorder-table th:nth-child(2), .ai-reorder-table td:nth-child(2) { display: none; }
     .ai-reorder-table th, .ai-reorder-table td { padding: 7px 5px; }
@@ -427,10 +659,269 @@
     .ai-reorder-table .ai-qty-btn { width: 27px; height: 29px; }
     .ai-reorder-table .ai-qty-value { min-width: 25px; }
 }
+@media (prefers-reduced-motion: reduce) {
+    .ai-avatar,
+    .ai-avatar::before,
+    .ai-avatar::after,
+    .ai-mic-btn.listening,
+    .ai-mic-btn.listening::before,
+    .ai-mic-btn.listening::after { animation: none !important; }
+    .ai-mic-wrap::before,
+    .ai-mic-wrap::after,
+    .ai-cart-panel.open .ai-cart-panel-item { animation: none !important; }
+}
+
+/* State-driven agent surface. The existing chat/cart elements remain the
+   source of truth; this layer only presents their current state. */
+.ai-agent-stage {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 8px;
+    min-height: 128px;
+    padding: 18px 16px 12px;
+    text-align: center;
+}
+.ai-agent-character {
+    position: relative;
+    width: 138px;
+    height: 132px;
+    display: grid;
+    place-items: end center;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #fff;
+}
+.ai-agent-identity {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+}
+.ai-agent-name {
+    color: #102a56;
+    font-size: 17px;
+    font-weight: 850;
+    letter-spacing: -.02em;
+}
+.ai-agent-online {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #16834b;
+    font-size: 11px;
+    font-weight: 700;
+}
+.ai-agent-online::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.12);
+}
+.ai-hero-mic {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+.ai-hero-mic .ai-mic-btn {
+    width: 76px;
+    height: 76px;
+    margin: 0;
+    border: 5px solid #fff;
+    background: #075ff7;
+    box-shadow: 0 0 0 1px #c9dcf5, 0 12px 28px rgba(7,95,247,.24);
+    transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.ai-hero-mic .ai-mic-btn:hover { transform: translateY(-1px); }
+.ai-hero-mic .ai-mic-btn:active { transform: scale(.94); }
+.ai-hero-mic .ai-mic-btn svg { width: 27px; height: 27px; }
+.ai-hero-mic .ai-mic-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.ai-agent-character::before {
+    content: '';
+    position: absolute;
+    inset: 20px 8px 2px;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(49,87,213,.18), rgba(49,87,213,0) 68%);
+    filter: blur(8px);
+}
+.ai-agent-character img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    object-position: center bottom;
+    filter: drop-shadow(0 12px 14px rgba(20,42,102,.16));
+    transform-origin: center bottom;
+    animation: aiCharacterIdle 3.4s ease-in-out infinite;
+}
+@keyframes aiCharacterIdle {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-3px) scale(1.012); }
+}
+.ai-agent-state {
+    margin: 0;
+    color: #101828;
+    font-size: clamp(20px, 2vw, 28px);
+    font-weight: 750;
+    letter-spacing: -.025em;
+}
+.ai-agent-detail {
+    max-width: 520px;
+    min-height: 22px;
+    margin: 0;
+    color: #667085;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.ai-agent-wave {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 32px;
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+.ai-agent-wave span {
+    width: 3px;
+    height: 8px;
+    border-radius: 999px;
+    background: #3157d5;
+    transform-origin: center;
+}
+.ai-card[data-agent-state="listening"] .ai-agent-wave,
+.ai-card[data-agent-state="understanding"] .ai-agent-wave,
+.ai-card[data-agent-state="matching"] .ai-agent-wave,
+.ai-card[data-agent-state="executing"] .ai-agent-wave,
+.ai-card[data-agent-state="speaking"] .ai-agent-wave { opacity: 1; }
+.ai-card[data-agent-state="listening"] .ai-agent-wave span { animation: aiStateWave .8s ease-in-out infinite alternate; }
+.ai-card[data-agent-state="listening"] .ai-agent-character img {
+    animation: aiCharacterListen 1.15s ease-in-out infinite;
+}
+.ai-card[data-agent-state="understanding"] .ai-agent-character img,
+.ai-card[data-agent-state="matching"] .ai-agent-character img,
+.ai-card[data-agent-state="executing"] .ai-agent-character img,
+.ai-card[data-agent-state="speaking"] .ai-agent-character img {
+    animation: aiCharacterThink 1.45s ease-in-out infinite;
+}
+.ai-card[data-agent-state="ready"] .ai-agent-character img {
+    animation: aiCharacterDone .55s ease-out both;
+}
+@keyframes aiCharacterListen {
+    0%, 100% { transform: translateY(0) rotate(-.35deg); }
+    50% { transform: translateY(-4px) rotate(.45deg) scale(1.018); }
+}
+@keyframes aiCharacterThink {
+    0%, 100% { transform: translateY(0); filter: drop-shadow(0 12px 14px rgba(20,42,102,.16)); }
+    50% { transform: translateY(-2px) scale(.99); filter: drop-shadow(0 14px 18px rgba(98,70,234,.24)); }
+}
+@keyframes aiCharacterDone {
+    0% { transform: scale(.94); }
+    60% { transform: scale(1.035); }
+    100% { transform: scale(1); }
+}
+.ai-card[data-agent-state="understanding"] .ai-agent-wave span,
+.ai-card[data-agent-state="matching"] .ai-agent-wave span,
+.ai-card[data-agent-state="executing"] .ai-agent-wave span,
+.ai-card[data-agent-state="speaking"] .ai-agent-wave span { animation: aiStateWave 1.1s ease-in-out infinite alternate; }
+.ai-agent-wave span:nth-child(2), .ai-agent-wave span:nth-child(8) { animation-delay: -.55s !important; }
+.ai-agent-wave span:nth-child(3), .ai-agent-wave span:nth-child(7) { animation-delay: -.35s !important; }
+.ai-agent-wave span:nth-child(4), .ai-agent-wave span:nth-child(6) { animation-delay: -.15s !important; }
+.ai-agent-wave span:nth-child(5) { animation-delay: -.7s !important; }
+@keyframes aiStateWave { to { height: 28px; background: #6246ea; } }
+.ai-card[data-agent-state="ready"] .ai-agent-state { color: #087443; }
+.ai-card[data-agent-state="error"] .ai-agent-state { color: #b54708; }
+.ai-card[data-agent-state="listening"] .ai-avatar { animation-duration: 1.25s; }
+.ai-card[data-agent-state="understanding"] .ai-avatar::after,
+.ai-card[data-agent-state="matching"] .ai-avatar::after,
+.ai-card[data-agent-state="executing"] .ai-avatar::after { animation-duration: 1.15s; }
+.ai-order-dock {
+    display: none;
+    width: 100%;
+    border: 1px solid #d9e2f2;
+    border-radius: 16px;
+    background: rgba(255,255,255,.96);
+    box-shadow: 0 10px 28px rgba(16,24,40,.10);
+    padding: 11px 14px;
+    color: #101828;
+    cursor: pointer;
+    align-items: center;
+    gap: 11px;
+    text-align: left;
+}
+.ai-order-dock.visible { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; }
+.ai-order-dock-icon { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border-radius:11px; color:#3157d5; background:#eef2ff; }
+.ai-order-dock-icon svg { width:19px; height:19px; }
+.ai-order-dock-copy { min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
+.ai-order-dock-copy strong { font-size:13px; }
+.ai-order-dock-copy span { color:#667085; font-size:12px; }
+.ai-order-dock-total { color:#101828; font-size:15px; font-weight:800; white-space:nowrap; }
+.ai-live-preview { display:grid; grid-column:1 / -1; width:100%; max-height:154px; overflow-y:auto; overscroll-behavior:contain; border-top:1px solid #e8edf5; scrollbar-width:thin; }
+.ai-live-preview-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:9px; min-height:38px; padding:7px 2px; border-bottom:1px solid #f0f3f8; }
+.ai-live-preview-row:last-child { border-bottom:0; }
+.ai-live-preview-row.is-new { animation:aiLiveRowIn .32s ease-out both; }
+.ai-live-preview-name { overflow:hidden; color:#172b4d; font-size:12px; font-weight:750; text-overflow:ellipsis; white-space:nowrap; }
+.ai-live-preview-qty { color:#667085; font-size:11px; white-space:nowrap; }
+.ai-live-preview-price { color:#102a56; font-size:12px; font-weight:800; white-space:nowrap; }
+.ai-live-preview-empty { grid-column:1 / -1; padding:9px 2px 2px; color:#98a2b3; font-size:11px; text-align:center; }
+@keyframes aiLiveRowIn { from { opacity:0; transform:translateY(8px); background:#eef6ff; } to { opacity:1; transform:translateY(0); background:transparent; } }
+@media (max-width: 640px) {
+    .ai-header {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        z-index: 8;
+        display: block;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background: transparent;
+    }
+    .ai-header > .ai-avatar,
+    .ai-header > .ai-header-text { display: none; }
+    .ai-header-pill { position: static; width: 36px; height: 36px; padding: 8px; }
+    .ai-agent-stage { min-height: clamp(280px, 50dvh, 330px); padding: 8px 12px 10px; gap: 6px; }
+    .ai-card:has(.ai-live-preview-row) .ai-agent-stage { min-height: 210px; }
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-stage { min-height: 142px; }
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-character { width: 72px; height: 74px; }
+    .ai-agent-character { width: 92px; height: 96px; margin: 0; }
+    .ai-agent-character::before { inset: 16px 4px 0; }
+    .ai-agent-name { font-size: 16px; }
+    .ai-hero-mic { margin-top: 8px; gap: 7px; }
+    .ai-hero-mic .ai-mic-btn { width: 78px; height: 78px; }
+    .ai-agent-state { font-size: 21px; }
+    .ai-agent-detail { max-width: 310px; font-size: 13px; }
+    .ai-agent-wave { height: 25px; }
+    .ai-mic-wrap::before,
+    .ai-mic-wrap::after { display: none !important; }
+    .ai-live-order-message { display: none !important; }
+    .ai-action-btn.cart-shortcut { display: none !important; }
+    .ai-order-dock { position: relative; z-index: 3; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ai-agent-wave span,
+    .ai-agent-character img { animation: none !important; }
+}
 </style>
 
 <div class="ai-page">
-    <div class="ai-card">
+    <div class="ai-card" data-agent-state="idle">
         <div class="ai-header">
             <div class="ai-avatar">
                 <img src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" width="160" height="180" alt="Listening">
@@ -444,6 +935,27 @@
                 <span>History</span>
             </button>
         </div>
+
+        <section class="ai-agent-stage" aria-live="polite" aria-atomic="true">
+            <div class="ai-agent-character" aria-hidden="true">
+                <img src="{{ asset('assets/zonik-agent-listening-v2.png') }}" width="1024" height="1024" alt="">
+            </div>
+            <div class="ai-agent-identity">
+                <strong class="ai-agent-name">Zonik AI</strong>
+                <span class="ai-agent-online">Online</span>
+            </div>
+            <div class="ai-mic-wrap ai-hero-mic">
+                <button class="ai-mic-btn" type="button" title="Tap to speak" id="aiMicBtn" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0v-4A2.5 2.5 0 0 1 12 5Z"/><path d="M19 11.5a7 7 0 0 1-14 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </button>
+                <span class="ai-mic-status" id="aiMicStatus" role="status" aria-live="polite">Tap to speak</span>
+            </div>
+            <h1 class="ai-agent-state" id="aiAgentState">Tap to speak</h1>
+            <p class="ai-agent-detail" id="aiAgentDetail">Tell me what you'd like to order</p>
+            <div class="ai-agent-wave" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+        </section>
 
         <section class="ai-history-panel" id="aiHistoryPanel" aria-hidden="true">
             <div class="ai-history-header">
@@ -482,6 +994,12 @@
         </div>
 
         <div class="ai-composer">
+            <button class="ai-order-dock visible" type="button" id="aiOrderDock" aria-label="Open live order">
+                <span class="ai-order-dock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg></span>
+                <span class="ai-order-dock-copy"><strong>Live Order</strong><span id="aiOrderDockCount">0 items</span></span>
+                <strong class="ai-order-dock-total" id="aiOrderDockTotal">₹0.00</strong>
+                <span class="ai-live-preview" id="aiLivePreview"><span class="ai-live-preview-empty">Your verified order will appear here.</span></span>
+            </button>
             <div class="ai-actions">
                 <button class="ai-action-btn" type="button" data-action="repeat" title="Repeat last response" aria-label="Repeat last response">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Repeat</span>
@@ -496,12 +1014,6 @@
 
             <div class="ai-input-row">
                 <input type="text" class="ai-input" id="aiInput" placeholder="Type your order..." aria-label="Assistant input">
-                <div class="ai-mic-wrap">
-                    <span class="ai-mic-status" id="aiMicStatus" role="status" aria-live="polite">Mic ready</span>
-                    <button class="ai-mic-btn" type="button" title="Voice input" id="aiMicBtn" aria-pressed="false">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0v-4A2.5 2.5 0 0 1 12 5Z"/><path d="M19 11.5a7 7 0 0 1-14 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                    </button>
-                </div>
                 <button class="ai-send-btn" type="button" title="Send message" id="aiSendBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-20 9 7.5 2.5L15 21l2-9 5-10Z"/></svg>
                 </button>
@@ -516,6 +1028,13 @@
         const sendBtn = document.getElementById('aiSendBtn');
         const micBtn = document.getElementById('aiMicBtn');
         const micStatus = document.getElementById('aiMicStatus');
+        const aiCard = document.querySelector('.ai-card');
+        const agentStateLabel = document.getElementById('aiAgentState');
+        const agentStateDetail = document.getElementById('aiAgentDetail');
+        const orderDock = document.getElementById('aiOrderDock');
+        const orderDockCount = document.getElementById('aiOrderDockCount');
+        const orderDockTotal = document.getElementById('aiOrderDockTotal');
+        const livePreview = document.getElementById('aiLivePreview');
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const chatUrl = '{{ route('assistant.chat') }}';
         const productsUrl = '{{ route('assistant.products') }}';
@@ -533,7 +1052,6 @@
         const reorderUrl = '{{ route('assistant.reorder') }}';
         const catalogueEnquiryUrl = '{{ route('assistant.catalogue-enquiry') }}';
         const assistantCheckoutDataUrl = '{{ route('assistant.checkout-data') }}';
-        const addUrl = '{{ route('cart.add') }}';
         const checkoutUrl = '{{ route('web.chekout') }}';
         const historyButton = document.getElementById('aiHistoryButton');
         const historyPanel = document.getElementById('aiHistoryPanel');
@@ -572,11 +1090,13 @@
         let activeOrderingStage = null;
         let activeOrderingProductId = null;
         let activeClarificationOptions = [];
+        let activeCandidateSetId = '';
         let previousOrdersVisible = false;
         let awaitingNewOrderReady = false;
         let liveOrderMessage = null;
         let clarificationMessage = null;
         let liveOrderEditable = false;
+        let previousLiveOrderRows = new Map();
         let selectedDeliveryDetails = '';
         let deliveryOptionRequestVersion = 0;
         let assistantOrderSubmitting = false;
@@ -732,6 +1252,41 @@
             micStatus.classList.toggle('listening', state === 'listening');
             micStatus.classList.toggle('processing', state === 'processing');
             micBtn?.setAttribute('aria-pressed', state === 'listening' ? 'true' : 'false');
+            if (state === 'listening') setAgentUiState('listening');
+            else if (state === 'processing') setAgentUiState('understanding');
+        }
+
+        const agentUiCopy = {
+            idle: ['Tap to speak', "Tell me what you'd like to order"],
+            listening: ['Listening…', 'Speak naturally — I’m listening.'],
+            understanding: ['Understanding your order…', 'Checking product, quantity, pack and context.'],
+            matching: ['Checking approved products…', 'Matching your request with your approved price list.'],
+            clarifying: ['Choose an approved option', 'I found more than one suitable match.'],
+            executing: ['Updating your live order…', 'Applying the confirmed change.'],
+            speaking: ['Zonik is responding...', 'You can interrupt me at any time.'],
+            ready: ['Done', 'Your live order is up to date.'],
+            checkout: ['Order ready', 'Confirm delivery and payment to place the order.'],
+            error: ['Let’s try that again', 'I could not complete that request.']
+        };
+        let agentUiResetTimer = null;
+        function setAgentUiState(state, detail) {
+            const normalized = Object.prototype.hasOwnProperty.call(agentUiCopy, state) ? state : 'idle';
+            const copy = agentUiCopy[normalized];
+            if (agentUiResetTimer) window.clearTimeout(agentUiResetTimer);
+            aiCard?.setAttribute('data-agent-state', normalized);
+            if (agentStateLabel) agentStateLabel.textContent = copy[0];
+            if (agentStateDetail) agentStateDetail.textContent = detail || copy[1];
+            if (normalized === 'ready') {
+                agentUiResetTimer = window.setTimeout(function () { setAgentUiState('idle'); }, 2600);
+            }
+        }
+        function setAgentUiFromWorkflow(workflow, autoAdded) {
+            const stage = String(workflow?.stage || '');
+            if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity'].includes(stage)) return setAgentUiState('clarifying');
+            if (['delivery_details', 'payment_method', 'checkout_ready', 'confirm_order'].includes(stage)) return setAgentUiState('checkout');
+            if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else'].includes(stage)) return setAgentUiState('ready');
+            if (stage === 'customer_care_offer') return setAgentUiState('clarifying', 'Would you like me to send this enquiry to customer care?');
+            setAgentUiState('matching');
         }
 
         function cancelSpeechRecognitionRestart() {
@@ -1130,14 +1685,13 @@
             return wrap;
         }
 
-        function appendTyping() {
-            const wrap = document.createElement('div');
-            wrap.className = 'ai-message assistant';
-            wrap.innerHTML = '<span>Thinking…</span>';
-            chat.appendChild(wrap);
-            chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
-            return wrap;
-        }
+        // The hero state already communicates Understanding / Checking. This
+        // detached sentinel keeps the existing async cleanup API intact.
+function appendTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-message assistant';
+    return wrap;
+}
 
         function removeTyping(node) {
             if (node && node.parentNode) node.parentNode.removeChild(node);
@@ -1176,11 +1730,15 @@
                 playNextAssistantAudio();
                 // Restart the microphone only after every queued assistant clip
                 // has finished, otherwise it can transcribe the next clip.
-                if (!activeAssistantAudio && !assistantAudioQueue.length) resumeListeningAfterReply();
+                if (!activeAssistantAudio && !assistantAudioQueue.length) {
+                    setAgentUiState('idle');
+                    resumeListeningAfterReply();
+                }
             };
             audio.addEventListener('ended', finish, {once: true});
             audio.addEventListener('error', finish, {once: true});
             audio.play().then(function () {
+                setAgentUiState('speaking');
                 if (typeof item.onStart === 'function') item.onStart();
             }).catch(function () {
                 // Keep only the first autoplay-blocked welcome clip. Normal
@@ -1235,17 +1793,45 @@
             utterance.pitch = 1.02;
             const finishBrowserSpeech = function () {
                 assistantSpeechEndedAt = Date.now();
+                setAgentUiState('idle');
                 resumeListeningAfterReply();
                 if (typeof onEnded === 'function') onEnded();
             };
             utterance.onend = finishBrowserSpeech;
             utterance.onerror = finishBrowserSpeech;
-            utterance.onstart = function () { if (typeof onStart === 'function') onStart(); };
+            utterance.onstart = function () {
+                setAgentUiState('speaking');
+                if (typeof onStart === 'function') onStart();
+            };
             window.speechSynthesis.speak(utterance);
         }
 
+        function speechFriendlyText(text) {
+            const units = {
+                l: ['litre', 'litres'], lt: ['litre', 'litres'], ltr: ['litre', 'litres'], ltrs: ['litre', 'litres'], lit: ['litre', 'litres'],
+                liter: ['litre', 'litres'], litre: ['litre', 'litres'], ml: ['millilitre', 'millilitres'],
+                kg: ['kilogram', 'kilograms'], kgs: ['kilogram', 'kilograms'], g: ['gram', 'grams'],
+                gm: ['gram', 'grams'], gms: ['gram', 'grams'], pc: ['piece', 'pieces'], pcs: ['piece', 'pieces'],
+                pkt: ['packet', 'packets'], pkts: ['packet', 'packets'], ctn: ['carton', 'cartons'], ctns: ['carton', 'cartons'],
+                doz: ['dozen', 'dozen']
+            };
+            return String(text || '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\b(\d+(?:\.\d+)?)\s*(l(?:t(?:rs?)?)?|lit(?:er|re)?s?|ml|kgs?|gms?|g|pcs?|pkts?|ctns?|doz)\b/giu, function (_, quantity, rawUnit) {
+                    let unit = String(rawUnit).toLowerCase().replace(/s$/, '');
+                    if (unit === 'liter') unit = 'litre';
+                    const forms = units[unit] || [rawUnit, rawUnit];
+                    return quantity + ' ' + forms[Math.abs(Number(quantity) - 1) < .00001 ? 0 : 1];
+                })
+                .replace(/₹\s*([\d,]+(?:\.\d+)?)/gu, '$1 rupees')
+                .replace(/\b([\d.]+)\s*%/gu, '$1 percent')
+                .replace(/&/g, ' and ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
         function loadVoiceAsync(text, onEnded, onStart) {
-            lastAssistantSpokenText = String(text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            lastAssistantSpokenText = speechFriendlyText(text);
             if (voiceProviderMode === 'browser' && Date.now() < elevenLabsRetryAt) {
                 speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
                 return;
@@ -1276,8 +1862,8 @@
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 window.clearTimeout(requestTimeout);
-                const localizedText = data.text || text;
-                lastAssistantSpokenText = String(localizedText).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                const localizedText = data.speech_text || speechFriendlyText(data.text || text);
+                lastAssistantSpokenText = speechFriendlyText(localizedText);
                 if (data.voice_base64 && voiceProviderMode !== 'browser') {
                     voiceProviderMode = 'elevenlabs';
                     playVoice(data.voice_base64, data.voice_mime, onEnded, onStart);
@@ -1441,6 +2027,7 @@
                 if (data.active_conversation_id) conversationId = data.active_conversation_id;
                 const restoredState = data.active_workflow_state || {};
                 const restoredStage = String(restoredState.stage || '');
+                activeCandidateSetId = String(restoredState.candidate_set_id || '');
                 if (restoredStage) {
                     onboardingStage = null;
                     activeOrderingStage = restoredStage;
@@ -1684,6 +2271,7 @@
                 return;
             }
             const typing = appendTyping();
+            setAgentUiState('matching', '“' + text.slice(0, 110) + (text.length > 110 ? '…' : '') + '”');
             input.value = '';
             const requestStage = activeOrderingStage;
             const customerCareConsent = (requestStage === 'customer_care_offer' && isCustomerCareAffirmative(text))
@@ -1709,6 +2297,7 @@
                     selected_product_id: selectedProductId || activeOrderingProductId || null,
                     workflow_stage: activeOrderingStage || null,
                     clarification_options: activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
+                    candidate_set_id: activeOrderingStage === 'clarify_product' ? activeCandidateSetId : null,
                     delivery_details: selectedDeliveryDetails || null
                 })
             });
@@ -1747,6 +2336,10 @@
                 const quantity = aiIntent.quantity || order.quantity;
                 const unit = aiIntent.unit || order.unit;
                 const workflow = data.workflow || {};
+                activeCandidateSetId = workflow.stage === 'clarify_product'
+                    ? String(workflow.candidate_set_id || activeCandidateSetId || '')
+                    : '';
+                setAgentUiFromWorkflow(workflow, Boolean(data.auto_added));
                 // Only the latest checkout payload is valid. This is also
                 // required when the user changes payment method while already
                 // on the Place Order step; an older button contains the old
@@ -1795,12 +2388,13 @@
                 }
                 appendMessage('assistant', escapeHtml(reply));
                 if (data.auto_added || ['added', 'cart_updated'].includes(workflow.stage)) cartShortcut.hidden = false;
-                if (workflow.show_cart) window.setTimeout(renderLiveOrderList, 100);
+                const cartMutationConfirmed = Boolean(data.auto_added)
+                    || ['added', 'cart_updated', 'cart_removed'].includes(workflow.stage);
+                if (workflow.show_cart || cartMutationConfirmed) window.setTimeout(renderLiveOrderList, 100);
                 if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
                 if (data.auto_added && workflow.stage === 'anything_else') {
                     clarificationMessage?.remove();
                     clarificationMessage = null;
-                    renderLiveOrderList();
                     loadVoiceAsync(reply);
                     return;
                 }
@@ -1836,7 +2430,7 @@
                     Object.keys(workflow.payment_options || {}).forEach(function (method) {
                         paymentHtml += '<button type="button" class="ai-product-btn primary" data-payment-option="' + escapeHtml(method) + '">' + escapeHtml(workflow.payment_options[method]) + '</button>';
                     });
-                    if (paymentHtml) appendMessage('assistant', '<div class="ai-product-actions">' + paymentHtml + '</div>');
+                    if (paymentHtml) appendMessage('assistant', '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Payment method</span><div class="ai-checkout-choice-list">' + paymentHtml + '</div></div>');
                 }
                 if (workflow.stage === 'customer_care_offer') {
                     const dialUrl = rememberCustomerCareDialer(workflow);
@@ -1868,6 +2462,7 @@
             .catch((error) => {
                 aiDebug('Chat API failed', {message: String(error), text: text, stage: requestStage});
                 removeTyping(typing);
+                setAgentUiState('error');
                 const failureReply = 'Sorry, abhi reply connect nahi hua. Ek baar phir boliye; main sun rahi hoon.';
                 appendMessage('assistant', escapeHtml(failureReply));
                 // Keep hands-free mode alive after a failed network request.
@@ -1884,7 +2479,8 @@
             // older copy rather than leaving stale location/slot buttons in
             // the chat for the customer to tap again.
             clearAssistantDeliveryOptions();
-            let html = '';
+            let locationHtml = '';
+            let slotHtml = '';
             const locations = Array.isArray(workflow.locations) ? workflow.locations : Object.values(workflow.locations || {});
             const slots = Array.isArray(workflow.slots) ? workflow.slots : Object.values(workflow.slots || {});
             const selectedLocation = workflow.selected_location || null;
@@ -1892,14 +2488,17 @@
             locations.forEach(function (location) {
                 const isSelected = selectedLocation && Number(selectedLocation.outlet_id) === Number(location.outlet_id);
                 const command = location.outlet_name || location.label || '';
-                html += '<button type="button" class="ai-product-btn ' + (isSelected ? 'primary' : '') + '" data-delivery-option="' + escapeHtml(command) + '">&#128205; ' + escapeHtml(location.label || command) + '</button>';
+                locationHtml += '<button type="button" class="ai-product-btn ' + (isSelected ? 'primary' : '') + '" data-delivery-option="' + escapeHtml(command) + '">&#128205; ' + escapeHtml(location.label || command) + '</button>';
             });
             slots.forEach(function (slot) {
                 const locationLabel = selectedLocation ? String(selectedLocation.label || '') : '';
                 const command = (locationLabel ? locationLabel + ', ' : '') + String(slot.label || '');
-                html += '<button type="button" class="ai-product-btn primary" data-delivery-option="' + escapeHtml(command) + '">&#128336; ' + escapeHtml(slot.label || '') + '</button>';
+                slotHtml += '<button type="button" class="ai-product-btn primary" data-delivery-option="' + escapeHtml(command) + '">&#128336; ' + escapeHtml(slot.label || '') + '</button>';
             });
 
+            let html = '';
+            if (locationHtml) html += '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Delivery location</span><div class="ai-checkout-choice-list">' + locationHtml + '</div></div>';
+            if (slotHtml) html += '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Available delivery slots</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
             if (!html) html = '<div class="ai-product-meta"><strong>Delivery options load nahi hue. Please location ka naam boliye ya dobara confirm kijiye.</strong></div>';
             appendMessage('assistant', '<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
         }
@@ -2230,7 +2829,47 @@
                     if (!items.length) {
                         liveOrderMessage?.remove();
                         liveOrderMessage = null;
+                        orderDock?.classList.add('visible');
+                        if (orderDock) orderDock.hidden = false;
+                        if (orderDockCount) orderDockCount.textContent = '0 items';
+                        if (orderDockTotal) orderDockTotal.textContent = money(0);
+                        if (livePreview) livePreview.innerHTML = '<span class="ai-live-preview-empty">Your verified order will appear here.</span>';
+                        previousLiveOrderRows = new Map();
                         return;
+                    }
+                    const itemCount = Number(data.count) || items.reduce(function (sum, item) { return sum + Number(item.qty || 0); }, 0);
+                    if (orderDock) {
+                        orderDock.hidden = false;
+                        orderDock.classList.add('visible');
+                    }
+                    if (orderDockCount) orderDockCount.textContent = itemCount + ' ' + (itemCount === 1 ? 'item' : 'items');
+                    if (orderDockTotal) orderDockTotal.textContent = money(data.total);
+                    if (livePreview) {
+                        let newestChangedKey = '';
+                        const nextRows = new Map();
+                        livePreview.innerHTML = items.map(function (item) {
+                            const rowKey = String(item.cart_id || item.product_id || item.name);
+                            const signature = [item.qty, item.unit, item.total].join('|');
+                            const changed = previousLiveOrderRows.get(rowKey) !== signature;
+                            if (changed) newestChangedKey = rowKey;
+                            nextRows.set(rowKey, signature);
+                            return '<span class="ai-live-preview-row' + (changed ? ' is-new' : '') + '" data-live-preview-key="' + escapeHtml(rowKey) + '">'
+                                + '<span class="ai-live-preview-name">' + escapeHtml(item.name) + '</span>'
+                                + '<span class="ai-live-preview-qty">' + escapeHtml(item.qty) + ' ' + escapeHtml(item.unit || 'unit') + '</span>'
+                                + '<span class="ai-live-preview-price">' + money(item.total) + '</span></span>';
+                        }).join('');
+                        previousLiveOrderRows = nextRows;
+                        if (newestChangedKey) {
+                            const changedRow = Array.from(livePreview.querySelectorAll('[data-live-preview-key]')).find(function (row) {
+                                return row.dataset.livePreviewKey === newestChangedKey;
+                            });
+                            if (changedRow) {
+                                livePreview.scrollTo({
+                                    top: Math.max(0, changedRow.offsetTop - livePreview.clientHeight + changedRow.offsetHeight),
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }
                     }
                     let html = '<strong>Live Order List</strong><div class="ai-cart-summary">';
                     items.forEach(function (item) {
@@ -2318,6 +2957,8 @@
                 }).catch(function () { cartPanelBody.innerHTML = '<div class="ai-history-empty">Could not load your cart.</div>'; });
         }
 
+        orderDock?.addEventListener('click', openCartPanel);
+
         cartBack?.addEventListener('click', function () { cartPanelRequestVersion++; cartPanel.classList.remove('open'); cartPanel.setAttribute('aria-hidden', 'true'); });
         cartReview?.addEventListener('click', function () {
             if (cartReview.disabled) return;
@@ -2328,7 +2969,20 @@
         });
         cartClear?.addEventListener('click', function () {
             if (!window.confirm('Remove all items from this order?')) return;
-            fetch(assistantCartBaseUrl, {method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}}).then(openCartPanel);
+            setAgentUiState('executing', 'Clearing your live order…');
+            fetch(assistantCartBaseUrl, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({confirmed: true})
+            }).then(function (response) {
+                return assistantJsonResponse(response, 'Could not clear your order.');
+            }).then(function () {
+                setAgentUiState('ready', 'Your live order is empty.');
+                renderLiveOrderList();
+                openCartPanel();
+            }).catch(function (error) {
+                setAgentUiState('error', error.message || 'Your live order was not changed.');
+            });
         });
         cartPanelBody?.addEventListener('click', function (event) {
             const remove = event.target.closest('[data-remove-cart]');
@@ -2360,6 +3014,7 @@
             selectedDeliveryDetails = '';
             activeOrderingProductId = null;
             activeClarificationOptions = [];
+            activeCandidateSetId = '';
             renderLiveOrderList();
             const reply = workflow.reply || 'Saved address aur delivery slot confirm kijiye.';
             appendMessage('assistant', escapeHtml(reply));
@@ -2383,7 +3038,6 @@
         function addAssistantProductCard(button) {
             const productId = Number(button.dataset.addProduct || 0);
             const quantity = Math.max(1, Math.round(Number(button.dataset.qty) || 1));
-            const price = Number(button.dataset.price || 0);
             const selectionStage = String(button.dataset.workflowStage || activeOrderingStage || '');
             const isOrderSuggestion = button.dataset.suggestionSource === 'order' || selectionStage === 'order_suggestions';
             const keepCartOpen = button.dataset.suggestionSource === 'cart';
@@ -2404,20 +3058,17 @@
             button.setAttribute('aria-busy', 'true');
             if (!compactCard) button.textContent = 'Adding…';
 
-            fetch(addUrl, {
+            setAgentUiState('executing');
+            fetch(selectionUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
-                body: JSON.stringify({product_id: productId, quantity: quantity, price: Number.isFinite(price) ? price : 0})
+                body: JSON.stringify({conversation_id: conversationId, product_id: productId, quantity: quantity, success: true, workflow_stage: selectionStage || null, candidate_set_id: selectionStage === 'clarify_product' ? activeCandidateSetId : null})
             })
                 .then(function (response) { return assistantJsonResponse(response, 'Could not add this item. Please try again.'); })
-                .then(function (addResult) {
-                    if (!addResult.success) throw new Error(addResult.message || 'Could not add this item. Please try again.');
+                .then(function (selection) {
+                    if (!selection.saved || !selection.cart_result) throw new Error(selection.message || 'Could not add this item. Please try again.');
                     cartAdded = true;
-                    return fetch(selectionUrl, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
-                        body: JSON.stringify({conversation_id: conversationId, product_id: productId, quantity: quantity, success: true, workflow_stage: selectionStage || null})
-                    }).then(function (response) { return assistantJsonResponse(response, 'Product was added, but the order flow could not be updated.'); });
+                    return selection;
                 })
                 .then(function (selection) {
                     const next = selection.workflow || {};
@@ -2451,6 +3102,7 @@
                         });
                     }
                     renderLiveOrderList();
+                    setAgentUiState('ready');
 
                     if (nextStage === 'delivery_details') {
                         const reply = next.reply || 'Saved address aur delivery slot confirm kijiye.';
@@ -2469,6 +3121,7 @@
                     delete button.dataset.addPending;
                     button.removeAttribute('aria-busy');
                     if (!compactCard) button.textContent = originalLabel;
+                    setAgentUiState('error', error.message || 'Your live order was not changed.');
 
                     // The cart route can succeed even if the bookkeeping
                     // request times out. Keep the item visible instead of
@@ -2653,6 +3306,8 @@
                     clarificationMessage = null;
                     activeOrderingStage = null;
                     activeOrderingProductId = null;
+                    activeClarificationOptions = [];
+                    activeCandidateSetId = '';
                     previousOrdersVisible = false;
                     awaitingNewOrderReady = false;
                     liveOrderEditable = false;
@@ -2662,6 +3317,7 @@
                     customerCareDialUrl = '';
                     lastCustomerCareDialAttemptAt = 0;
                     lastCustomerCareDialAttemptUrl = '';
+                    setAgentUiState('idle');
                     const freshReply = @json('Hi ' . (auth()->user()->name ?? 'there') . '! I am ready for a new order. Tell me the first item.');
                     loadVoiceAsync(freshReply, startAutoListening);
                     input.focus();
@@ -2673,10 +3329,9 @@
             });
         });
         cartShortcut?.addEventListener('click', openCartPanel);
-        fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
-            .then(response => response.json())
-            .then(function (data) { cartShortcut.hidden = !(Number(data.count) > 0); })
-            .catch(function () {});
+        renderLiveOrderList().then(function () {
+            cartShortcut.hidden = orderDock?.hidden !== false;
+        });
     });
 </script>
 @endsection

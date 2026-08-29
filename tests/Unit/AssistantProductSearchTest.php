@@ -59,6 +59,19 @@ class AssistantProductSearchTest extends TestCase
         $this->assertNull($method->invoke(new MobilePriceListController(), 'Real brand add karo', $options));
     }
 
+    public function test_missing_exact_juice_builds_safe_approved_alternative_queries(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantApprovedAlternativeQueries');
+        $method->setAccessible(true);
+
+        $queries = $method->invoke(new MobilePriceListController(), 'Real apple flavour juice chahiye');
+
+        $this->assertContains('apple juice', $queries);
+        $this->assertContains('real juice', $queries);
+        $this->assertContains('juice', $queries);
+        $this->assertNotContains('real apple flavour juice', $queries);
+    }
+
     public function test_full_conversational_voice_reply_selects_exact_visible_product(): void
     {
         $options = [
@@ -193,6 +206,20 @@ class AssistantProductSearchTest extends TestCase
         $this->assertSame('payment_method', $response['workflow']['stage']);
         $this->assertSame('payment_method', $response['state']['stage']);
         $this->assertSame($clickedValue, $response['workflow']['delivery_details']);
+        $this->assertSame(17, $response['workflow']['delivery_outlet_id']);
+        $this->assertSame(17, $response['state']['delivery_outlet_id']);
+    }
+
+    public function test_cash_on_delivery_voice_variants_resolve_consistently(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantPaymentMethod');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertSame('Pay on Delivery', $method->invoke($controller, '', 'cash on delivery'));
+        $this->assertSame('Pay on Delivery', $method->invoke($controller, '', 'COD kar do'));
+        $this->assertSame('Pay on Delivery', $method->invoke($controller, '', 'delivery par cash'));
+        $this->assertSame('Pay Online', $method->invoke($controller, '', 'UPI se karunga'));
     }
 
     public function test_suggestion_recovery_ignores_cart_snapshots_duplicates_and_current_cart(): void

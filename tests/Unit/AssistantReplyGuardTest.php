@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Http\Controllers\MobilePriceListController;
 use App\Models\Cart;
+use App\Services\OrderableProductValidator;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
@@ -538,6 +539,94 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertSame('enquiry', $method->invoke($controller, 'dusre wale ka price request bhejo'));
         $this->assertSame('cart', $method->invoke($controller, 'orange wala cart mein add karo'));
         $this->assertSame('choose', $method->invoke($controller, 'mango flavour wala'));
+    }
+
+    public function test_enquiry_requires_explicit_request_or_confirmation(): void
+    {
+        $controller = new MobilePriceListController();
+        $explicit = new ReflectionMethod(MobilePriceListController::class, 'assistantExplicitEnquiryRequested');
+        $explicit->setAccessible(true);
+        $consent = new ReflectionMethod(MobilePriceListController::class, 'assistantEnquiryConsentReply');
+        $consent->setAccessible(true);
+
+        $this->assertTrue($explicit->invoke($controller, 'Real apple juice ki enquiry bhejo'));
+        $this->assertTrue($explicit->invoke($controller, 'price request create karo'));
+        $this->assertFalse($explicit->invoke($controller, 'Real apple juice chahiye'));
+        $this->assertFalse($explicit->invoke($controller, 'catalogue dikhao'));
+        $this->assertSame('yes', $consent->invoke($controller, 'haan'));
+        $this->assertSame('no', $consent->invoke($controller, 'nahi'));
+        $this->assertSame('unknown', $consent->invoke($controller, 'orange wala'));
+    }
+
+    public function test_only_a_positive_numeric_approved_price_is_accepted(): void
+    {
+        $validator = new OrderableProductValidator();
+
+        $this->assertTrue($validator->isApprovedPrice('475.50'));
+        $this->assertFalse($validator->isApprovedPrice(null));
+        $this->assertFalse($validator->isApprovedPrice(0));
+        $this->assertFalse($validator->isApprovedPrice(-1));
+        $this->assertFalse($validator->isApprovedPrice('catalogue-price'));
+    }
+
+    public function test_candidate_references_only_match_the_active_candidate_set(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantCandidateSetMatches');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+        $active = ['stage' => 'clarify_product', 'candidate_set_id' => 'CS_CURRENT'];
+
+        $this->assertTrue($method->invoke($controller, $active, 'CS_CURRENT'));
+        $this->assertFalse($method->invoke($controller, $active, 'CS_OLD'));
+        $this->assertFalse($method->invoke($controller, $active, null));
+        $this->assertTrue($method->invoke($controller, ['stage' => 'anything_else'], null));
+    }
+
+    public function test_product_resolution_confidence_drives_safe_next_action(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantResolutionConfidence');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+        $approved = [['id' => 1, 'available_in_outlet' => true]];
+
+        $this->assertSame('HIGH_CONFIDENCE', $method->invoke($controller, 'product_search', $approved, false, false, 2));
+        $this->assertSame('LOW_CONFIDENCE', $method->invoke($controller, 'product_search', $approved, false, false, 0));
+        $this->assertSame('MEDIUM_CONFIDENCE', $method->invoke($controller, 'product_search', [$approved[0], ['id' => 2]], false, false, 2));
+        $this->assertSame('MEDIUM_CONFIDENCE', $method->invoke($controller, 'product_search', $approved, false, true, 2));
+        $this->assertSame('NOT_APPROVED', $method->invoke($controller, 'product_search', $approved, true, false, 2));
+        $this->assertSame('NOT_FOUND', $method->invoke($controller, 'product_search', [], false, false, 2));
+    }
+
+    public function test_combined_order_sentence_preserves_checkout_preferences(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantExtractCheckoutPreferences');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $preferences = $method->invoke($controller, '5 kilo rice kal Office address pe morning bhejna, UPI se karunga');
+        $this->assertArrayHasKey('address_query', $preferences);
+        $this->assertArrayHasKey('slot_query', $preferences);
+        $this->assertArrayHasKey('payment_query', $preferences);
+
+        $productOnly = $method->invoke($controller, '5 kilo rice add karo');
+        $this->assertSame([], $productOnly);
+    }
+
+    public function test_voice_units_are_expanded_for_natural_pronunciation(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantSpeechText');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $spoken = $method->invoke(
+            $controller,
+            'Juice 1 LTR, water 2 L, milk 500 ml, rice 2 kg, butter 250 gm, 3 pcs. Total ₹1,275 and GST 5%.'
+        );
+
+        $this->assertSame(
+            'Juice 1 litre, water 2 litres, milk 500 millilitres, rice 2 kilograms, butter 250 grams, 3 pieces. Total 1,275 rupees and GST 5 percent.',
+            $spoken
+        );
     }
 
 }
