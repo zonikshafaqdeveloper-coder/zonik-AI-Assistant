@@ -1010,6 +1010,7 @@ public function assistantChat(Request $request)
         $cartRows = Cart::with('product')
             ->where('user_id', $user->id)
             ->where('outlet_id', $outlet->id)
+            ->orderBy('id')
             ->get();
 
         $cartItems = $cartRows->map(function ($item) {
@@ -1075,6 +1076,19 @@ public function assistantChat(Request $request)
 
     // Load memory before an interruption so side questions retain context.
     $recentMessages = $this->assistantConversationMemory($user, $outlet, $conversationId);
+
+    // Product facts and price protection come from the selected outlet's
+    // verified price list. A model may understand wording, but it never
+    // decides prices or executes an unsafe "add everything" command.
+    $verifiedProductAnswer = $this->assistantVerifiedProductQuestion($message, $user, $outlet, $cartItems);
+    if ($verifiedProductAnswer) {
+        if (!empty($orderFlow)) {
+            $verifiedProductAnswer['reply'] = trim($verifiedProductAnswer['reply'] . ' ' . $this->assistantResumePrompt($orderFlow));
+            $verifiedProductAnswer['workflow'] = ['stage' => $orderFlow['stage'], 'resumed' => true];
+            $verifiedProductAnswer['state'] = $orderFlow;
+        }
+        return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $verifiedProductAnswer, $cartItems);
+    }
 
     // Account-data answers come only from verified rows. Preserve any active
     // ordering state and return the customer to that exact step afterwards.
@@ -1318,12 +1332,12 @@ public function assistantChat(Request $request)
     // summary again.
     if (!in_array($currentStage, ['confirm_order', 'delivery_details', 'payment_method'], true)
         && !empty($cartItems)
-        && ($explicitCheckout || $this->isAssistantGenericConfirmation($message))) {
+        && ($explicitCheckout || $this->isAssistantSummaryConfirmation($message))) {
         $lastAssistantReply = AiAssistantMessage::where('user_id', $user->id)
             ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
             ->when($conversationId, fn ($query) => $query->where('conversation_id', $conversationId))
             ->where('role', 'assistant')->latest('id')->value('message');
-        if (str_contains(mb_strtolower((string) $lastAssistantReply), 'final summary')) {
+        if ($this->assistantReplyShowsOrderSummary((string) $lastAssistantReply)) {
             $orderFlow = ['stage' => 'confirm_order'];
             $currentStage = 'confirm_order';
             $request->session()->put($flowKey, $orderFlow);
@@ -1358,7 +1372,7 @@ public function assistantChat(Request $request)
         ], true);
     $wantsCheckout = $explicitCheckout
         || (($currentStage === 'confirm_order' || $currentStage === null)
-            && $this->isAssistantGenericConfirmation($message));
+            && $this->isAssistantSummaryConfirmation($message));
     if ($confirmationCanFinalize && $wantsCheckout && !empty($cartItems)) {
         // Suggestions must never interrupt checkout. Once the customer has
         // confirmed the displayed summary, continue straight to delivery.
@@ -1542,6 +1556,10 @@ public function assistantChat(Request $request)
         // number is the rejected old quantity. Always use the final stated
         // quantity instead of the generic intent parser's first number.
         $intent['quantity'] = $this->assistantCorrectedCartQuantity($message, $intent['quantity'] ?? null);
+        if (empty($intent['quantity'])
+            && preg_match('/\b(?:ek|one)\s+(?:aur|more)\b|\b(?:ek|one)\b.*\b(?:kam|less|reduce)\b/iu', $message)) {
+            $intent['quantity'] = 1;
+        }
     }
     // Local rules are only a safety net for unmistakable product commands.
     // They must not overwrite Gemini's classification merely because a
@@ -3755,6 +3773,94 @@ private function assistantRecipeProductPlan(string $message, ?User $user, ?User 
     return ['reply' => $reply, 'products' => $matched->take(8)->values()->all()];
 }
 
+private function assistantVerifiedProductQuestion(string $message, ?User $user, ?User $outlet, array $cartItems): ?array
+{
+    if (!$outlet) return null;
+    $lower = mb_strtolower(trim($message));
+    $base = ['products' => [], 'workflow' => ['stage' => 'account_answer'], 'state' => []];
+
+    if (preg_match('/\b(?:jo\s+bhi|whatever|all|sab|sub|saare|sare)\b.*\b(?:available|products?|items?)?\b.*\b(?:add|cart|order|laga|daal|dalo)\b/iu', $lower)) {
+        return array_merge($base, ['reply' => 'Main saare available products automatically add nahi karunga. Product ka naam, category ya maximum 3 specific items bataiye; main har item ko approved price list se verify karunga.']);
+    }
+
+    if (preg_match('/\b(?:price\s*list|approved\s*price)\b.*\b(?:check\s*mat|ignore|skip|bypass)\b|\b(?:check\s*mat|ignore|skip|bypass)\b.*\b(?:price\s*list|approved\s*price)\b/iu', $lower)) {
+        return array_merge($base, ['reply' => 'Price-list validation skip nahi ki ja sakti. Main sirf selected outlet ke approved products ko unke approved price par order mein add kar sakta hoon.']);
+    }
+
+    if (preg_match('/\bprice\s*list\b/iu', $lower)
+        && !preg_match('/\b(?:cheapest|lowest|sasta|sasti|rate|price\s+of)\b/iu', $lower)) {
+        return null;
+    }
+
+    if (preg_match('/\b(?:online|internet|google|market)\b.*\b(?:cheap|cheapest|lowest|sasta|price|rate)\b/iu', $lower)) {
+        return array_merge($base, ['reply' => 'Main external ya market price use nahi karta. Main sirf aapke selected outlet ki approved Zonik price list se product aur price bata sakta hoon.']);
+    }
+
+    $asksDiscountChange = (bool) preg_match('/(?:\b\d+(?:\.\d+)?\s*%\s*(?:discount|off)\b|\b(?:discount|price|rate)\b.*\b(?:laga|change|modify|kam\s*kar|de\s*do|kar\s*do)\b|(?:₹|â‚¹)?\s*[\d,]+\s*(?:rupaye?|rs\.?)?\s*\b(?:mein|me)\s+(?:de|do|add))/iu', $lower);
+    if ($asksDiscountChange) {
+        return array_merge($base, ['reply' => 'Main approved price ya discount change nahi kar sakta. Product ka current approved price bata sakta hoon; naya price chahiye to us product ki price enquiry bhej sakta hoon.']);
+    }
+
+    if (preg_match('/\b(?:final\s+total|grand\s+total|total\s+(?:bata|kitna)|kitna\s+total)\b/iu', $lower)) {
+        if (empty($cartItems)) return array_merge($base, ['reply' => 'Live Order abhi empty hai, isliye total zero hai.']);
+        $subtotal = (float) collect($cartItems)->sum('total');
+        $productIds = collect($cartItems)->pluck('product_id')->map(fn ($id) => (int) $id)->all();
+        $taxRates = Product::whereIn('id', $productIds)->get(['id', 'cgst', 'sgst', 'gst'])->keyBy('id');
+        $gst = collect($cartItems)->sum(function ($item) use ($taxRates) {
+            $product = $taxRates->get((int) ($item['product_id'] ?? 0));
+            $rate = (float) (($product?->cgst ?? 0) + ($product?->sgst ?? 0));
+            if ($rate <= 0) $rate = (float) ($product?->gst ?? 0);
+            return (float) ($item['total'] ?? 0) * $rate / 100;
+        });
+        $reply = 'Verified Live Order subtotal â‚¹' . number_format($subtotal, 2)
+            . ', GST â‚¹' . number_format($gst, 2)
+            . ', aur current estimated total â‚¹' . number_format($subtotal + $gst, 2)
+            . ' hai. Exact delivery, packing aur final payable total delivery location aur slot select karne ke baad backend confirm karega.';
+        return array_merge($base, ['reply' => $reply, 'workflow' => ['stage' => 'account_answer', 'show_cart' => true]]);
+    }
+
+    $asksPrice = (bool) preg_match('/\b(?:price|rate|cheapest|lowest|sasta|sasti|saste|kitne\s+ka|kitni\s+ki)\b/iu', $lower);
+    if (!$asksPrice) return null;
+
+    $query = preg_replace('/\b(?:sabse|most|approved|current|price|rate|kya|hai|hain|batao|bataiye|dikhao|show|tell|me|the|ka|ki|ke|kitne|kitni|cheapest|lowest|sasta|sasti|saste|wala|wali|product|option)\b/iu', ' ', $message) ?? $message;
+    $query = trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
+    if ($query === '') return array_merge($base, ['reply' => 'Kis product ka approved price chahiye? Product ya brand ka naam bataiye.']);
+    $products = array_values(array_filter($this->findAssistantProducts($query, $outlet), fn ($product) => ($product['available_in_outlet'] ?? false) === true));
+    if (empty($products)) return array_merge($base, ['reply' => 'Is naam ka product selected outlet ki approved price list mein nahi mila. Brand ya exact product name bataiye.']);
+    usort($products, fn ($a, $b) => ((float) ($a['price'] ?? INF)) <=> ((float) ($b['price'] ?? INF)));
+    $shown = array_slice($products, 0, 3);
+    if (preg_match('/\b(?:cheapest|lowest|sabse\s+sasta|sabse\s+sasti)\b/iu', $lower)) {
+        $product = $shown[0];
+        $reply = 'Sabse kam approved price wala option ' . ($product['name'] ?? 'Product')
+            . ' hai: â‚¹' . number_format((float) ($product['price'] ?? 0), 2) . ' per ' . ($product['unit'] ?? 'unit') . '.';
+    } else {
+        $reply = collect($shown)->map(fn ($product) => ($product['name'] ?? 'Product') . ': â‚¹'
+            . number_format((float) ($product['price'] ?? 0), 2) . ' per ' . ($product['unit'] ?? 'unit'))->implode('; ') . '.';
+    }
+    return array_merge($base, ['reply' => $reply, 'products' => $shown]);
+}
+
+private function isAssistantSummaryConfirmation(string $message): bool
+{
+    if ($this->isAssistantGenericConfirmation($message)) return true;
+
+    return (bool) preg_match(
+        '/^\s*(?=.*\b(?:sahi|correct|right|theek|confirm|confirmed|final|done)\b)(?:(?:haan|han|haa|yes|yeah|yep|ji|ok|okay|theek|bilkul|sab|all|sahi|correct|right|confirm|confirmed|final|done|hai|hain|karo|kar|do|kijiye|please|it|order)\s*)+[.!?]*\s*$/iu',
+        trim($message)
+    );
+}
+
+private function assistantReplyShowsOrderSummary(string $reply): bool
+{
+    $reply = mb_strtolower(trim($reply));
+    if ($reply === '') return false;
+
+    return (bool) preg_match(
+        '/\b(?:final\s+summary|order\s+(?:ki\s+)?summary|order\s+details?|product\s+aur\s+quantity\s+check|current\s+order\s+list|sab\s+sahi\s+hai\s+to\s+confirm)\b/iu',
+        $reply
+    );
+}
+
 private function isAssistantProductDiscoveryRequest(string $message): bool
 {
     // Availability/range questions such as "Zonik me aur kaun konse chawal
@@ -3774,6 +3880,9 @@ private function isAssistantCartRequest(string $message): bool
 
 private function isAssistantCartQuantityUpdateRequest(string $message): bool
 {
+    if (preg_match('/\b(?:ek|one)\s+(?:aur|more)\b|\b(?:ek|one)\b.*\b(?:kam|less|reduce)\b/iu', $message)) {
+        return true;
+    }
     // "Rice ko 2 kar do" is an absolute quantity update even when the
     // customer does not explicitly say the English word "quantity".
     if (preg_match('/\d+(?:\.\d+)?/', $message)
@@ -3806,6 +3915,14 @@ private function isAssistantAddConfirmation(string $message): bool
 
 private function findAssistantCartMatches(string $message, array $cartItems): array
 {
+    if (preg_match('/\b(?:last|latest|aakhri|akhri|pichla|pichhli)\s+(?:wala\s+)?(?:item|product)?\b/iu', $message)) {
+        $last = collect($cartItems)->last();
+        return $last ? [[
+            'id' => $last['product_id'], 'name' => $last['name'], 'unit' => $last['unit'],
+            'carton_size' => $last['carton_size'], 'price' => $last['price'], 'image' => $last['image'],
+            'available_in_outlet' => true, 'current_quantity' => $last['qty'],
+        ]] : [];
+    }
     $query = strtolower($this->normalizeAssistantSearchText($message));
     $query = preg_replace('/\d+(?:\.\d+)?/', ' ', $query);
     $query = preg_replace('/\b(?:increase|decrease|change|update|set|make|quantity|qty|cart|please|my|the|to|kardo|kar|do|badha|badhao|badhado|kam|ghata|ghatao|remove|delete|hata|hatao|hatado|nikalo|nikaal|karo|ki|ka|ko|se|mein|क्वांटिटी|प्रमाण|करो|करा|वाढवा|कमी|हटाओ|निकालो|काढा)\b/iu', ' ', $query);
@@ -3895,8 +4012,8 @@ private function resolveAssistantCartTargetQuantity(string $message, array $prod
 {
     $current = max(0, (int) ($product['current_quantity'] ?? 0));
     $amount = max(1, (int) $spokenQuantity);
-    if (preg_match('/(?:\b(?:decrease|reduce|kam|ghata|ghatao)\b|(?:कम|घटा|कमी))/iu', $message)) return max(0, $current - $amount);
-    if (preg_match('/(?:\b(?:increase|add|badha|badhao|badhado)\b|(?:बढ़ा|बढा|वाढवा))/iu', $message)) return $current + $amount;
+    if (preg_match('/(?:\b(?:decrease|reduce|less|kam|ghata|ghatao)\b|(?:कम|घटा|कमी))/iu', $message)) return max(0, $current - $amount);
+    if (preg_match('/(?:\b(?:increase|add|more|extra|aur|badha|badhao|badhado)\b|(?:बढ़ा|बढा|वाढवा))/iu', $message)) return $current + $amount;
     return $amount;
 }
 

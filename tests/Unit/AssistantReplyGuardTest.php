@@ -467,6 +467,22 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($method->invoke($controller, 'apple wala add karo'));
     }
 
+    public function test_summary_confirmation_accepts_natural_hinglish_without_looping(): void
+    {
+        $confirm = new ReflectionMethod(MobilePriceListController::class, 'isAssistantSummaryConfirmation');
+        $confirm->setAccessible(true);
+        $summary = new ReflectionMethod(MobilePriceListController::class, 'assistantReplyShowsOrderSummary');
+        $summary->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertTrue($confirm->invoke($controller, 'haan sab sahi hai'));
+        $this->assertTrue($confirm->invoke($controller, 'bilkul correct confirm kar do'));
+        $this->assertTrue($confirm->invoke($controller, 'confirm kar do'));
+        $this->assertFalse($confirm->invoke($controller, 'rice 2 kilo kar do'));
+        $this->assertTrue($summary->invoke($controller, 'Ye aapke order ki final summary hai.'));
+        $this->assertTrue($summary->invoke($controller, 'Product aur quantity check kar lijiye. Sab sahi hai to confirm kijiye.'));
+    }
+
     public function test_structured_response_parser_recovers_fenced_and_wrapped_json(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantDecodeJsonObject');
@@ -640,6 +656,37 @@ class AssistantReplyGuardTest extends TestCase
 
         $productOnly = $method->invoke($controller, '5 kilo rice add karo');
         $this->assertSame([], $productOnly);
+    }
+
+    public function test_relative_quantity_commands_add_or_remove_only_the_spoken_amount(): void
+    {
+        $detect = new ReflectionMethod(MobilePriceListController::class, 'isAssistantCartQuantityUpdateRequest');
+        $detect->setAccessible(true);
+        $resolve = new ReflectionMethod(MobilePriceListController::class, 'resolveAssistantCartTargetQuantity');
+        $resolve->setAccessible(true);
+        $controller = new MobilePriceListController();
+        $product = ['current_quantity' => 3];
+
+        $this->assertTrue($detect->invoke($controller, 'ek aur packet fries add karo'));
+        $this->assertTrue($detect->invoke($controller, 'ek packet fries kam kar do'));
+        $this->assertSame(4, $resolve->invoke($controller, 'ek aur packet fries add karo', $product, 1));
+        $this->assertSame(2, $resolve->invoke($controller, 'ek packet fries kam kar do', $product, 1));
+        $this->assertSame(5, $resolve->invoke($controller, 'actually 5 kar do', $product, 5));
+    }
+
+    public function test_last_item_reference_selects_the_most_recent_cart_item(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'findAssistantCartMatches');
+        $method->setAccessible(true);
+        $items = [
+            ['product_id' => 1, 'name' => 'Rice', 'unit' => 'kg', 'carton_size' => '-', 'price' => 100, 'image' => null, 'qty' => 2],
+            ['product_id' => 2, 'name' => 'Butter', 'unit' => 'pack', 'carton_size' => '-', 'price' => 200, 'image' => null, 'qty' => 1],
+        ];
+
+        $matches = $method->invoke(new MobilePriceListController(), 'last wala item hata do', $items);
+
+        $this->assertCount(1, $matches);
+        $this->assertSame(2, $matches[0]['id']);
     }
 
     public function test_voice_units_are_expanded_for_natural_pronunciation(): void
