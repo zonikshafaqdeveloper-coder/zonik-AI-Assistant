@@ -228,6 +228,8 @@
     background: #ffffff;
     border: 1px solid #e2e8f0;
 }
+.ai-message.assistant:has(.ai-product-card) { width: 100%; max-width: 100%; max-height: 54dvh; overflow-y: auto; overscroll-behavior: contain; }
+.ai-message.assistant:has(.ai-product-card) .ai-product-card:first-child { margin-top: 0; }
 .ai-message-row { display: flex; align-items: flex-end; gap: 7px; max-width: 100%; }
 .ai-message-row.user { justify-content: flex-end; }
 .ai-reply-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; border: 1px solid #dbeafe; }
@@ -2457,7 +2459,9 @@ function appendTyping() {
                 // detected language/script before ElevenLabs synthesis.
                 body: JSON.stringify({
                     text: text,
-                    match_language_to: lastUserMessage || conversationReplyLanguage || conversationLanguage
+                    match_language_to: lastUserMessage || conversationReplyLanguage || conversationLanguage,
+                    language_hint: (!conversationReplyLanguage || ['english', 'hinglish'].includes(conversationReplyLanguage))
+                        ? 'Hinglish' : conversationReplyLanguage
                 }),
                 signal: controller ? controller.signal : undefined
             }).then(response => response.json()).then(function (data) {
@@ -2549,7 +2553,12 @@ function appendTyping() {
             fetch(speakUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
-                body: JSON.stringify({text: reminder, match_language_to: lastUserMessage || 'Hinglish mein jawab dijiye.'})
+                body: JSON.stringify({
+                    text: reminder,
+                    match_language_to: lastUserMessage || 'Hinglish mein jawab dijiye.',
+                    language_hint: (!conversationReplyLanguage || ['english', 'hinglish'].includes(conversationReplyLanguage))
+                        ? 'Hinglish' : conversationReplyLanguage
+                })
             }).then(function (response) { return response.json(); }).then(function (data) {
                 if (requestGeneration !== speechRequestGeneration) return;
                 const localizedText = data.text || reminder;
@@ -2982,6 +2991,10 @@ function appendTyping() {
                     }).filter(function (product) { return product.id > 0; });
                 } else if (workflow.stage !== 'clarify_product') {
                     activeClarificationOptions = [];
+                    if (clarificationMessage) {
+                        clarificationMessage.remove();
+                        clarificationMessage = null;
+                    }
                 }
                 if (aiIntent.intent === 'cart') {
                     removeTyping(typing);
@@ -3001,11 +3014,15 @@ function appendTyping() {
                     return;
                 }
                 if (products.length) {
+                    if (workflow.stage === 'clarify_product' && clarificationMessage) {
+                        clarificationMessage.remove();
+                        clarificationMessage = null;
+                    }
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
                         html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 3).map(suggestionCard).join('') + '</div>'
                             + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
-                    } else if (!['added', 'cart_updated', 'cart_removed', 'await_quantity'].includes(workflow.stage)) products.forEach(function (product) {
+                    } else if (!['added', 'cart_updated', 'cart_removed', 'await_quantity'].includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
                         const productQuantity = Number(product.requested_quantity || quantity || 1);
                         const label = workflow.stage === 'choose_cart_item' ? ('Set ' + productQuantity) : (workflow.stage === 'choose_cart_remove' ? 'Remove' : 'Add to Cart');
                         const needsSpokenQuantity = ['choose_product', 'choose_brand', 'confirm_product'].includes(workflow.stage) && !Number(product.requested_quantity);

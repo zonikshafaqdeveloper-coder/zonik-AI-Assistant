@@ -572,6 +572,33 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($validator->isApprovedPrice('catalogue-price'));
     }
 
+    public function test_bulk_enquiry_requires_all_and_an_explicit_enquiry_action(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantAllEnquiriesRequested');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertTrue($method->invoke($controller, 'haan sab ki enquiry bhej do'));
+        $this->assertTrue($method->invoke($controller, 'sub products ka price request send karo'));
+        $this->assertFalse($method->invoke($controller, 'third wale ki enquiry bhej do'));
+        $this->assertFalse($method->invoke($controller, 'sab products dikhao'));
+    }
+
+    public function test_third_product_enquiry_resolves_the_third_visible_card(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'resolveAssistantClarificationChoice');
+        $method->setAccessible(true);
+        $options = [
+            ['id' => 11, 'name' => 'Apple Juice'],
+            ['id' => 22, 'name' => 'Orange Juice'],
+            ['id' => 33, 'name' => 'Mango Juice'],
+        ];
+
+        $selected = $method->invoke(new MobilePriceListController(), 'haan wo 3rd wale ki enquiry bhej do', $options);
+
+        $this->assertSame(33, $selected['id']);
+    }
+
     public function test_candidate_references_only_match_the_active_candidate_set(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantCandidateSetMatches');

@@ -643,10 +643,19 @@ public function assistantSpeak(Request $request)
     $data = $request->validate([
         'text' => 'required|string|max:2000',
         'match_language_to' => 'nullable|string|max:2000',
+        'language_hint' => 'nullable|string|max:100',
     ]);
     $text = $data['text'];
     if (!empty($data['match_language_to'])) {
-        $text = $this->localizeAssistantReply($text, $data['match_language_to']);
+        $customerText = $data['match_language_to'];
+        $languageHint = trim((string) ($data['language_hint'] ?? ''));
+        // Latin-script chat defaults to the requested conversational Roman
+        // Hinglish. Preserve explicit regional scripts instead of forcing
+        // their speech through Hindi transliteration.
+        if ($languageHint === '' && !preg_match('/[^\p{Latin}\p{N}\p{P}\p{S}\p{Z}]/u', $customerText)) {
+            $languageHint = 'Hinglish';
+        }
+        $text = $this->localizeAssistantReply($text, $customerText, $languageHint ?: null);
     }
     // Keep the visible/localized reply unchanged, but send pronunciation-safe
     // words to every speech provider. Abbreviations such as "LTR" otherwise
@@ -1389,6 +1398,22 @@ public function assistantChat(Request $request)
         if ($spokenChoice && $outlet) {
             $isAssigned = CustomerPrice::where('outlet_id', $outlet->id)
                 ->where('product_id', (int) ($spokenChoice['id'] ?? 0))->exists();
+            if (!$isAssigned && $this->assistantExplicitEnquiryRequested($message)) {
+                $catalogueProduct = Product::where('status', 'active')->find((int) ($spokenChoice['id'] ?? 0));
+                $enquiry = $catalogueProduct
+                    ? $this->createAssistantCatalogueEnquiry($user, $outlet, $catalogueProduct)
+                    : ['success' => false];
+                if (!empty($enquiry['success'])) {
+                    $flowResponse = [
+                        'reply' => $enquiry['message'] ?? (($spokenChoice['name'] ?? 'Product') . ' ki price enquiry bhej di hai.'),
+                        'products' => [],
+                        'workflow' => ['stage' => 'anything_else'],
+                        'state' => ['stage' => 'anything_else'],
+                    ];
+                    $request->session()->put($flowKey, $flowResponse['state']);
+                    return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $flowResponse, $cartItems);
+                }
+            }
             if ($isAssigned) {
                 $quantity = (float) ($spokenChoice['requested_quantity'] ?? 0);
                 if (preg_match('/\d+(?:\.\d+)?/', $message, $quantityMatch)) {
@@ -1998,7 +2023,52 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         ];
     }
     if ($stage === 'clarify_product') {
-        $options = $flow['products'] ?? [];
+        $options = array_slice(array_values($flow['products'] ?? []), 0, 3);
+        $flow['products'] = $options;
+        if ($this->assistantAllEnquiriesRequested($message) && !empty($options)) {
+            $sentNames = [];
+            $failedOptions = [];
+            $catalogueCount = 0;
+            foreach ($options as $option) {
+                $productId = (int) ($option['id'] ?? 0);
+                $isAvailable = $user && $outlet && CustomerPrice::where('outlet_id', $outlet->id)
+                    ->where('product_id', $productId)->exists();
+                if ($isAvailable) continue;
+                $catalogueCount++;
+                $catalogueProduct = Product::where('status', 'active')->find($productId);
+                $enquiry = $catalogueProduct && $user && $outlet
+                    ? $this->createAssistantCatalogueEnquiry($user, $outlet, $catalogueProduct)
+                    : ['success' => false];
+                if (!empty($enquiry['success'])) $sentNames[] = (string) ($option['name'] ?? 'Product');
+                else $failedOptions[] = $option;
+            }
+            if (!empty($sentNames)) {
+                $nextState = empty($failedOptions)
+                    ? ['stage' => 'anything_else']
+                    : ['stage' => 'clarify_product', 'products' => $failedOptions];
+                return [
+                    'reply' => count($sentNames) . ' catalogue products ki enquiry bhej di hai.'
+                        . (empty($failedOptions) ? ' Aur koi product chahiye?' : ' Jo enquiry fail hui hai, woh neeche dikh rahi hai.'),
+                    'products' => $failedOptions,
+                    'workflow' => ['stage' => $nextState['stage']],
+                    'state' => $nextState,
+                ];
+            }
+            if ($catalogueCount === 0) {
+                return [
+                    'reply' => 'Ye sab products selected outlet ki price list mein already available hain, isliye enquiry ki zarurat nahi hai. Kisi product ko cart mein add karna hai?',
+                    'products' => $options,
+                    'workflow' => ['stage' => 'clarify_product'],
+                    'state' => $flow,
+                ];
+            }
+            return [
+                'reply' => 'In products ki enquiry abhi send nahi ho paayi. Dobara try kijiye.',
+                'products' => $failedOptions,
+                'workflow' => ['stage' => 'clarify_product'],
+                'state' => ['stage' => 'clarify_product', 'products' => $failedOptions],
+            ];
+        }
         if (!empty($flow['awaiting_enquiry_confirmation']) && !empty($flow['enquiry_product'])) {
             $consent = $this->assistantEnquiryConsentReply($message);
             if ($consent === 'yes') {
@@ -3087,6 +3157,10 @@ private function assistantFlowJsonResponse(?User $user, ?User $outlet, ?string $
         $flowResponse['state'] = $state;
     }
     if (($state['stage'] ?? null) === 'clarify_product' && !empty($state['products'])) {
+        // Three visible choices keep the mobile interaction sheet compact and
+        // make first/second/third voice references deterministic.
+        $state['products'] = array_slice(array_values($state['products']), 0, 3);
+        $flowResponse['products'] = $state['products'];
         $candidateSetId = (string) ($state['candidate_set_id'] ?? '');
         if ($candidateSetId === '') {
             $candidateSetId = 'CS_' . strtoupper(substr(hash('sha256', implode('|', [
@@ -3377,7 +3451,7 @@ private function localizeAssistantReply(string $reply, string $customerMessage, 
     if ($reply === '' || empty(config('services.gemini.api_key'))) return $this->enforceAssistantMaleVoice($reply);
 
     $hint = $this->assistantReplyLanguage($customerMessage, $languageHint);
-    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-male-v1|' . $hint . '|' . $reply);
+    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-male-v2|' . $hint . '|' . $reply);
     $localized = trim((string) Cache::get($cacheKey, ''));
     if ($localized === '') {
         $prompt = "Rewrite the assistant reply in {$hint}, using a polite, warm, natural male Indian shop-assistant tone. Preserve the customer's original writing script. For Hindi or Hinglish, ALWAYS use easy Roman-script Hinglish like a customer speaking naturally. The assistant is male: always use masculine self-reference such as 'kar raha hoon', 'karunga', 'dunga', and 'lunga', never feminine forms such as 'kar rahi hoon', 'karungi', 'dungi', or 'lungi'. Never use 'arre', 'beta', 'boss', 'dear', Devanagari, formal/pure Hindi, stiff words such as 'kripya', 'avashya', 'kijiye', or textbook translations. Keep Hindi and English naturally mixed, as the customer does. Match the customer's language balance without copying their wording. Respond to the customer's meaning; never quote, repeat, paraphrase, affirm, or mirror the customer's sentence. Do not tell the customer to contact or talk to the Zonik team unless the customer explicitly asked for customer care. Keep simple answers short, but preserve a complete explanation when needed (up to 90 words). Preserve every product name, brand, flavour, quantity, price, address, slot, and payment term exactly; do not add or remove facts. Return only the rewritten reply, with no quotes or explanation.\nCustomer message (context only; do not reuse its wording): {$customerMessage}\nAssistant reply to translate: {$reply}";
@@ -3512,6 +3586,16 @@ private function assistantExplicitEnquiryRequested(string $message): bool
         '/\b(?:(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo)\s+)?(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)|price\s*request|quotation|quote)(?:\s+(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo))?\b|\b(?:price|rate)\s+(?:puchho|poochho|mangao|mangwao)\b/iu',
         $message
     ) || (bool) preg_match('/(?:इन्क्वायरी|पूछताछ|कोटेशन).*(?:भेज|कर|डाल)|(?:भेज|कर|डाल).*(?:इन्क्वायरी|पूछताछ|कोटेशन)/u', $message);
+}
+
+private function assistantAllEnquiriesRequested(string $message): bool
+{
+    if (!$this->assistantExplicitEnquiryRequested($message)) return false;
+
+    return (bool) preg_match(
+        '/\b(?:all|every|everyone|sab|sub|sabhi|saare|sare|sari|saari|poore|pure)\b/iu',
+        $message
+    );
 }
 
 private function assistantEnquiryConsentReply(string $message): string
@@ -4860,7 +4944,7 @@ private function normalizeAssistantSearchText(string $text): string
 private function buildVoiceReply(string $text): array
 {
     $apiKey = config('services.elevenlabs.api_key');
-    $voiceId = config('services.elevenlabs.voice_id', 'pNInz6obpgDQGcFmaJgB');
+    $voiceId = config('services.elevenlabs.voice_id', 'ErXwobaYiN019PkySvjV');
     $fallbackVoiceId = trim((string) config('services.elevenlabs.fallback_voice_id', ''));
     $freeFallbackVoiceId = trim((string) config('services.elevenlabs.free_fallback_voice_id', 'pNInz6obpgDQGcFmaJgB'));
     $voiceModel = config('services.elevenlabs.model', 'eleven_multilingual_v2');
@@ -4898,12 +4982,12 @@ private function buildVoiceReply(string $text): array
                 'voice_settings' => [
                     // Slightly slower, expressive pacing avoids a rushed or
                     // robotic delivery while keeping order details clear.
-                    'stability' => 0.58,
-                    'similarity_boost' => 0.78,
-                    'style' => 0.06,
+                    'stability' => 0.68,
+                    'similarity_boost' => 0.75,
+                    'style' => 0.02,
                     // Keep Hinglish clear, but avoid the noticeably slow
                     // delivery that makes a normal conversation feel delayed.
-                    'speed' => 1.05,
+                    'speed' => 0.96,
                     'use_speaker_boost' => true,
                 ],
                 'apply_text_normalization' => 'on',
