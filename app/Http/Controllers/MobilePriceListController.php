@@ -4875,8 +4875,9 @@ private function buildVoiceReply(string $text): array
     $credentialFingerprint = hash('sha256', (string) $apiKey);
     $quotaUnavailableKey = 'elevenlabs_tts_quota_unavailable_' . $credentialFingerprint;
     $authUnavailableKey = 'elevenlabs_tts_auth_unavailable_' . $credentialFingerprint;
+    $planUnavailableKey = 'elevenlabs_tts_plan_unavailable_' . $credentialFingerprint;
     $networkUnavailableKey = 'elevenlabs_tts_network_unavailable';
-    if (Cache::has($quotaUnavailableKey) || Cache::has($authUnavailableKey) || Cache::has($networkUnavailableKey)) return [];
+    if (Cache::has($quotaUnavailableKey) || Cache::has($authUnavailableKey) || Cache::has($planUnavailableKey) || Cache::has($networkUnavailableKey)) return [];
 
     try {
         $voiceIds = array_values(array_unique(array_filter([$voiceId, $fallbackVoiceId, $freeFallbackVoiceId])));
@@ -4887,7 +4888,6 @@ private function buildVoiceReply(string $text): array
                     'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
                 ])
                 ->timeout(12)
-                ->retry(2, 300, null, false)
                 ->withHeaders([
                     'xi-api-key' => $apiKey,
                     'Accept' => 'audio/mpeg',
@@ -4912,11 +4912,15 @@ private function buildVoiceReply(string $text): array
             if ($response->successful() && $response->body() !== '') {
                 Cache::forget($networkUnavailableKey);
                 Cache::forget($authUnavailableKey);
+                Cache::forget($planUnavailableKey);
                 return ['base64' => base64_encode($response->body()), 'mime' => 'audio/mpeg'];
             }
             // Account/auth/quota failures affect every voice, so do not make
             // a redundant fallback request in those cases.
             if ($response->status() === 401) break;
+            // Library voices require a paid plan. Continue to the configured
+            // free voice instead of letting the first 402 abort synthesis.
+            if ($response->status() === 402) continue;
         }
 
         \Log::warning('ElevenLabs text-to-speech request failed.', [
@@ -4930,6 +4934,9 @@ private function buildVoiceReply(string $text): array
         }
         if ($response->status() === 401) {
             Cache::put($authUnavailableKey, true, now()->addMinutes(10));
+        }
+        if ($response->status() === 402) {
+            Cache::put($planUnavailableKey, true, now()->addMinutes(30));
         }
     } catch (\Throwable $e) {
         // Fail fast for subsequent speech requests. Retry ElevenLabs
