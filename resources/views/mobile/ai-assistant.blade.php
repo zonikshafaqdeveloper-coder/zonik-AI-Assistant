@@ -2142,7 +2142,10 @@ body:has(.ai-page){background:#edf2f5}
                 return '';
             }
             let html = '';
-            (message.products || []).forEach(function (product) {
+            // A selected product already appears in the compact Live Order
+            // dock. Restoring its old result card duplicates the same item and
+            // can push the composer outside the viewport on small screens.
+            (message.products || []).filter(function (product) { return !product.selected; }).forEach(function (product) {
                 html += historyProductCard(product);
             });
             return html;
@@ -2670,6 +2673,7 @@ function appendTyping() {
             const text = (message || '').trim();
             if (!text) return;
             const sendOptions = options || {};
+            const sourceProductMessage = sendOptions.sourceProductMessage || null;
             const alreadyRenderedUserMessage = Boolean(sendOptions.alreadyRenderedUserMessage);
             aiDebug('Command received', {
                 text: text,
@@ -2938,6 +2942,9 @@ function appendTyping() {
                     autoAdded: data.auto_added
                 });
                 removeTyping(typing);
+                // The server accepted the selected option, so its old product
+                // cards must not remain below the compact live-order row.
+                sourceProductMessage?.remove();
                 const reply = data.reply || 'I can help with that.';
                 const order = getOrderDetails(text);
                 const products = data.products || [];
@@ -3085,6 +3092,9 @@ function appendTyping() {
             .catch((error) => {
                 aiDebug('Chat API failed', {message: String(error), text: text, stage: requestStage});
                 removeTyping(typing);
+                sourceProductMessage?.querySelectorAll('button').forEach(function (choice) {
+                    choice.disabled = false;
+                });
                 setAgentUiState('error');
                 const failureReply = 'Sorry, abhi reply connect nahi hua. Ek baar phir boliye; main sun raha hoon.';
                 appendMessage('assistant', escapeHtml(failureReply));
@@ -4042,7 +4052,10 @@ function appendTyping() {
             } else if (button.dataset.removeProduct) {
                 sendMessage(button.dataset.removeProduct + ' remove kar do');
             } else if (button.dataset.chooseProduct) {
-                sendMessage(button.dataset.chooseProduct, Number(button.dataset.chooseProductId));
+                button.disabled = true;
+                sendMessage(button.dataset.chooseProduct, Number(button.dataset.chooseProductId), {
+                    sourceProductMessage: button.closest('.ai-message-row')
+                });
             } else if (button.dataset.catalogueEnquiry) {
                 const enquiryActions = button.closest('.ai-product-actions');
                 const enquiryCard = enquiryActions?.previousElementSibling?.classList.contains('ai-product-card')
