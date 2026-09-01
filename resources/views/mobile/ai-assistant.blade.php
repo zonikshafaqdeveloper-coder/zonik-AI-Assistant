@@ -1257,6 +1257,9 @@ body:has(.ai-page){background:#edf2f5}
 .ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total::after{font-size:7px}
 .ai-live-preview{margin:0;max-height:92px}
 .ai-live-preview-empty{padding:20px 10px 0;font-size:8px;line-height:1.7;color:#748195}
+.ai-order-dock.is-empty > .ai-order-dock-copy,
+.ai-order-dock.is-empty > .ai-order-dock-total,
+.ai-order-dock.is-empty > .ai-live-preview{display:none!important}
 /* Filled live-order state: readable rows without disturbing the empty reference state. */
 .ai-card:has(.ai-live-preview-row) .ai-composer{min-height:190px;max-height:min(58dvh,430px);padding-bottom:14px}
 .ai-card:has(.ai-live-preview-row) .ai-order-dock{row-gap:8px}
@@ -1504,7 +1507,7 @@ body:has(.ai-page){background:#edf2f5}
         </div>
 
         <div class="ai-composer" id="aiComposer">
-            <div class="ai-order-dock visible" role="button" tabindex="0" id="aiOrderDock" aria-label="Open live order">
+            <div class="ai-order-dock visible is-empty" role="button" tabindex="0" id="aiOrderDock" aria-label="Open live order">
                 <span class="ai-order-dock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg></span>
                 <span class="ai-order-dock-copy"><strong>Live Order</strong><span id="aiOrderDockCount">(0)</span></span>
                 <strong class="ai-order-dock-total" id="aiOrderDockTotal">₹0.00</strong>
@@ -2135,20 +2138,11 @@ body:has(.ai-page){background:#edf2f5}
         }
 
         function savedMessageHtml(message) {
-            if (message.message === 'Live Order List') {
-                // This persisted row is only a cart snapshot. The live order
-                // dock renders the current cart, so restoring it would create
-                // a second, stale order list after every reload.
-                return '';
-            }
-            let html = '';
-            // A selected product already appears in the compact Live Order
-            // dock. Restoring its old result card duplicates the same item and
-            // can push the composer outside the viewport on small screens.
-            (message.products || []).filter(function (product) { return !product.selected; }).forEach(function (product) {
-                html += historyProductCard(product);
-            });
-            return html;
+            // Product-result cards are temporary controls, not durable chat
+            // content. Rebuilding them from saved product_data makes stale
+            // options reappear after refresh even when the live cart is empty.
+            // They remain available inside the dedicated History detail view.
+            return '';
         }
 
         function openHistoryList() {
@@ -2231,7 +2225,6 @@ body:has(.ai-page){background:#edf2f5}
                     chat.innerHTML = '';
                     (data.messages || []).forEach(function (message) {
                         let html = escapeHtml(message.message).replace(/\n/g, '<br>');
-                        (message.products || []).forEach(function (product) { html += historyProductCard(product); });
                         appendMessage(message.role, html, message.time);
                     });
                     closeAccessiblePanel(historyPanel, input);
@@ -3602,7 +3595,11 @@ function appendTyping() {
                     if (!items.length) {
                         liveOrderMessage?.remove();
                         liveOrderMessage = null;
+                        chat.querySelectorAll('.ai-product-card').forEach(function (card) {
+                            card.closest('.ai-message-row')?.remove();
+                        });
                         orderDock?.classList.add('visible');
+                        orderDock?.classList.add('is-empty');
                         if (orderDock) orderDock.hidden = false;
                         if (orderDockCount) orderDockCount.textContent = '(0)';
                         if (orderDockTotal) orderDockTotal.textContent = money(0);
@@ -3614,6 +3611,7 @@ function appendTyping() {
                     if (orderDock) {
                         orderDock.hidden = false;
                         orderDock.classList.add('visible');
+                        orderDock.classList.remove('is-empty');
                     }
                     if (orderDockCount) orderDockCount.textContent = '(' + itemCount + ')';
                     if (orderDockTotal) orderDockTotal.textContent = money(data.total);
