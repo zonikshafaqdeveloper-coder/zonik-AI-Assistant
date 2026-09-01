@@ -251,9 +251,8 @@
 .ai-cart-total { font-weight: 800; color: #111827; padding-top: 6px; border-top: 1px solid #e2e8f0; }
 .ai-live-order-message { width: 100%; }
 .ai-live-order-message .ai-message { width: 100%; max-width: 100%; }
-.ai-live-order-item { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+.ai-live-order-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
 .ai-live-order-item:last-child { border-bottom: 0; }
-.ai-live-order-image { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: #f1f5f9; }
 .ai-live-order-name { color: #111827; font-size: 13px; font-weight: 750; line-height: 1.3; }
 .ai-live-order-meta { color: #64748b; font-size: 12px; margin-top: 4px; }
 .ai-live-order-price { color: #4f46e5; font-size: 13px; font-weight: 800; text-align: right; white-space: nowrap; }
@@ -2063,7 +2062,7 @@ body:has(.ai-page){background:#edf2f5}
             // Only clear the idle state. We never discard the cart or an
             // in-progress checkout merely because the customer said "new".
             if (!activeOrderingStage || activeOrderingStage === 'anything_else') activeOrderingStage = null;
-            const reply = 'Theek hai, product ka naam aur quantity saath mein bataiye.';
+            const reply = 'Theek hai, product ka naam aur quantity saath mein boliye.';
             appendMessage('assistant', escapeHtml(reply));
             loadVoiceAsync(reply);
             input.focus();
@@ -2137,12 +2136,10 @@ body:has(.ai-page){background:#edf2f5}
 
         function savedMessageHtml(message) {
             if (message.message === 'Live Order List') {
-                let list = '<strong>Live Order List</strong><div class="ai-cart-summary">';
-                (message.products || []).forEach(function (product) {
-                    const image = product.image ? '<img class="ai-live-order-image" src="' + escapeHtml(product.image) + '" alt="' + escapeHtml(product.name) + '">' : '<div class="ai-live-order-image"></div>';
-                    list += '<div class="ai-live-order-item">' + image + '<div><div class="ai-live-order-name">' + escapeHtml(product.name) + '</div><div class="ai-live-order-meta">Quantity: ' + escapeHtml(product.selected_quantity || 1) + ' ' + escapeHtml(product.unit || 'unit') + '</div></div><div class="ai-live-order-price">' + money(product.line_total || 0) + '</div></div>';
-                });
-                return list + '</div>';
+                // This persisted row is only a cart snapshot. The live order
+                // dock renders the current cart, so restoring it would create
+                // a second, stale order list after every reload.
+                return '';
             }
             let html = '';
             (message.products || []).forEach(function (product) {
@@ -2627,7 +2624,9 @@ function appendTyping() {
                 });
             });
         }
-        fetch(historyUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        // Fast boot: restore only the latest conversation. The complete
+        // conversation list is loaded lazily when the History panel opens.
+        fetch(historyUrl + '?bootstrap=1', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
             .then(response => response.json())
             .then(data => {
                 if (!data.messages || !data.messages.length) {
@@ -2806,7 +2805,7 @@ function appendTyping() {
                     }
                     let readyReply = '';
                     if (data.choice === 'yes') {
-                        readyReply = 'Okay, ab product ka naam aur quantity saath mein bataiye.';
+                        readyReply = 'Okay, ab product ka naam aur quantity saath mein boliye.';
                     } else if (data.choice === 'no') {
                         readyReply = 'Theek hai, jab ready hon tab new order bol dijiye.';
                     } else {
@@ -3653,14 +3652,10 @@ function appendTyping() {
 
                     let html = '<strong>Live Order List</strong><div class="ai-cart-summary">';
                     items.forEach(function (item) {
-                        const image = item.image
-                            ? '<img class="ai-live-order-image" src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '">'
-                            : '<div class="ai-live-order-image"></div>';
                         const quantityDisplay = liveOrderEditable
                             ? '<div class="ai-qty-control"><button type="button" class="ai-qty-btn" data-live-qty="-1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '">−</button><span class="ai-qty-value">' + escapeHtml(item.qty) + '</span><button type="button" class="ai-qty-btn" data-live-qty="1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '">+</button></div>'
                             : '<div class="ai-live-order-meta">Quantity: ' + escapeHtml(item.qty) + ' ' + escapeHtml(item.unit || 'unit') + '</div>';
-                        html += '<div class="ai-live-order-item">' + image
-                            + '<div><div class="ai-live-order-name">' + escapeHtml(item.name) + '</div>' + quantityDisplay + '</div>'
+                        html += '<div class="ai-live-order-item"><div><div class="ai-live-order-name">' + escapeHtml(item.name) + '</div>' + quantityDisplay + '</div>'
                             + '<div class="ai-live-order-price">' + money(item.total) + '</div></div>';
                     });
                     html += '<div class="ai-cart-row ai-cart-total"><span>Total</span><span>' + money(data.total) + '</span></div></div>';

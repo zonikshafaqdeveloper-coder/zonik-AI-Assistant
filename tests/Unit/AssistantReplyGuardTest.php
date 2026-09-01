@@ -706,6 +706,34 @@ class AssistantReplyGuardTest extends TestCase
         );
     }
 
+    public function test_tts_language_instructions_use_pronunciation_friendly_native_scripts(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantTtsLanguageInstruction');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertStringContainsString('Devanagari', $method->invoke($controller, 'mujhe rice chahiye', 'Hinglish'));
+        $this->assertStringContainsString('Marathi', $method->invoke($controller, 'mala butter pahije', 'Marathi'));
+        $this->assertStringContainsString('Urdu script', $method->invoke($controller, 'مجھے چاول چاہیے', 'Urdu'));
+        $this->assertStringContainsString('Indian English', $method->invoke($controller, 'Please show rice', 'English'));
+    }
+
+    public function test_voice_order_prompt_asks_customer_to_speak_instead_of_send(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantVoiceInstructions');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertSame(
+            'Theek hai, product ka naam aur quantity boliye.',
+            $method->invoke($controller, 'Theek hai, product ka naam aur quantity bhej dijiye.')
+        );
+        $this->assertSame(
+            'Item ka naam and quantity boliye.',
+            $method->invoke($controller, 'Item ka naam and quantity type kijiye.')
+        );
+    }
+
     public function test_cart_reply_distinguishes_new_updated_and_existing_items(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantCartMutationReply');

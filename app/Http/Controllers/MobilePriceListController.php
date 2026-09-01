@@ -467,6 +467,38 @@ public function assistantHistory(Request $request)
         ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
         ->whereNotNull('conversation_id');
 
+    // Page boot only needs the latest conversation. The full history list
+    // previously caused an N+1 query (up to 50 extra queries) on every reload,
+    // even though that list is not visible until the History panel is opened.
+    if ($request->boolean('bootstrap')) {
+        $latestConversationId = (clone $query)->latest('id')->value('conversation_id');
+        $latestMessages = collect();
+        if ($latestConversationId) {
+            $latestMessages = (clone $query)->where('conversation_id', $latestConversationId)
+                ->oldest('id')->limit(200)->get()
+                ->map(function ($message) use ($outlet) {
+                    $products = $message->product_data ?? [];
+                    if (empty($products) && $message->role === 'assistant' && str_contains(strtolower($message->message), 'found')) {
+                        $products = $this->findAssistantProducts($message->message, $outlet);
+                    }
+                    return [
+                        'role' => $message->role,
+                        'message' => $message->message,
+                        'products' => $products,
+                        'time' => optional($message->created_at)->format('h:i A'),
+                    ];
+                })->values();
+        }
+
+        return response()->json([
+            'messages' => $latestMessages,
+            'active_conversation_id' => $latestConversationId,
+            'active_workflow_state' => $latestConversationId
+                ? Cache::get($this->assistantStateCacheKey($user->id, $latestConversationId), [])
+                : [],
+        ]);
+    }
+
     if (!empty($conversationId)) {
         $messages = $query->where('conversation_id', $conversationId)
         ->oldest('id')
@@ -646,9 +678,9 @@ public function assistantSpeak(Request $request)
         'language_hint' => 'nullable|string|max:100',
     ]);
     $text = $data['text'];
+    $customerText = (string) ($data['match_language_to'] ?? '');
+    $languageHint = trim((string) ($data['language_hint'] ?? ''));
     if (!empty($data['match_language_to'])) {
-        $customerText = $data['match_language_to'];
-        $languageHint = trim((string) ($data['language_hint'] ?? ''));
         // Latin-script chat defaults to the requested conversational Roman
         // Hinglish. Preserve explicit regional scripts instead of forcing
         // their speech through Hindi transliteration.
@@ -660,7 +692,7 @@ public function assistantSpeak(Request $request)
     // Keep the visible/localized reply unchanged, but send pronunciation-safe
     // words to every speech provider. Abbreviations such as "LTR" otherwise
     // get read as separate letters by several multilingual voices.
-    $speechText = $this->normalizeAssistantSpeechText($text);
+    $speechText = $this->prepareAssistantTtsText($text, $customerText, $languageHint ?: null);
     $voiceData = $this->buildVoiceReply($speechText);
     return response()->json([
         'text' => $text,
@@ -3314,6 +3346,60 @@ private function normalizeAssistantSpeechText(string $text): string
     $spoken = preg_replace('/([.!?])(?=\S)/u', '$1 ', $spoken) ?? $spoken;
 
     return trim(preg_replace('/\s+/u', ' ', $spoken) ?? $spoken);
+}
+
+private function prepareAssistantTtsText(string $text, string $customerText = '', ?string $languageHint = null): string
+{
+    $normalized = $this->normalizeAssistantSpeechText($text);
+    if ($normalized === '' || empty(config('services.gemini.api_key'))) {
+        return $this->normalizeAssistantVoiceInstructions($normalized);
+    }
+
+    $instruction = $this->assistantTtsLanguageInstruction($customerText, $languageHint);
+    $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v1|' . $instruction . '|' . $normalized);
+    $speech = trim((string) Cache::get($cacheKey, ''));
+    if ($speech === '') {
+        $prompt = "Convert the following assistant reply into pronunciation-ready text for ElevenLabs multilingual text-to-speech. {$instruction} This is an active voice conversation: when asking the customer for a spoken answer, say the natural equivalent of 'boliye' or 'bataiye'; never tell them to type, send, message, or share their answer. Preserve the exact meaning and every verified product name, brand, flavour, quantity, price, address, date, slot, and payment term. Never translate or respell a product/brand name unless ordinary spacing clearly improves its pronunciation. Expand abbreviations naturally, keep sentences short with useful punctuation, and do not add, remove, or answer anything. Return only the speakable text.\nText: {$normalized}";
+        $speech = trim((string) ($this->callGemini($prompt, 0.0, 220) ?? ''));
+        if ($speech !== '') Cache::put($cacheKey, $speech, now()->addDays(7));
+    }
+
+    if ($speech === '') return $this->normalizeAssistantVoiceInstructions($normalized);
+    return $this->normalizeAssistantVoiceInstructions($this->normalizeAssistantSpeechText($speech));
+}
+
+private function normalizeAssistantVoiceInstructions(string $speech): string
+{
+    $speech = preg_replace(
+        '/\b((?:product|item)(?:\s+ka)?\s+naam\s+(?:aur|or|and)\s+quantity)\s+(?:type\s+(?:kijiye|karein)|send\s+(?:kijiye|karein)|bhej(?:iye|\s+dijiye|\s+do)|share\s+(?:kijiye|karein))\b/iu',
+        '$1 boliye',
+        $speech
+    ) ?? $speech;
+
+    return trim($speech);
+}
+
+private function assistantTtsLanguageInstruction(string $customerText, ?string $languageHint = null): string
+{
+    $hint = mb_strtolower(trim((string) $languageHint));
+    $detected = mb_strtolower($this->detectAssistantLanguage($customerText));
+    $language = $hint !== '' ? $hint : $detected;
+
+    if (str_contains($language, 'urdu') || preg_match('/[\x{0600}-\x{06FF}]/u', $customerText)) {
+        return 'Speak natural Urdu. Write Urdu words in Urdu script; keep genuine English and product or brand names in Latin script.';
+    }
+    if (str_contains($language, 'marathi') || $detected === 'marathi') {
+        return 'Speak natural Marathi. Write Marathi words in Devanagari; keep genuine English and product or brand names in Latin script.';
+    }
+    if (str_contains($language, 'hindi') || str_contains($language, 'hinglish')
+        || in_array($detected, ['hindi', 'hinglish'], true)) {
+        return 'Speak natural conversational Hinglish. Write Hindi-origin words phonetically in Devanagari so they are pronounced as Hindi, while keeping genuine English and product or brand names in Latin script.';
+    }
+    if (str_contains($language, 'english') || $detected === 'english') {
+        return 'Speak clear natural Indian English using Latin script.';
+    }
+
+    return 'Speak naturally in the customer\'s detected language and native writing script, while keeping genuine English and product or brand names in Latin script.';
 }
 
 private function assistantCheckoutPreferenceKey(int $userId, string $conversationId): string
