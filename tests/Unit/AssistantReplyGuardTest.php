@@ -359,16 +359,17 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertSame(['stage' => 'confirm_order'], $response['state']);
     }
 
-    public function test_assistant_voice_is_polite_and_feminine(): void
+    public function test_assistant_voice_is_polite_and_masculine(): void
     {
-        $method = new ReflectionMethod(MobilePriceListController::class, 'enforceAssistantFemaleVoice');
+        $method = new ReflectionMethod(MobilePriceListController::class, 'enforceAssistantMaleVoice');
         $method->setAccessible(true);
 
-        $reply = $method->invoke(new MobilePriceListController(), 'Arrre bhai, main check kar raha hoon aur bataunga.');
+        $reply = $method->invoke(new MobilePriceListController(), 'Arrre bhai, main check kar rahi hoon aur bataungi.');
 
         $this->assertStringNotContainsString('Arrre', $reply);
-        $this->assertStringContainsString('kar rahi hoon', $reply);
-        $this->assertStringContainsString('bataungi', $reply);
+        $this->assertStringContainsString('kar raha hoon', $reply);
+        $this->assertStringContainsString('bataunga', $reply);
+        $this->assertStringNotContainsString('kar rahi hoon', $reply);
     }
 
     public function test_checkout_ready_yields_to_a_fresh_product_change(): void
@@ -551,9 +552,11 @@ class AssistantReplyGuardTest extends TestCase
 
         $this->assertTrue($explicit->invoke($controller, 'Real apple juice ki enquiry bhejo'));
         $this->assertTrue($explicit->invoke($controller, 'price request create karo'));
+        $this->assertTrue($explicit->invoke($controller, 'enqury send kardo'));
         $this->assertFalse($explicit->invoke($controller, 'Real apple juice chahiye'));
         $this->assertFalse($explicit->invoke($controller, 'catalogue dikhao'));
         $this->assertSame('yes', $consent->invoke($controller, 'haan'));
+        $this->assertSame('yes', $consent->invoke($controller, 'haa send kardo enqury'));
         $this->assertSame('no', $consent->invoke($controller, 'nahi'));
         $this->assertSame('unknown', $consent->invoke($controller, 'orange wala'));
     }
@@ -624,9 +627,25 @@ class AssistantReplyGuardTest extends TestCase
         );
 
         $this->assertSame(
-            'Juice 1 litre, water 2 litres, milk 500 millilitres, rice 2 kilograms, butter 250 grams, 3 pieces. Total 1,275 rupees and GST 5 percent.',
+            'Juice 1 litre, water 2 litres, milk 500 millilitres, rice 2 kilograms, butter 250 grams, 3 pieces. Total 1,275 rupees and G S T 5 percent.',
             $spoken
         );
+    }
+
+    public function test_cart_reply_distinguishes_new_updated_and_existing_items(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantCartMutationReply');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertStringContainsString('add kar diya', $method->invoke($controller,
+            ['action' => 'added', 'quantity' => 2], 'Apple Juice'));
+        $this->assertStringContainsString('quantity 1 se 3 update', $method->invoke($controller,
+            ['action' => 'updated', 'previous_quantity' => 1, 'quantity' => 3], 'Apple Juice'));
+        $unchanged = $method->invoke($controller,
+            ['action' => 'unchanged', 'previous_quantity' => 2, 'quantity' => 2], 'Apple Juice');
+        $this->assertStringContainsString('pehle se cart mein', $unchanged);
+        $this->assertStringContainsString('duplicate add nahi kiya', $unchanged);
     }
 
 }

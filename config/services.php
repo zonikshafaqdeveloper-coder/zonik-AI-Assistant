@@ -9,7 +9,11 @@ return [
         // override only as a fallback so a stale override can never shadow a
         // freshly rotated primary key.
         'api_key' => env('ELEVENLABS_API_KEY', env('ELEVENLABS_API_KEY_OVERRIDE')),
-        'voice_id' => env('ELEVENLABS_VOICE_ID', 'RABOvaPec1ymXz02oDQi'),
+        // Adam: warm, clear male fallback. Production can still override it
+        // through ELEVENLABS_VOICE_ID without changing application code.
+        'voice_id' => env('ELEVENLABS_VOICE_ID', 'pNInz6obpgDQGcFmaJgB'),
+        'fallback_voice_id' => env('ELEVENLABS_FALLBACK_VOICE_ID'),
+        'free_fallback_voice_id' => env('ELEVENLABS_FREE_FALLBACK_VOICE_ID', 'pNInz6obpgDQGcFmaJgB'),
         // Prefer quality over latency for spoken Hindi, Hinglish and Marathi.
         'model' => env('ELEVENLABS_MODEL', 'eleven_multilingual_v2'),
     ],

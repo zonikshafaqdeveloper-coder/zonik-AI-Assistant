@@ -581,6 +581,9 @@ public function assistantSelection(Request $request)
             ], 422);
         }
     }
+    $verifiedCartReply = $cartResult
+        ? $this->assistantCartMutationReply($cartResult, $product->product_name)
+        : 'Could not add this item. Please try again.';
 
     $productData = [[
         'id' => $product->id, 'name' => $product->product_name,
@@ -597,12 +600,12 @@ public function assistantSelection(Request $request)
     AiAssistantMessage::create([
         'user_id' => $user->id, 'outlet_id' => $outlet?->id,
         'conversation_id' => $data['conversation_id'], 'role' => 'assistant',
-        'message' => $data['success'] ? '✓ Added to your order. The item is now in your cart.' : 'Could not add this item. Please try again.',
+        'message' => $data['success'] ? $verifiedCartReply : 'Could not add this item. Please try again.',
         'product_data' => $productData,
     ]);
     $nextWorkflow = null;
     if ($data['success'] && ($data['workflow_stage'] ?? '') === 'order_suggestions') {
-        $nextWorkflow = ['stage' => 'confirm_order', 'show_cart' => true, 'reply' => 'Suggested product add kar diya. Updated order summary confirm kijiye.'];
+        $nextWorkflow = ['stage' => 'confirm_order', 'show_cart' => true, 'reply' => $verifiedCartReply . ' Updated order summary confirm kijiye.'];
         $nextState = ['stage' => 'confirm_order', 'skip_suggestions' => true];
         $request->session()->put('assistant_order_flow.' . $data['conversation_id'], $nextState);
         // Chat restores state from this cache when a mobile WebView rotates
@@ -614,7 +617,8 @@ public function assistantSelection(Request $request)
         $request->session()->put('assistant_order_flow.' . $data['conversation_id'], $nextState);
         Cache::put($this->assistantStateCacheKey($user->id, $data['conversation_id']), $nextState, now()->addHours(24));
     }
-    return response()->json(['saved' => true, 'workflow' => $nextWorkflow, 'cart_result' => $cartResult]);
+    return response()->json(['saved' => true, 'workflow' => $nextWorkflow, 'cart_result' => $cartResult,
+        'message' => $verifiedCartReply, 'cart_action' => $cartResult['action'] ?? null]);
 }
 
 public function assistantTranscribe(Request $request)
@@ -1395,7 +1399,7 @@ public function assistantChat(Request $request)
                 if ($added) {
                     $wasOrderSuggestion = $currentStage === 'order_suggestions';
                     $flowResponse = [
-                        'reply' => ($spokenChoice['name'] ?? 'Product') . ' x ' . $quantity . ' order list mein add ho gaya. '
+                        'reply' => $this->assistantCartMutationReply($added, $spokenChoice['name'] ?? 'Product') . ' '
                             . ($wasOrderSuggestion ? 'Updated order summary confirm kijiye.' : 'Aur kuch chahiye?'),
                         'products' => [],
                         'auto_added' => true,
@@ -1444,8 +1448,9 @@ public function assistantChat(Request $request)
         foreach ($spokenItems as $spokenItem) {
             $matches = $this->findAssistantProducts($spokenItem['query'], $outlet);
             if (count($matches) === 1 && $spokenItem['quantity'] > 0) {
-                if ($this->addAssistantProductToCart($user, $outlet, $matches[0], $spokenItem['quantity'])) {
-                    $addedNames[] = $matches[0]['name'] . ' x ' . $spokenItem['quantity'] . ($spokenItem['unit'] ? ' ' . $spokenItem['unit'] : '');
+                $cartResult = $this->addAssistantProductToCart($user, $outlet, $matches[0], $spokenItem['quantity']);
+                if ($cartResult) {
+                    $addedNames[] = $this->assistantCartMutationReply($cartResult, $matches[0]['name']);
                 }
             } else {
                 foreach ($matches as $match) {
@@ -1456,7 +1461,7 @@ public function assistantChat(Request $request)
             }
         }
         if ($addedNames || $needsChoice) {
-            $reply = $addedNames ? implode(', ', $addedNames) . ' live order list mein add ho gaya.' : '';
+            $reply = $addedNames ? implode(' ', $addedNames) : '';
             $stage = $needsChoice ? 'clarify_product' : 'anything_else';
             if ($needsChoice) {
                 $brands = array_values(array_unique(array_filter(array_map(fn ($item) => trim((string) ($item['brand'] ?? '')), $needsChoice))));
@@ -1575,16 +1580,28 @@ public function assistantChat(Request $request)
     }
     $catalogSuggestions = false;
     $approvedAlternatives = false;
-    if (!$isRecommendation && $intent['intent'] === 'product_search' && empty($productHints)) {
-        $productHints = $this->findAssistantApprovedAlternatives($intent['search_query'] ?: $message, $outlet);
-        $approvedAlternatives = !empty($productHints);
-    }
+    $requestedCatalogueProduct = null;
+    $availableAlternatives = [];
+    // Find the exact requested catalogue SKU before relaxing brand/flavour
+    // terms. An approved substitute must not hide the product whose price
+    // enquiry the customer actually wants to send.
     if (!$isRecommendation && $intent['intent'] === 'product_search' && empty($productHints)) {
         $productHints = $this->findAssistantProducts($intent['search_query'] ?: $message, $outlet, true);
         if (empty($productHints) && trim((string) $intent['search_query']) !== $message) {
             $productHints = $this->findAssistantProducts($message, $outlet, true);
         }
         $catalogSuggestions = !empty($productHints);
+        if (count($productHints) === 1 && (($productHints[0]['available_in_outlet'] ?? true) === false)) {
+            $requestedCatalogueProduct = $productHints[0];
+            $availableAlternatives = $this->findAssistantApprovedAlternatives($intent['search_query'] ?: $message, $outlet);
+            $availableAlternatives = array_values(array_filter($availableAlternatives, fn ($alternative) =>
+                (int) ($alternative['id'] ?? 0) !== (int) ($requestedCatalogueProduct['id'] ?? 0)
+            ));
+        }
+    }
+    if (!$isRecommendation && $intent['intent'] === 'product_search' && empty($productHints)) {
+        $productHints = $this->findAssistantApprovedAlternatives($intent['search_query'] ?: $message, $outlet);
+        $approvedAlternatives = !empty($productHints);
     }
     if ($selectedProductId) {
         $selected = collect($pendingProducts)->first(fn ($product) => (int) ($product['id'] ?? 0) === $selectedProductId);
@@ -1689,7 +1706,16 @@ public function assistantChat(Request $request)
             $request->session()->put($flowKey, ['stage' => 'confirm_product', 'product' => $productHints[0]]);
         }
     }
-    if (!$autoAdded && !$automaticEnquiry && !empty($productHints) && ($approvedAlternatives
+    if (!$autoAdded && !$automaticEnquiry && $requestedCatalogueProduct) {
+        $workflow['stage'] = 'clarify_product';
+        $flowProducts = !empty($availableAlternatives) ? $availableAlternatives : [$requestedCatalogueProduct];
+        $request->session()->put($flowKey, [
+            'stage' => 'clarify_product',
+            'products' => $flowProducts,
+            'enquiry_product' => $requestedCatalogueProduct,
+            'awaiting_enquiry_confirmation' => true,
+        ]);
+    } elseif (!$autoAdded && !$automaticEnquiry && !empty($productHints) && ($approvedAlternatives
         || $catalogSuggestions
         || (count($productHints) > 1 && in_array($workflow['stage'], ['choose_brand', 'choose_product', 'clarify_product'], true)))) {
         $workflow['stage'] = 'clarify_product';
@@ -1727,17 +1753,23 @@ public function assistantChat(Request $request)
             ? 'Quantity kis product ki update karni hai? Product ka naam bata dijiye.'
             : (count($productHints) > 1 ? 'Kaunsa flavour ya brand update karna hai?' : ($autoAdded ? 'Quantity update ho gayi.' : 'Quantity confirm karein.'));
     } elseif ($intent['intent'] === 'product_search') {
-        $reply = $approvedAlternatives
+        $reply = ($requestedCatalogueProduct && !$automaticEnquiry)
+            ? (($requestedCatalogueProduct['name'] ?? 'Ye product') . ' selected outlet ki price list mein available nahi hai. Iski price enquiry bhej doon?'
+                . (!empty($availableAlternatives) ? ' Tab tak isi product ke doosre available brands neeche dekh sakte hain.' : ''))
+            : ($approvedAlternatives
             ? ('Exact ' . trim((string) ($intent['search_query'] ?: $message)) . ' aapki price list mein nahi mila, lekin ye close approved options available hain. Aap kaunsa lena chahenge?')
             : ($automaticEnquiry
             ? ($automaticEnquiry['message'] ?? 'Price-list enquiry automatically bhej di hai.')
             : ($autoAdded
-            ? (($productHints[0]['name'] ?? 'Product') . ' order list mein add ho gaya. Aur items batate jaiye; complete ho to “bas itna hi” boliye.')
+            ? ($this->assistantCartMutationReply($autoAdded, $productHints[0]['name'] ?? 'Product') . ' Aur items batate jaiye; complete ho to “bas itna hi” boliye.')
             : (!empty($productHints)
             ? ($catalogSuggestions
                 ? 'Ye product selected outlet ki approved price list mein nahi hai. Iski price enquiry bhejni ho toh “enquiry bhejo” boliye.'
                 : $this->assistantShopkeeperReply($message, $intent, $productHints, $workflow, (bool) $autoAdded))
-            : 'Ye product catalogue mein nahi mila. Kya aap customer care se baat karna chahenge? Haan bolenge toh phone dialer khol dungi.')));
+            : 'Ye product catalogue mein nahi mila. Kya aap customer care se baat karna chahenge? Haan bolenge toh phone dialer khol dungi.'))));
+        if ($requestedCatalogueProduct && !empty($availableAlternatives)) {
+            $productHints = $availableAlternatives;
+        }
     } else {
         $reply = $this->assistantConversationReply($rawMessage, $user, $outlet, $recentMessages, $cartItems)
             ?: ($intent['general_reply'] ?: $this->fallbackReply($message, $productHints));
@@ -1815,8 +1847,9 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
         $quantity = max(0, (float) ($spokenItem['quantity'] ?? 0));
         $unit = trim((string) ($spokenItem['unit'] ?? ''));
         if (count($matches) === 1 && $quantity > 0) {
-            if ($this->addAssistantProductToCart($user, $outlet, $matches[0], $quantity)) {
-                $addedNames[] = $matches[0]['name'] . ' x ' . $quantity . ($unit !== '' ? ' ' . $unit : '');
+            $cartResult = $this->addAssistantProductToCart($user, $outlet, $matches[0], $quantity);
+            if ($cartResult) {
+                $addedNames[] = $this->assistantCartMutationReply($cartResult, $matches[0]['name']);
             } else {
                 $notFound[] = $requestedName;
             }
@@ -1841,7 +1874,7 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
     if (empty($addedNames) && empty($needsChoice) && empty($notFound)) return null;
 
     $reply = $addedNames
-        ? count($addedNames) . ' item' . (count($addedNames) === 1 ? '' : 's') . ' add ho gaye: ' . implode(', ', $addedNames) . '.'
+        ? implode(' ', $addedNames)
         : '';
     $stage = $needsChoice ? 'clarify_product' : 'anything_else';
     if ($needsChoice) {
@@ -1944,7 +1977,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
             // A missing-product enquiry has no prior ordering step. Keep an
             // explicit fallback state so this transition survives a reload
             // and subsequent messages do not remain stuck on the call offer.
-            return ['reply' => 'Theek hai. Main yahin help karti hoon; apna sawaal ya product bataiye.', 'products' => [], 'workflow' => ['stage' => $resume['stage']], 'state' => $resume];
+            return ['reply' => 'Theek hai. Main yahin help karta hoon; apna sawaal ya product bataiye.', 'products' => [], 'workflow' => ['stage' => $resume['stage']], 'state' => $resume];
         }
         if ($this->isAssistantCustomerCareAffirmative($message)) {
             $resume = $this->assistantCustomerCareResumeState($flow);
@@ -1966,6 +1999,47 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
     }
     if ($stage === 'clarify_product') {
         $options = $flow['products'] ?? [];
+        if (!empty($flow['awaiting_enquiry_confirmation']) && !empty($flow['enquiry_product'])) {
+            $consent = $this->assistantEnquiryConsentReply($message);
+            if ($consent === 'yes') {
+                $requested = $flow['enquiry_product'];
+                $catalogueProduct = Product::where('status', 'active')->find((int) ($requested['id'] ?? 0));
+                $enquiry = $catalogueProduct && $user && $outlet
+                    ? $this->createAssistantCatalogueEnquiry($user, $outlet, $catalogueProduct)
+                    : ['success' => false];
+                if (!empty($enquiry['success'])) {
+                    $nextState = !empty($options)
+                        ? ['stage' => 'clarify_product', 'products' => $options]
+                        : ['stage' => 'anything_else'];
+                    return [
+                        'reply' => ($enquiry['message'] ?? (($requested['name'] ?? 'Product') . ' ki price enquiry bhej di hai.'))
+                            . (!empty($options) ? ' Tab tak neeche available doosre brands mein se bhi choose kar sakte hain.' : ' Aur koi product chahiye?'),
+                        'products' => $options,
+                        'workflow' => ['stage' => $nextState['stage']],
+                        'state' => $nextState,
+                    ];
+                }
+                return [
+                    'reply' => 'Enquiry abhi send nahi ho paayi. Please ek baar phir “haan, enquiry bhejo” boliye.',
+                    'products' => $options,
+                    'workflow' => ['stage' => 'clarify_product'],
+                    'state' => $flow,
+                ];
+            }
+            if ($consent === 'no') {
+                $nextState = !empty($options)
+                    ? ['stage' => 'clarify_product', 'products' => $options]
+                    : ['stage' => 'anything_else'];
+                return [
+                    'reply' => !empty($options)
+                        ? 'Theek hai, enquiry nahi bhej rahi hoon. Neeche available doosre brands mein se choose kar sakte hain.'
+                        : 'Theek hai, enquiry nahi bhej rahi hoon. Aap doosra product bata sakte hain.',
+                    'products' => $options,
+                    'workflow' => ['stage' => $nextState['stage']],
+                    'state' => $nextState,
+                ];
+            }
+        }
         $selectedOption = $this->resolveAssistantClarificationChoiceSemantically($message, $options);
         if (!$selectedOption && !empty($flow['awaiting_enquiry_confirmation'])
             && count($options) === 1 && $this->assistantEnquiryConsentReply($message) !== 'unknown') {
@@ -2036,7 +2110,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
             // as pressing Select: add that displayed quantity immediately.
             if ($quantity <= 0) $quantity = 1;
             $added = $this->addAssistantProductToCart($user, $outlet, $product, $quantity);
-            return ['reply' => $added ? (($product['name'] ?? 'Product') . ' live order list mein add ho gaya. Aur kuch chahiye?') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'clarify_product', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
+            return ['reply' => $added ? ($this->assistantCartMutationReply($added, $product['name'] ?? 'Product') . ' Aur kuch chahiye?') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'clarify_product', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
         }
         $brands = array_values(array_unique(array_filter(array_map(fn ($item) => trim((string) ($item['brand'] ?? '')), $options))));
         $flow['clarification_attempts'] = (int) ($flow['clarification_attempts'] ?? 0) + 1;
@@ -2095,7 +2169,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         if ($quantity <= 0 && preg_match('/\d+(?:\.\d+)?/', $message, $match)) $quantity = (float) $match[0];
         if ($quantity > 0 && $product) {
             $added = $this->addAssistantProductToCart($user, $outlet, $product, $quantity);
-            return ['reply' => $added ? (($product['name'] ?? 'Product') . ' live order list mein add ho gaya. Aur kuch chahiye?') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'await_quantity', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
+            return ['reply' => $added ? ($this->assistantCartMutationReply($added, $product['name'] ?? 'Product') . ' Aur kuch chahiye?') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'await_quantity', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
         }
         $flow['quantity_attempts'] = (int) ($flow['quantity_attempts'] ?? 0) + 1;
         if ($flow['quantity_attempts'] >= 2) {
@@ -2118,7 +2192,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         }
         if ($yes && $product && !empty($flow['quantity'])) {
             $added = $this->addAssistantProductToCart($user, $outlet, $product, (float) $flow['quantity']);
-            return ['reply' => $added ? 'Cart mein add kar diya. Aur kuch chahiye?' : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'confirm_quantity'], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
+            return ['reply' => $added ? ($this->assistantCartMutationReply($added, $product['name'] ?? 'Product') . ' Aur kuch chahiye?') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'anything_else' : 'confirm_quantity'], 'state' => $added ? ['stage' => 'anything_else'] : $flow];
         }
         return ['reply' => $this->assistantNaturalFlowReply($understanding, 'Ji, jo quantity batayi hai wahi rakh du, ya badalni hai?'), 'products' => [], 'workflow' => ['stage' => 'confirm_quantity'], 'state' => $flow];
     }
@@ -2166,7 +2240,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         $suggestedProduct = $this->resolveAssistantClarificationChoiceSemantically($message, $flow['suggestions'] ?? []);
         if ($suggestedProduct) {
             $added = $this->addAssistantProductToCart($user, $outlet, $suggestedProduct, 1);
-            return ['reply' => $added ? (($suggestedProduct['name'] ?? 'Product') . ' add kar diya. Updated order summary confirm kijiye.') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'confirm_order' : 'order_suggestions', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'confirm_order', 'skip_suggestions' => true] : $flow];
+            return ['reply' => $added ? ($this->assistantCartMutationReply($added, $suggestedProduct['name'] ?? 'Product') . ' Updated order summary confirm kijiye.') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'confirm_order' : 'order_suggestions', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'confirm_order', 'skip_suggestions' => true] : $flow];
         }
         if ($action === 'add_more' || $yes) {
             $onlyConfirmation = (bool) preg_match('/^\s*(?:yes|yeah|haan|han|haa|ok|okay|aur|add\s+more)\s*[.!?]*\s*$/iu', $message);
@@ -2908,7 +2982,10 @@ private function resolveAssistantDeliverySelection(string $message, array $deliv
 
 private function assistantPaymentOptions(?User $user, ?User $outlet): array
 {
-    $options = ['online' => 'Pay Online (Razorpay)'];
+    $options = [
+        'online' => 'Pay Online (Razorpay)',
+        'pay_on_delivery' => 'Cash on Delivery',
+    ];
     $creditInfo = null;
     if (!$user || !$outlet) return ['options' => $options, 'credit_info' => $creditInfo];
 
@@ -2969,7 +3046,7 @@ private function understandAssistantFlowReply(string $message, string $stage, ar
         'checkout_ready' => 'The order has NOT been placed yet. Any requested product, cart, or quantity change must be handled before order placement.',
     ][$stage] ?? 'Understand the customer response.';
     $flowContext = json_encode(['product' => $flow['product'] ?? null, 'quantity' => $flow['quantity'] ?? null], JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite female delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Never use 'arre' or masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; use feminine forms such as 'kar rahi hoon', 'karungi', and 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
+    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite male Indian delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Always use masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; never use feminine forms such as 'kar rahi hoon', 'karungi', or 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -3129,7 +3206,20 @@ private function normalizeAssistantSpeechText(string $text): string
 
     $spoken = preg_replace('/₹\s*([\d,]+(?:\.\d+)?)/u', '$1 rupees', $spoken) ?? $spoken;
     $spoken = preg_replace('/\b([\d.]+)\s*%/u', '$1 percent', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\s*[×x]\s*/u', ' times ', $spoken) ?? $spoken;
     $spoken = str_replace('&', ' and ', $spoken);
+    $spoken = preg_replace('/\bZonik\b/iu', 'Zo-nik', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bAI\b/u', 'A I', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bMRP\b/u', 'M R P', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bGST\b/u', 'G S T', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bUPI\b/u', 'U P I', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bCOD\b/u', 'C O D', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bSKU\b/u', 'S K U', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bN\/?A\b/iu', 'not available', $spoken) ?? $spoken;
+
+    // Keep a single script per phrase. Switching scripts word-by-word made
+    // multilingual voices pause unnaturally and sound robotic.
+    $spoken = preg_replace('/([.!?])(?=\S)/u', '$1 ', $spoken) ?? $spoken;
 
     return trim(preg_replace('/\s+/u', ' ', $spoken) ?? $spoken);
 }
@@ -3238,7 +3328,7 @@ private function answerAssistantTemporaryQuestion(string $message, array $flow, 
 {
     $lower = mb_strtolower($message);
     if (preg_match('/^\s*(?:hi|hello|hey|namaste|who\s+are\s+you|what\s+can\s+you\s+do|aap\s+kaun|tum\s+kaun)[!?.\s]*$/iu', $lower)) {
-        return 'Namaste! Main Zonik products, price list, cart, order, delivery, payment aur customer care mein help kar sakti hoon.';
+        return 'Namaste! Main Zonik products, price list, cart, order, delivery, payment aur customer care mein help kar sakta hoon.';
     }
     $answer = null;
     if ($this->isAssistantZonikCatalogueRequest($message)) {
@@ -3246,7 +3336,7 @@ private function answerAssistantTemporaryQuestion(string $message, array $flow, 
         $names = collect($products)->pluck('name')->filter()->take(5)->implode(', ');
         $answer = $names !== ''
             ? 'Zonik mein grocery, beverages aur daily-use items milte hain, jaise ' . $names . '.'
-            : 'Zonik mein grocery, beverages aur daily-use items milte hain. Product ka naam bolo, main check kar dungi.';
+            : 'Zonik mein grocery, beverages aur daily-use items milte hain. Product ka naam bolo, main check kar dunga.';
     } elseif (preg_match('/\b(?:cart total|order total|kitna total|total kitna)\b/iu', $lower)) {
         $answer = empty($cartItems) ? 'Ji, abhi aapki order list empty hai.' : 'Ji, current product total ₹' . number_format((float) collect($cartItems)->sum('total'), 2) . ' hai; final charges checkout par confirm honge.';
     } elseif (preg_match('/\b(?:payment|upi|card|cod|credit)\b/iu', $lower)) {
@@ -3284,32 +3374,36 @@ private function assistantResumePrompt(array $flow): string
 private function localizeAssistantReply(string $reply, string $customerMessage, ?string $languageHint = null): string
 {
     $reply = trim($reply);
-    if ($reply === '' || empty(config('services.gemini.api_key'))) return $this->enforceAssistantFemaleVoice($reply);
+    if ($reply === '' || empty(config('services.gemini.api_key'))) return $this->enforceAssistantMaleVoice($reply);
 
     $hint = $this->assistantReplyLanguage($customerMessage, $languageHint);
-    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-v4|' . $hint . '|' . $reply);
+    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-male-v1|' . $hint . '|' . $reply);
     $localized = trim((string) Cache::get($cacheKey, ''));
     if ($localized === '') {
-        $prompt = "Rewrite the assistant reply in {$hint}, using a polite, warm, natural female Indian shop-assistant tone. Preserve the customer's original writing script. For Hindi or Hinglish, ALWAYS use easy Roman-script Hinglish like a customer speaking naturally. The assistant is female: always use feminine self-reference such as 'kar rahi hoon', 'karungi', 'dungi', and 'lungi', never masculine forms such as 'kar raha hoon', 'karunga', 'dunga', or 'lunga'. Never use 'arre', 'beta', 'boss', 'dear', Devanagari, formal/pure Hindi, stiff words such as 'kripya', 'avashya', 'kijiye', or textbook translations. Keep Hindi and English naturally mixed, as the customer does. Match the customer's language balance without copying their wording. Respond to the customer's meaning; never quote, repeat, paraphrase, affirm, or mirror the customer's sentence. Do not tell the customer to contact or talk to the Zonik team unless the customer explicitly asked for customer care. Keep simple answers short, but preserve a complete explanation when needed (up to 90 words). Preserve every product name, brand, flavour, quantity, price, address, slot, and payment term exactly; do not add or remove facts. Return only the rewritten reply, with no quotes or explanation.\nCustomer message (context only; do not reuse its wording): {$customerMessage}\nAssistant reply to translate: {$reply}";
+        $prompt = "Rewrite the assistant reply in {$hint}, using a polite, warm, natural male Indian shop-assistant tone. Preserve the customer's original writing script. For Hindi or Hinglish, ALWAYS use easy Roman-script Hinglish like a customer speaking naturally. The assistant is male: always use masculine self-reference such as 'kar raha hoon', 'karunga', 'dunga', and 'lunga', never feminine forms such as 'kar rahi hoon', 'karungi', 'dungi', or 'lungi'. Never use 'arre', 'beta', 'boss', 'dear', Devanagari, formal/pure Hindi, stiff words such as 'kripya', 'avashya', 'kijiye', or textbook translations. Keep Hindi and English naturally mixed, as the customer does. Match the customer's language balance without copying their wording. Respond to the customer's meaning; never quote, repeat, paraphrase, affirm, or mirror the customer's sentence. Do not tell the customer to contact or talk to the Zonik team unless the customer explicitly asked for customer care. Keep simple answers short, but preserve a complete explanation when needed (up to 90 words). Preserve every product name, brand, flavour, quantity, price, address, slot, and payment term exactly; do not add or remove facts. Return only the rewritten reply, with no quotes or explanation.\nCustomer message (context only; do not reuse its wording): {$customerMessage}\nAssistant reply to translate: {$reply}";
         $localized = trim((string) ($this->callGemini($prompt, 0.1, 120) ?? ''));
         if ($localized !== '') Cache::put($cacheKey, $localized, now()->addHours(12));
     }
 
-    if ($localized === '' || $this->assistantReplyRepeatsCustomer($localized, $customerMessage)) return $this->enforceAssistantFemaleVoice($reply);
-    return $this->enforceAssistantFemaleVoice($localized);
+    if ($localized === '' || $this->assistantReplyRepeatsCustomer($localized, $customerMessage)) return $this->enforceAssistantMaleVoice($reply);
+    return $this->enforceAssistantMaleVoice($localized);
 }
 
-private function enforceAssistantFemaleVoice(string $reply): string
+private function enforceAssistantMaleVoice(string $reply): string
 {
     $reply = preg_replace('/\ba+r+(?:e+y?)?\b[,.!?\s]*/iu', '', $reply) ?? $reply;
     $patterns = [
-        '/\bkar\s+raha\s+(?:hu|hun|hoon)\b/iu' => 'kar rahi hoon',
-        '/\bkarunga\b/iu' => 'karungi',
-        '/\bdunga\b/iu' => 'dungi',
-        '/\blunga\b/iu' => 'lungi',
-        '/\bbolunga\b/iu' => 'bolungi',
-        '/\bbataunga\b/iu' => 'bataungi',
-        '/\bdikhaunga\b/iu' => 'dikhaungi',
+        '/\bkar\s+rahi\s+(?:hu|hun|hoon)\b/iu' => 'kar raha hoon',
+        '/\bkarungi\b/iu' => 'karunga',
+        '/\bdungi\b/iu' => 'dunga',
+        '/\blungi\b/iu' => 'lunga',
+        '/\bbolungi\b/iu' => 'bolunga',
+        '/\bbataungi\b/iu' => 'bataunga',
+        '/\bdikhaungi\b/iu' => 'dikhaunga',
+        '/\bsun\s+rahi\s+(?:hu|hun|hoon)\b/iu' => 'sun raha hoon',
+        '/\bsamajh\s+nahi\s+paayi\b/iu' => 'samajh nahi paaya',
+        '/\bbhej\s+nahi\s+paayi\b/iu' => 'bhej nahi paaya',
+        '/\bhelp\s+karti\s+(?:hu|hun|hoon)\b/iu' => 'help karta hoon',
     ];
     $reply = preg_replace(array_keys($patterns), array_values($patterns), $reply) ?? $reply;
     return trim(preg_replace('/\s{2,}/u', ' ', $reply) ?? $reply);
@@ -3401,7 +3495,7 @@ private function assistantShopkeeperReply(string $message, array $intent, array 
 
 private function assistantClarificationProductAction(string $message): string
 {
-    if (preg_match('/\b(?:enquir(?:y|e)|inquir(?:y|e)|price\s*request|request\s*price|quotation|quote|catalogue|catalog|mangao|mangwao|mangwa\s*do|puchho|poochho)\b/iu', $message)
+    if (preg_match('/\b(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)|price\s*request|request\s*price|quotation|quote|catalogue|catalog|mangao|mangwao|mangwa\s*do|puchho|poochho)\b/iu', $message)
         || preg_match('/(?:इनक्वायरी|पूछताछ|मंगवाओ|कोटेशन)/u', $message)) {
         return 'enquiry';
     }
@@ -3415,14 +3509,14 @@ private function assistantClarificationProductAction(string $message): string
 private function assistantExplicitEnquiryRequested(string $message): bool
 {
     return (bool) preg_match(
-        '/\b(?:(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|daalo|dalo)\s+)?(?:enquir(?:y|e)|inquir(?:y|e)|price\s*request|quotation|quote)(?:\s+(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|daalo|dalo))?\b|\b(?:price|rate)\s+(?:puchho|poochho|mangao|mangwao)\b/iu',
+        '/\b(?:(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo)\s+)?(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)|price\s*request|quotation|quote)(?:\s+(?:send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo))?\b|\b(?:price|rate)\s+(?:puchho|poochho|mangao|mangwao)\b/iu',
         $message
     ) || (bool) preg_match('/(?:इन्क्वायरी|पूछताछ|कोटेशन).*(?:भेज|कर|डाल)|(?:भेज|कर|डाल).*(?:इन्क्वायरी|पूछताछ|कोटेशन)/u', $message);
 }
 
 private function assistantEnquiryConsentReply(string $message): string
 {
-    if (preg_match('/^\s*(?:yes|yeah|yep|haan|han|haa|ha|ji|ok|okay|sure|bhejo|bhej\s*do|kar\s*do|karo)\s*[.!?]*$/iu', $message)
+    if (preg_match('/^\s*(?:yes|yeah|yep|haan|han|haa|ha|ji|ok|okay|sure|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo)(?:[\s,]+(?:(?:send|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo)\s+){0,2}(?:the\s+)?(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)))?\s*[.!?]*$/iu', $message)
         || preg_match('/^\s*(?:हाँ|हां|जी|ठीक|भेजो|भेज\s*दो|कर\s*दो)\s*[.!?]*$/u', $message)) return 'yes';
     if (preg_match('/^\s*(?:no|nope|nahi|nahin|nai|nako|mat|rehne\s*do|cancel)\s*[.!?]*$/iu', $message)
         || preg_match('/^\s*(?:नहीं|नहि|नको|मत|रहने\s*दो)\s*[.!?]*$/u', $message)) return 'no';
@@ -3821,7 +3915,7 @@ private function assistantZonikFallbackReply(string $message): string
 {
     $lower = mb_strtolower($message);
     if ($this->isAssistantCustomerCareRequest($message)) {
-        return 'Customer care ke liye main aapki help kar rahi hoon.';
+        return 'Customer care ke liye main aapki help kar raha hoon.';
     }
     if (preg_match('/\b(?:track|tracking|status|where\s+is|my\s+order|order\s+history|previous\s+order)\b/iu', $lower)) {
         return 'Apne Zonik orders section mein current order status aur previous orders dekh sakte hain.';
@@ -3830,7 +3924,7 @@ private function assistantZonikFallbackReply(string $message): string
         return 'Return, refund ya replacement ke liye customer care aapko verified order ke hisaab se help karega.';
     }
     if (preg_match('/\b(?:cart|order\s*list)\b|(?:कार्ट|ऑर्डर\s*लिस्ट)/iu', $lower)) {
-        return 'Main aapka Zonik cart aur order list check karne mein help kar sakti hoon.';
+        return 'Main aapka Zonik cart aur order list check karne mein help kar sakta hoon.';
     }
     if (preg_match('/\b(?:delivery|slot|address)\b|(?:डिलीवरी|स्लॉट|पता)/iu', $lower)) {
         return 'Delivery location choose karne par Zonik ke available slots dikhaye jayenge.';
@@ -3839,7 +3933,7 @@ private function assistantZonikFallbackReply(string $message): string
         return 'Available Zonik payment methods checkout par dikhaye jayenge.';
     }
     if (preg_match('/\b(?:offer|discount|price|rate|stock|available|product|item|catalog(?:ue)?)\b|(?:ऑफर|डिस्काउंट|कीमत|रेट|स्टॉक|प्रोडक्ट|सामान|कैटलॉग)/iu', $lower)) {
-        return 'Product ka naam boliye; main Zonik price list, availability aur offers check karungi.';
+        return 'Product ka naam boliye; main Zonik price list, availability aur offers check karunga.';
     }
 
     return $this->assistantZonikScopeRedirect();
@@ -4012,13 +4106,34 @@ private function addAssistantProductToCart(?User $user, ?User $outlet, array $pr
     $price = (float) $authorization['price'];
     $mrp = (float) ($product->product_mrp ?: $price);
     $qty = (int) $quantity;
+    $existingCart = Cart::where('user_id', $user->id)->where('outlet_id', $outlet->id)
+        ->where('product_id', $product->id)->first();
+    $previousQuantity = $existingCart
+        ? (int) ($existingCart->quantity ?: $existingCart->total_qty ?: $existingCart->count_value ?: 1)
+        : null;
     $cart = Cart::updateOrCreate(
         ['user_id' => $user->id, 'outlet_id' => $outlet->id, 'product_id' => $product->id],
         ['quantity' => $qty, 'count_value' => $qty, 'total_qty' => $qty, 'offer_price' => $price, 'mrp' => $mrp,
          'discount' => $mrp > 0 ? round((($mrp - $price) / $mrp) * 100, 2) : 0,
          'coupon_discount' => 0, 'total_amt_basic' => round($price * $qty, 2)]
     );
-    return ['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => $qty];
+    $action = !$existingCart ? 'added' : ($previousQuantity === $qty ? 'unchanged' : 'updated');
+    return ['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => $qty,
+        'previous_quantity' => $previousQuantity, 'action' => $action];
+}
+
+private function assistantCartMutationReply(array $result, string $productName): string
+{
+    $quantity = max(1, (int) ($result['quantity'] ?? 1));
+    $action = (string) ($result['action'] ?? 'added');
+    if ($action === 'unchanged') {
+        return "{$productName} pehle se cart mein {$quantity} quantity ke saath hai; koi duplicate add nahi kiya.";
+    }
+    if ($action === 'updated') {
+        $previous = max(1, (int) ($result['previous_quantity'] ?? 1));
+        return "{$productName} pehle se cart mein tha; quantity {$previous} se {$quantity} update kar di hai.";
+    }
+    return "{$productName} cart mein add kar diya hai.";
 }
 
 private function assistantCandidateSetMatches(array $flow, ?string $candidateSetId): bool
@@ -4596,7 +4711,12 @@ private function callGemini(string $prompt, float $temperature, int $maxOutputTo
         // look unavailable and silently pushed the whole assistant onto its
         // keyword fallback. Allow a realistic response window and retry only
         // transient transport/server failures.
-        $response = Http::withOptions(['connect_timeout' => 8])
+        $response = Http::withOptions([
+                'connect_timeout' => 8,
+                // Windows/XAMPP can intermittently prefer an unusable IPv6
+                // resolver path and report cURL error 6 for healthy APIs.
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+            ])
             ->timeout(25)
             ->retry(2, 250)
             ->withHeaders(['x-goog-api-key' => $apiKey])
@@ -4740,7 +4860,9 @@ private function normalizeAssistantSearchText(string $text): string
 private function buildVoiceReply(string $text): array
 {
     $apiKey = config('services.elevenlabs.api_key');
-    $voiceId = config('services.elevenlabs.voice_id', 'RABOvaPec1ymXz02oDQi');
+    $voiceId = config('services.elevenlabs.voice_id', 'pNInz6obpgDQGcFmaJgB');
+    $fallbackVoiceId = trim((string) config('services.elevenlabs.fallback_voice_id', ''));
+    $freeFallbackVoiceId = trim((string) config('services.elevenlabs.free_fallback_voice_id', 'pNInz6obpgDQGcFmaJgB'));
     $voiceModel = config('services.elevenlabs.model', 'eleven_multilingual_v2');
 
     if (empty($apiKey) || empty(trim($text))) {
@@ -4757,41 +4879,49 @@ private function buildVoiceReply(string $text): array
     if (Cache::has($quotaUnavailableKey) || Cache::has($authUnavailableKey) || Cache::has($networkUnavailableKey)) return [];
 
     try {
-        // Never substitute another ElevenLabs or browser voice.  A missing
-        // clip is preferable to switching the assistant's configured voice
-        // mid-conversation (for example at the payment step).
-        $response = Http::withOptions(['connect_timeout' => 4])
-            ->timeout(12)
-            ->retry(2, 300)
-            ->withHeaders([
-                'xi-api-key' => $apiKey,
-                'Accept' => 'audio/mpeg',
-            ])
-            ->post("https://api.elevenlabs.io/v1/text-to-speech/{$voiceId}?output_format=mp3_44100_128", [
+        $voiceIds = array_values(array_unique(array_filter([$voiceId, $fallbackVoiceId, $freeFallbackVoiceId])));
+        $response = null;
+        foreach ($voiceIds as $candidateVoiceId) {
+            $response = Http::withOptions([
+                    'connect_timeout' => 4,
+                    'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+                ])
+                ->timeout(12)
+                ->retry(2, 300, null, false)
+                ->withHeaders([
+                    'xi-api-key' => $apiKey,
+                    'Accept' => 'audio/mpeg',
+                ])
+                ->post("https://api.elevenlabs.io/v1/text-to-speech/{$candidateVoiceId}?output_format=mp3_44100_128", [
                 'text' => mb_substr(strip_tags($text), 0, 2000),
                 'model_id' => $voiceModel,
                 'voice_settings' => [
                     // Slightly slower, expressive pacing avoids a rushed or
                     // robotic delivery while keeping order details clear.
-                    'stability' => 0.62,
+                    'stability' => 0.58,
                     'similarity_boost' => 0.78,
-                    'style' => 0.18,
+                    'style' => 0.06,
                     // Keep Hinglish clear, but avoid the noticeably slow
                     // delivery that makes a normal conversation feel delayed.
-                    'speed' => 1.12,
+                    'speed' => 1.05,
                     'use_speaker_boost' => true,
                 ],
-            ]);
+                'apply_text_normalization' => 'on',
+                ]);
 
-        if ($response->successful() && $response->body() !== '') {
-            Cache::forget($networkUnavailableKey);
-            Cache::forget($authUnavailableKey);
-            return ['base64' => base64_encode($response->body()), 'mime' => 'audio/mpeg'];
+            if ($response->successful() && $response->body() !== '') {
+                Cache::forget($networkUnavailableKey);
+                Cache::forget($authUnavailableKey);
+                return ['base64' => base64_encode($response->body()), 'mime' => 'audio/mpeg'];
+            }
+            // Account/auth/quota failures affect every voice, so do not make
+            // a redundant fallback request in those cases.
+            if ($response->status() === 401) break;
         }
 
         \Log::warning('ElevenLabs text-to-speech request failed.', [
             'status' => $response->status(),
-            'voice_id' => $voiceId,
+            'voice_id' => implode(',', $voiceIds),
             'response' => mb_substr($response->body(), 0, 500),
         ]);
         if ($response->status() === 401 && str_contains(strtolower($response->body()), 'quota')) {

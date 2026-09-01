@@ -918,17 +918,523 @@
     .ai-agent-wave span,
     .ai-agent-character img { animation: none !important; }
 }
+
+/* Voice-ordering visual refresh. Keep all existing IDs and application hooks
+   intact; these rules only restyle the current assistant surface. */
+.ai-page {
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - 105px);
+    min-height: 0;
+    margin: 0;
+    background: #f3f7fa;
+}
+.mobile-main:has(.ai-page) {
+    width: 100%;
+    min-height: 0 !important;
+    height: calc(100dvh - 105px);
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden;
+    background: #f5fbff;
+}
+.ai-card {
+    --shop-blue: #066fc2;
+    --shop-ink: #11253e;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(155deg, #fff 0%, #f5fbff 66%, #e7f5fd 100%);
+    box-shadow: 0 10px 45px rgba(23,49,74,.09);
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 0;
+}
+.ai-header {
+    min-height: 66px;
+    margin: 0;
+    padding: 15px 19px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+.ai-header-text { justify-items: center; }
+.ai-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 15px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 5px 18px rgba(34,59,83,.07);
+    color: #3b4d64;
+    font-size: 11px;
+    font-weight: 650;
+}
+.ai-title::before {
+    content: '';
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: linear-gradient(135deg,#0a93d5,#6252d9);
+}
+.ai-status { display: none; }
+.ai-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f2f5f7;
+}
+.ai-avatar img { width: 24px; height: 28px; margin-top: 5px; }
+.ai-header-pill {
+    width: 32px;
+    height: 32px;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #f2f5f7;
+    color: #182c40;
+}
+.ai-header-pill span { display: none; }
+.ai-home-back { position:absolute; top:14px; left:14px; z-index:10; width:32px; height:32px; display:grid; place-items:center; border-radius:50%; background:#f2f5f7; color:#607086; text-decoration:none; font-size:23px; line-height:1; }
+.ai-agent-stage {
+    flex: 0 0 auto;
+    min-height: 380px;
+    align-content: start;
+    gap: 5px;
+    padding: 4px 20px 10px;
+}
+.ai-agent-character {
+    order: 3;
+    width: 230px;
+    height: 252px;
+    margin-top: 2px;
+    border-radius: 0;
+    background: transparent;
+    filter: drop-shadow(0 14px 12px rgba(13,119,173,.13));
+}
+.ai-agent-character::before { inset: 35px 20px 4px; }
+.ai-agent-identity { order: 1; }
+.ai-agent-name {
+    font-size: 23px;
+    line-height: 1.16;
+    letter-spacing: -.6px;
+    color: #2a3a51;
+}
+.ai-agent-kicker { font-weight: 500; }
+.ai-agent-name strong { color: var(--shop-blue); font-weight: 750; }
+.ai-agent-online { display: none; }
+.ai-agent-state {
+    order: 2;
+    min-height: 28px;
+    padding: 7px 16px;
+    border: 1px solid #75b7ec;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(47,135,197,.10);
+    color: var(--shop-blue);
+    font-size: 11px;
+    font-weight: 700;
+}
+.ai-agent-detail { order: 5; min-height: 16px; font-size: 11px; }
+.ai-agent-wave { order: 4; margin-top: -20px; }
+.ai-hero-mic {
+    order: 4;
+    z-index: 2;
+    margin-top: -47px;
+}
+.ai-hero-mic .ai-mic-btn {
+    width: 62px;
+    height: 62px;
+    border: 5px solid #d5ecff;
+    background: radial-gradient(circle at 35% 28%,#3cceff,#1679cc 56%,#005ea4);
+    box-shadow: 0 7px 17px rgba(0,117,206,.34);
+}
+.ai-chat-shell {
+    z-index: 3;
+    padding: 0 20px;
+    margin: -76px 0 8px;
+}
+.ai-chat { gap: 8px; }
+.ai-message {
+    max-width: 78%;
+    padding: 10px 12px;
+    border-color: #e7edf3;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 7px 18px rgba(23,54,76,.05);
+    font-size: 12px;
+    line-height: 1.4;
+}
+.ai-message.user { background: #e9f3ff; border-color: #dceafa; }
+.ai-composer {
+    z-index: 7;
+    gap: 8px;
+    padding: 8px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-radius: 21px 21px 0 0;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 -11px 34px rgba(19,61,89,.13);
+}
+.ai-composer::before {
+    content: '';
+    width: 28px;
+    height: 4px;
+    margin: 0 auto 2px;
+    border-radius: 99px;
+    background: #c5cbd1;
+}
+.ai-order-dock {
+    padding: 8px 2px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+.ai-order-dock-icon { color: var(--shop-blue); background: #edf7ff; }
+.ai-order-checkout { display: none; grid-column: 1 / -1; width: 100%; padding-top: 8px; border-top: 1px solid #e8edf5; }
+.ai-order-checkout.visible { display: grid; gap: 8px; }
+.ai-order-checkout .ai-product-actions { margin: 0; }
+.ai-order-checkout .ai-checkout-choice-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+.ai-order-checkout .ai-product-btn { min-height: 38px; white-space: normal; }
+.ai-order-dock-copy strong { color: var(--shop-blue); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.ai-live-preview { max-height: 112px; }
+.ai-actions { justify-content: center; }
+.ai-action-btn { border-radius: 999px; font-size: 10px; }
+.ai-input-row { border-color: #dce8f2; border-radius: 999px; background: #f8fbfd; }
+.ai-send-btn { border-radius: 50%; background: var(--shop-blue); }
+.ai-cart-panel, .ai-history-panel { border-radius: 21px 21px 0 0; }
+.ai-cart-review { background: linear-gradient(90deg,#087bc7,#0062ac); }
+.ai-product-btn.primary, .ai-cart-btn.primary { background: var(--shop-blue); border-color: var(--shop-blue); }
+
+@media (min-width: 500px) {
+    .mobile-main:has(.ai-page) { height: calc(100dvh - 105px); display: grid; place-items: center; }
+    .ai-page { height: min(844px, 100%); max-width: 430px; margin: 0 auto; }
+    .ai-card { border-radius: 28px; }
+    .ai-composer { border-radius: 21px 21px 28px 28px; }
+    .ai-cart-panel, .ai-history-panel { border-radius: 28px; }
+}
+@media (max-width: 640px) {
+    body:has(.ai-page) { overflow: hidden; background: #edf5f9; }
+    body:has(.ai-page) > .mobile-header,
+    body:has(.ai-page) > .mobile-footer { display: none !important; }
+    body:has(.ai-page) .mobile-main { width: 100vw; height: 100dvh; }
+    .ai-page { width: 100vw; height: 100dvh; min-height: 0; padding: 7px; background: #edf5f9; }
+    .ai-card { border-radius: 18px; }
+    .ai-header { position: relative; inset: auto; display: flex; width: 100%; height: 60px; padding: 12px 14px; }
+    .ai-header > .ai-avatar, .ai-header > .ai-header-text { display: grid; }
+    .ai-header > .ai-avatar img { display: none; }
+    .ai-header > .ai-avatar::after { content: '‹'; color: #607086; font-size: 24px; line-height: 1; }
+    .ai-header-text { position: absolute; left: 50%; transform: translateX(-50%); }
+    .ai-header-pill { position: static; margin-left: auto; }
+    .ai-header-pill svg { display: none; }
+    .ai-header-pill::after { content: '≡'; color: #607086; font-size: 16px; }
+    .ai-agent-stage { position: relative; display: block; min-height: clamp(380px, 62dvh, 460px); padding: 0 12px; }
+    .ai-card:has(.ai-live-preview-row) .ai-agent-stage,
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-stage { min-height: clamp(380px, 62dvh, 460px); }
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-character { width: 222px; height: 278px; }
+    .ai-agent-character { position: absolute; left: 50%; bottom: 38px; width: 222px; height: 278px; margin: 0; transform: translateX(-50%); }
+    .ai-agent-identity { display: block; }
+    .ai-agent-name { font-size: 20px; }
+    .ai-agent-state { width: fit-content; margin: 9px auto 0; }
+    .ai-hero-mic { position: absolute; z-index: 4; left: 50%; bottom: 1px; margin: 0; transform: translateX(-50%); }
+    .ai-hero-mic .ai-mic-btn { width: 58px; height: 58px; }
+    .ai-agent-detail { position: absolute; left: 0; right: 0; bottom: -15px; }
+    .ai-agent-wave { position: absolute; z-index: 3; left: 50%; bottom: 48px; width: 180px; margin: 0; transform: translateX(-50%); }
+    .ai-chat-shell { position:absolute; z-index:6; top:auto; right:16px; bottom:var(--ai-composer-clearance, 205px); left:16px; width:auto; max-height:min(180px, 28dvh); padding:0; margin:0; overflow-x:hidden; overflow-y:auto; scrollbar-width:thin; transition:bottom .2s ease; }
+    .ai-chat-shell:empty { pointer-events: none; }
+    .ai-chat-shell:has(.ai-message-row) {
+        padding: 9px;
+        border: 1px solid #cfe1f3;
+        border-radius: 13px;
+        background: rgba(247,251,255,.97);
+        box-shadow: 0 9px 24px rgba(31,79,119,.10);
+    }
+    .ai-chat .ai-message-row { width: 100%; }
+    .ai-chat .ai-message { width: 100%; max-width: 100%; padding: 0; border: 0; background: transparent; box-shadow: none; }
+    .ai-chat .ai-message.user { width: fit-content; max-width: 82%; margin-left: auto; padding: 8px 10px; background: #e9f3ff; }
+    .ai-reply-avatar { display: none !important; }
+    .ai-chat .ai-product-card { background: #fff; }
+    .ai-chat .ai-product-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .ai-chat .ai-product-actions .ai-product-btn { min-height:40px; display:grid; place-items:center; padding:8px 10px; white-space:normal; text-align:center; }
+    .ai-chat .ai-message-time { margin-top:7px; opacity:.7; }
+    .ai-order-interactions {
+        display: grid;
+        gap: 8px;
+        width: 100%;
+        max-height: min(190px, 27dvh);
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 0;
+        scrollbar-width: thin;
+    }
+    .ai-order-interactions:empty { display: none; }
+    .ai-order-interactions .ai-message-row {
+        padding: 9px;
+        border: 1px solid #d9e7f4;
+        border-radius: 12px;
+        background: #f8fbff;
+    }
+    .ai-order-interactions .ai-suggestion-line {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        overflow: visible;
+    }
+    .ai-composer { padding-inline: 14px; flex: 0 0 auto; max-height: 44%; overflow-y: auto; }
+}
+@media (max-height: 700px) {
+    .ai-page { min-height: 520px; }
+    .ai-agent-stage { min-height: 350px; }
+    .ai-agent-character { width: 185px; height: 230px; }
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-stage { min-height: 350px; }
+    .ai-card:has(.ai-chat > .ai-message-row) .ai-agent-character { width: 185px; height: 230px; }
+    .ai-chat-shell { top:auto; max-height:150px; }
+}
+
+/* Exact responsive shell from the supplied UI reference. */
+body:has(.ai-page){margin:0;overflow:hidden;background:#f3f7fa}
+body:has(.ai-page)>.mobile-header,body:has(.ai-page)>.mobile-footer{display:none!important}
+body:has(.ai-page) .mobile-main{width:100%;height:100dvh;padding:0!important}
+.ai-page{width:min(100%,430px);height:100dvh;min-height:620px;margin:0 auto;padding:0;background:linear-gradient(155deg,#fff 0%,#f5fbff 66%,#e7f5fd 100%)}
+.ai-card{width:100%;height:100%;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:0 10px 45px #17314a16;overflow:hidden}
+.ai-header{position:absolute;z-index:20;inset:0 0 auto;height:66px;margin:0;padding:17px 19px;display:flex;align-items:center;justify-content:space-between;border:0;border-radius:0;background:transparent}
+.ai-home-back,.ai-header-pill{position:static;width:30px;height:30px;min-width:30px;margin:0;padding:0;display:grid;place-items:center;border:0;border-radius:50%;background:#f2f5f7;color:#182c40;box-shadow:none}
+.ai-home-back{font-size:24px}.ai-header-pill{margin-left:auto}.ai-header-pill svg,.ai-header-pill span{display:none!important}.ai-header-pill::after{content:'≡';color:#607086;font-size:16px}
+.ai-header-text{position:absolute;left:50%;top:17px;width:auto;min-width:0;padding:7px 15px;display:block;transform:translateX(-50%);border-radius:99px;background:#fff;box-shadow:0 5px 18px #223b5310}
+.ai-title{display:flex;align-items:center;gap:5px;color:#3b4d64;font-size:11px;font-weight:500;white-space:nowrap}.ai-title .ai-status-dot{width:11px;height:11px;margin:0;background:linear-gradient(135deg,#0a93d5,#6252d9);box-shadow:none}
+.ai-agent-stage{position:absolute;inset:66px 0 128px;min-height:0!important;display:block;padding:0 20px}
+.ai-agent-identity{position:absolute;z-index:5;top:6px;left:0;right:0;display:block;text-align:center}.ai-agent-name{margin:0;color:#2a3a51;font-size:23px;line-height:1.16;letter-spacing:-.6px;font-weight:500}.ai-agent-kicker{display:inline;font-weight:500}.ai-agent-kicker::after{content:'\A';white-space:pre}.ai-agent-name strong{color:#066fc2;font-weight:700}
+.ai-agent-state{position:absolute;z-index:6;top:50px;left:50%;width:max-content;min-height:0;margin:0;padding:7px 16px;transform:translateX(-50%);border:1px solid #75b7ec;border-radius:99px;background:#fff;color:#066fc2;box-shadow:0 3px 12px #2f87c51a;font-size:11px;font-weight:650;line-height:1}.ai-agent-state::before{content:'♧\00a0'}
+.ai-agent-character{position:absolute!important;z-index:2;left:50%!important;bottom:47px!important;width:240px!important;height:310px!important;margin:0!important;transform:translateX(-50%)!important;border:0;background:transparent;filter:drop-shadow(0 14px 12px #0d77ad22)}.ai-agent-character::before{display:none}.ai-agent-character img{width:100%;height:100%;object-fit:contain}
+.ai-hero-mic{position:absolute;z-index:7;left:50%;bottom:9px;width:auto;margin:0;transform:translateX(-50%)}.ai-hero-mic .ai-mic-btn{width:57px;height:57px;margin:0 auto 3px;border:5px solid #d5ecff;border-radius:50%;background:radial-gradient(circle at 35% 28%,#3cceff,#1679cc 56%,#005ea4);box-shadow:0 7px 17px #0075ce55;color:#fff}.ai-hero-mic .ai-mic-btn svg{display:none}.ai-hero-mic .ai-mic-btn::before{content:'♪';font-size:27px;font-weight:700}.ai-mic-status{display:block;color:#607086;font-size:10px;white-space:nowrap}.ai-agent-detail{display:none!important}
+.ai-agent-wave{position:absolute;z-index:3;left:50%;bottom:57px;width:240px;margin:0;transform:translateX(-50%);opacity:0}.ai-card[data-agent-state=listening] .ai-agent-wave,.ai-card[data-agent-state=speaking] .ai-agent-wave{opacity:.8}
+.ai-composer{position:absolute;z-index:10;left:0;right:0;bottom:0;min-height:128px;max-height:67%;display:flex;gap:8px;padding:0 20px 16px;overflow-y:auto;border:0;border-radius:21px 21px 0 0;background:#fff;box-shadow:0 -11px 34px #133d5922}.ai-composer::before{width:28px;height:4px;flex:0 0 4px;margin:8px auto 3px;background:#c5cbd1}
+.ai-order-dock{width:100%;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}.ai-order-dock-icon{display:none}.ai-order-dock-copy strong{color:#0068bf;font-size:11px;font-weight:800;letter-spacing:0;text-transform:uppercase}.ai-order-dock-copy strong::before{content:'♢\00a0'}.ai-order-dock-copy span{color:#6f7c8e;font-size:9px}.ai-order-dock-total{color:#11253e;font-size:12px}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total{color:#159450;font-size:0}.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total::after{content:'Building';font-size:9px}
+.ai-live-preview{grid-column:1/-1;width:100%;max-height:112px;margin-top:4px}.ai-live-preview-empty{display:block;padding:15px 18px 1px;color:#657389;font-size:10px;line-height:1.55;text-align:center}.ai-order-interactions,.ai-order-checkout{grid-column:1/-1}.ai-actions,.ai-input-row{flex:0 0 auto}
+.ai-card:not(:has(.ai-live-preview-row)):not(:has(.ai-order-interactions .ai-message-row)):not(:has(.ai-order-checkout.visible)) .ai-actions,.ai-card:not(:has(.ai-live-preview-row)):not(:has(.ai-order-interactions .ai-message-row)):not(:has(.ai-order-checkout.visible)) .ai-input-row{display:none}
+@media(min-width:500px){body:has(.ai-page) .mobile-main{display:grid;place-items:center;padding:24px!important}.ai-page{height:min(844px,calc(100dvh - 48px));border-radius:28px;overflow:hidden}.ai-card{border-radius:28px}.ai-composer{border-radius:21px 21px 28px 28px}}
+@media(max-height:730px){.ai-page{min-height:0}.ai-agent-stage{inset-bottom:115px}.ai-agent-character{bottom:35px!important;width:205px!important;height:265px!important}.ai-hero-mic{bottom:2px}.ai-composer{min-height:115px}}
+
+/* Reference-screen alignment (342 x 712 source composition). */
+body:has(.ai-page){background:#edf2f5}
+.ai-page{height:min(674px,calc(100dvh - 8px));min-height:0;margin:4px auto 0;border-radius:0 0 20px 20px;overflow:hidden}
+.ai-card{border-radius:0 0 20px 20px;background:linear-gradient(160deg,#fff 0%,#f9fcfe 58%,#e9f6fd 100%)}
+.ai-header{height:57px;padding:14px 13px}
+.ai-home-back,.ai-header-pill{width:25px;height:25px;min-width:25px;background:#f2f5f7}
+.ai-home-back{font-size:0}
+.ai-home-back::after{content:'\2039';font-size:22px;line-height:1;color:#18334b;transform:translateY(-1px)}
+.ai-header-pill::after{content:'\2261';font-size:14px;line-height:1;color:#18334b;transform:scaleX(.72)}
+.ai-header-text{top:17px;padding:5px 13px}
+.ai-title{gap:6px;font-size:9px;color:#31465a}
+.ai-title .ai-status-dot{width:8px;height:8px;background:#1579d4}
+.ai-agent-stage{inset:57px 0 103px;padding:0}
+.ai-agent-identity{top:7px}
+.ai-agent-name{font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.08;letter-spacing:-.25px;color:#071d32}
+.ai-agent-name strong{color:#0571c7;font-weight:700}
+.ai-agent-state{top:56px;padding:6px 13px;border-color:#3fa6ef;font-size:9px;font-weight:700;box-shadow:0 2px 7px rgba(31,136,211,.12);cursor:pointer}
+.ai-agent-state::before{content:'\2726\00a0';font-size:8px}
+.ai-agent-character{bottom:50px!important;width:184px!important;height:233px!important;filter:drop-shadow(0 13px 14px rgba(13,119,173,.13))}
+.ai-agent-character::after{content:'\2726';position:absolute;right:0;top:76px;color:#19a9e5;font-size:15px}
+.ai-agent-character img{overflow:visible}
+.ai-hero-mic{bottom:4px}
+.ai-hero-mic .ai-mic-btn{width:48px;height:48px;margin-bottom:5px;border-width:4px;box-shadow:0 6px 14px rgba(0,117,206,.35)}
+.ai-hero-mic .ai-mic-btn::before{display:none;content:none}
+.ai-hero-mic .ai-mic-btn svg{display:block!important;width:21px;height:21px;stroke:#fff;stroke-width:2.35}
+.ai-mic-status{font-size:8px;color:#758396;text-align:center}
+.ai-composer{min-height:103px;max-height:64%;padding:0 14px 13px;border-radius:18px 18px 20px 20px;box-shadow:0 -11px 31px rgba(19,61,89,.11)}
+.ai-composer::before{width:21px;height:3px;flex-basis:3px;margin:7px auto 5px;background:#b8c0c7}
+.ai-order-dock{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:0;padding:0}
+.ai-order-dock-copy{display:flex;flex-direction:row;align-items:baseline;gap:7px}
+.ai-order-dock-copy strong{font-size:9px;color:#0068bf}
+.ai-order-dock-copy strong::before{content:'\2726\00a0';font-size:8px}
+.ai-order-dock-copy span{font-size:7px;color:#566475}
+.ai-order-dock-total{padding-top:1px}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total::after{font-size:7px}
+.ai-live-preview{margin:0;max-height:92px}
+.ai-live-preview-empty{padding:20px 10px 0;font-size:8px;line-height:1.7;color:#748195}
+/* Filled live-order state: readable rows without disturbing the empty reference state. */
+.ai-card:has(.ai-live-preview-row) .ai-composer{min-height:190px;max-height:min(58dvh,430px);padding-bottom:14px}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock{row-gap:8px}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-copy{min-height:24px;align-items:center}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-copy strong{font-size:10px}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-copy span{font-size:8px}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-total{display:grid;justify-items:end;gap:2px;color:#102a56;font-size:12px;line-height:1.1}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-total::before{content:'Subtotal';color:#7a8797;font-size:7px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview{max-height:210px;padding:2px 0 4px;border-top:1px solid #e5edf4;scrollbar-color:#b8c9d8 transparent}
+.ai-live-preview-row{grid-template-columns:minmax(0,1fr) 58px 72px;gap:8px;min-height:49px;padding:8px 2px;border-bottom:1px solid #edf2f6}
+.ai-live-preview-name{display:-webkit-box;overflow:hidden;font-size:10px;line-height:1.35;font-weight:700;white-space:normal;text-overflow:clip;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.ai-live-preview-qty{font-size:9px;line-height:1.25;text-align:center;white-space:normal}
+.ai-live-preview-price{font-size:10px;text-align:right}
+.ai-live-preview-row:last-child{border-bottom:0}
+.ai-card:has(.ai-live-preview-row) .ai-input-row{display:flex}
+.ai-card:has(.ai-live-preview-row) .ai-input{min-height:38px;padding:9px 13px;font-size:12px}
+.ai-card:has(.ai-live-preview-row) .ai-send-btn{width:38px;height:38px}
+@media(min-width:500px){body:has(.ai-page) .mobile-main{padding:0!important}.ai-page{height:min(674px,calc(100dvh - 8px));border-radius:20px}.ai-card{border-radius:20px}.ai-composer{border-radius:18px 18px 20px 20px}}
+@media(max-height:650px){.ai-page{height:calc(100dvh - 8px)}.ai-agent-character{width:160px!important;height:203px!important;bottom:45px!important}.ai-agent-stage{inset-bottom:96px}.ai-composer{min-height:96px}.ai-hero-mic{bottom:0}}
+
+/* Final conflict reset: older assistant themes above must not rearrange this screen. */
+.ai-page{position:relative!important;height:calc(100vh - 8px)!important;height:calc(100dvh - 8px)!important;max-height:none!important;margin:4px auto!important}
+.ai-card{position:absolute!important;inset:0!important;width:auto!important;height:auto!important;min-height:0!important}
+.ai-header{position:absolute!important;inset:0 0 auto 0!important;width:100%!important;height:57px!important;min-height:57px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:14px 13px!important}
+.ai-home-back{position:absolute!important;top:14px!important;left:13px!important;width:25px!important;height:25px!important;display:grid!important;place-items:center!important;margin:0!important;background:#f2f5f7!important;text-decoration:none!important;transform:none!important}
+.ai-header-pill{position:absolute!important;top:14px!important;right:13px!important;width:25px!important;height:25px!important;margin:0!important}
+.ai-header-text{position:absolute!important;top:17px!important;left:50%!important;display:block!important;transform:translateX(-50%)!important}
+.ai-title{padding:5px 13px!important;font-family:Arial,Helvetica,sans-serif!important;font-size:9px!important;line-height:1!important}
+.ai-title::before{display:none!important;content:none!important}
+.ai-agent-name{font-family:Arial,Helvetica,sans-serif!important;font-size:18px!important;line-height:1.12!important;font-weight:400!important;letter-spacing:-.35px!important}
+.ai-agent-name strong{font-weight:700!important}
+.ai-composer{position:absolute!important;z-index:10!important;right:0!important;bottom:0!important;left:0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;width:100%!important;gap:8px!important;overflow-x:hidden!important;background:#fff!important;border-radius:18px 18px 20px 20px!important;box-sizing:border-box!important}
+.ai-composer::before{display:block!important;align-self:center!important}
+.ai-order-dock{flex:0 0 auto!important;width:100%!important;min-width:0!important}
+.ai-live-preview{width:100%!important;min-width:0!important;overflow-x:hidden!important;overflow-y:auto!important}
+.ai-actions{width:100%!important;flex:0 0 auto!important}
+.ai-input-row{width:100%!important;min-width:0!important;flex:0 0 auto!important;background:transparent!important}
+.ai-input-row::before,.ai-input-row::after,.ai-composer::after{display:none!important;content:none!important}
+.ai-card:has(.ai-live-preview-row) .ai-composer{height:auto!important;min-height:190px!important;max-height:min(58dvh,430px)!important}
+.ai-card:has(.ai-live-preview-row) .ai-agent-character{bottom:50px!important;width:160px!important;height:203px!important}
+.ai-card:has(.ai-live-preview-row) .ai-hero-mic{bottom:4px!important}
+.ai-card:has(.ai-live-preview-row) .ai-agent-stage{inset-bottom:var(--ai-sheet-height,260px)!important}
+.ai-card:has(.ai-live-preview-row) .ai-composer{
+    height:max-content!important;
+    min-height:0!important;
+    max-height:calc(100dvh - 110px)!important;
+    overflow-y:auto!important;
+}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview{max-height:158px!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-interactions{display:block!important;max-height:none!important;overflow:visible!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-interactions:empty{display:none!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-message{padding:0!important;border:0!important;background:transparent!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-message .ai-message{padding:0!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-line{display:flex!important;gap:7px!important;overflow-x:auto!important;padding:2px 1px 5px!important;scrollbar-width:thin}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-card{flex:0 0 92px!important;min-width:92px!important;padding:6px!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-image{width:42px!important;height:42px!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-name{font-size:9px!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-message .ai-product-actions{display:flex!important;justify-content:center!important;margin:0!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-message .ai-product-btn{min-height:30px!important;padding:6px 10px!important;border-radius:999px!important;font-size:9px!important}
+.ai-card:has(.ai-live-preview-row) .ai-suggestion-message .ai-message-time{display:none!important}
+.ai-live-preview-row.has-controls{grid-template-columns:minmax(0,1fr) 82px 68px!important}
+.ai-live-preview-row .ai-qty-control{height:27px;border-radius:8px}
+.ai-live-preview-row .ai-qty-btn{width:26px;height:27px;font-size:15px}
+.ai-live-preview-row .ai-qty-value{min-width:28px;font-size:9px}
+.ai-checkout-stage-enter{animation:aiCheckoutStageIn .3s ease-out both}
+.ai-checkout-stage-leave{animation:aiCheckoutStageOut .2s ease-in both}
+@keyframes aiCheckoutStageIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes aiCheckoutStageOut{to{opacity:0;transform:translateX(-18px)}}
+/* Readable mobile scale; this intentionally wins over the old short-screen shrink rule. */
+.ai-agent-character,.ai-card:has(.ai-live-preview-row) .ai-agent-character{width:200px!important;height:253px!important;bottom:52px!important}
+.ai-hero-mic,.ai-card:has(.ai-live-preview-row) .ai-hero-mic{bottom:3px!important}
+.ai-hero-mic .ai-mic-btn{width:54px!important;height:54px!important}
+.ai-hero-mic .ai-mic-btn svg{width:23px!important;height:23px!important}
+.ai-mic-status{font-size:10px!important;line-height:1.25!important}
+.ai-order-dock{grid-template-columns:minmax(0,1fr) auto!important;column-gap:12px!important}
+.ai-order-dock-copy{grid-column:1!important;justify-self:start!important;gap:6px!important;min-width:0!important}
+.ai-order-dock-copy strong{font-size:11px!important;line-height:1.2!important;white-space:nowrap!important}
+.ai-order-dock-copy span{font-size:9px!important;line-height:1.2!important}
+.ai-order-dock-total{grid-column:2!important;justify-self:end!important;align-self:start!important;min-width:74px!important;font-size:12px!important;line-height:1.2!important;text-align:right!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total::after{font-size:9px!important;line-height:1.2!important}
+.ai-live-preview{grid-column:1/-1!important}
+.ai-live-preview-empty{padding:18px 10px 2px!important;font-size:10px!important;line-height:1.55!important}
+.ai-live-preview-name{font-size:11px!important;line-height:1.35!important}
+.ai-live-preview-qty{font-size:10px!important}
+.ai-live-preview-price{font-size:11px!important}
+.ai-actions .ai-action-btn{font-size:10px!important}
+.ai-input{font-size:12px!important}
+
+/* Polished empty state based on the latest supplied reference. */
+.ai-page{border-radius:28px!important;background:linear-gradient(155deg,#fff 0%,#f8fcff 58%,#eaf6ff 100%)!important}
+.ai-card{border-radius:28px!important;box-shadow:0 14px 45px rgba(45,83,116,.12)!important}
+.ai-header{height:70px!important;min-height:70px!important;padding:16px 16px!important}
+.ai-home-back{top:16px!important;left:16px!important;width:36px!important;height:36px!important;background:#fff!important;box-shadow:0 7px 18px rgba(38,77,112,.13)!important}
+.ai-home-back::after{font-size:29px!important;font-weight:700!important}
+.ai-header-pill{top:16px!important;right:16px!important;width:36px!important;height:36px!important;background:rgba(255,255,255,.78)!important;border:2px solid #fff!important;box-shadow:0 6px 16px rgba(38,77,112,.11)!important}
+.ai-header-pill::after{font-size:20px!important;font-weight:800!important;transform:scaleX(.78)!important}
+.ai-header-text{top:17px!important;padding:0!important}
+.ai-title{padding:10px 18px!important;font-size:14px!important;font-weight:750!important;color:#0c1a34!important;box-shadow:0 7px 20px rgba(38,77,112,.08)!important}
+.ai-title .ai-status-dot{width:12px!important;height:12px!important;background:#0879ee!important}
+.ai-agent-stage{top:70px!important}
+.ai-agent-identity{top:22px!important}
+.ai-agent-name{font-size:24px!important;line-height:1.25!important;font-weight:700!important;letter-spacing:-.65px!important;color:#081630!important}
+.ai-agent-name strong{color:#0874ec!important;font-weight:800!important}
+.ai-agent-state{top:104px!important;padding:10px 20px!important;border:1.5px solid #0879ee!important;font-size:14px!important;line-height:1!important;color:#0874ec!important;box-shadow:0 5px 14px rgba(8,121,238,.12)!important}
+.ai-agent-state::before{font-size:12px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-agent-stage{inset-bottom:176px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-agent-character{width:280px!important;height:355px!important;bottom:130px!important;filter:drop-shadow(0 18px 18px rgba(14,114,184,.16))!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-agent-character::before{display:block!important;content:''!important;position:absolute!important;inset:34px 3px 0!important;border-radius:50%!important;background:radial-gradient(circle,rgba(44,154,242,.19),rgba(44,154,242,.06) 48%,transparent 70%)!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-hero-mic{z-index:12!important;bottom:70px!important}
+.ai-hero-mic .ai-mic-btn{width:70px!important;height:70px!important;border:6px solid #fff!important;background:linear-gradient(145deg,#168cff,#0063e8)!important;box-shadow:0 0 0 8px rgba(43,157,255,.14),0 0 0 16px rgba(43,157,255,.08),0 12px 25px rgba(0,98,213,.30)!important}
+.ai-hero-mic .ai-mic-btn svg{width:31px!important;height:31px!important;stroke-width:2!important}
+.ai-mic-status{margin-top:8px!important;font-size:14px!important;font-weight:650!important;color:#647792!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-composer{min-height:176px!important;padding:0 20px 20px!important;border-radius:28px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-composer::before{width:35px!important;height:5px!important;flex-basis:5px!important;margin:10px auto 6px!important;background:#aebac7!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock{row-gap:12px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-copy{align-items:center!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-copy strong{font-size:14px!important;color:#0873dd!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-copy strong::before{content:'\2724\00a0'!important;font-size:13px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-copy span{font-size:12px!important;color:#78869a!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total{min-width:auto!important;padding:8px 13px!important;border-radius:999px!important;background:#e3f8eb!important;color:#0daa55!important;font-size:0!important;font-weight:750!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-order-dock-total::after{content:'\25CF\00a0 Building'!important;font-size:12px!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-live-preview{min-height:90px!important;display:grid!important;place-items:center!important;border:1px solid #dce6ef!important;border-radius:14px!important;background:rgba(255,255,255,.52)!important;overflow:hidden!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-live-preview-empty{display:grid!important;justify-items:center!important;gap:8px!important;padding:9px!important;font-size:12px!important;line-height:1.35!important;font-weight:600!important;color:#6e8099!important}
+.ai-card:not(:has(.ai-live-preview-row)) .ai-live-preview-empty::before{content:'';width:38px;height:38px;border-radius:50%;background-color:#eaf1f8;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23889ab0' stroke-width='1.7'%3E%3Cpath d='M6 8h12l1 12H5L6 8Z'/%3E%3Cpath d='M9 9V6a3 3 0 0 1 6 0v3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:23px}
+@media(max-height:700px){
+    .ai-agent-name{font-size:21px!important}
+    .ai-agent-state{top:91px!important;padding:8px 17px!important;font-size:12px!important}
+    .ai-card:not(:has(.ai-live-preview-row)) .ai-agent-character{width:235px!important;height:298px!important}
+    .ai-card:not(:has(.ai-live-preview-row)) .ai-hero-mic .ai-mic-btn{width:60px!important;height:60px!important}
+    .ai-card:not(:has(.ai-live-preview-row)) .ai-composer{min-height:164px!important}
+    .ai-card:not(:has(.ai-live-preview-row)) .ai-agent-stage{inset-bottom:164px!important}
+}
+/* Product/checkout interaction state: size against the real sheet, not the
+   empty-cart artwork, so growing content never covers the controls. */
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-agent-stage,
+.ai-card:has(.ai-order-checkout.visible) .ai-agent-stage{inset-bottom:var(--ai-sheet-height,300px)!important}
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-agent-character,
+.ai-card:has(.ai-order-checkout.visible) .ai-agent-character{width:178px!important;height:225px!important;bottom:48px!important}
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-hero-mic,
+.ai-card:has(.ai-order-checkout.visible) .ai-hero-mic{z-index:12!important;bottom:3px!important}
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-composer,
+.ai-card:has(.ai-order-checkout.visible) .ai-composer{max-height:62dvh!important;overflow-y:auto!important}
+.ai-order-interactions .ai-product-card{display:grid!important;grid-template-columns:58px minmax(0,1fr)!important;gap:10px!important;padding:10px!important;border-radius:12px!important}
+.ai-order-interactions .ai-product-image{width:58px!important;height:58px!important}
+.ai-order-interactions .ai-product-title{font-size:12px!important;line-height:1.3!important}
+.ai-order-interactions .ai-product-meta{font-size:10px!important;line-height:1.35!important}
+.ai-order-interactions .ai-product-price{font-size:12px!important}
+.ai-order-interactions .ai-product-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:7px!important;margin-top:7px!important}
+.ai-order-interactions .ai-product-btn{min-height:34px!important;font-size:10px!important}
+/* Stable filled-cart composition. */
+.ai-card:has(.ai-live-preview-row) .ai-agent-character{width:220px!important;height:280px!important;bottom:90px!important}
+.ai-card:has(.ai-live-preview-row) .ai-hero-mic{z-index:12!important;bottom:48px!important;display:grid!important}
+.ai-card:has(.ai-live-preview-row) .ai-mic-status{display:block!important;font-size:11px!important}
+.ai-card:has(.ai-live-preview-row) .ai-composer{padding:0 18px 16px!important;border-radius:24px 24px 28px 28px!important}
+.ai-card:has(.ai-live-preview-row) .ai-composer::before{width:30px!important;height:4px!important;flex-basis:4px!important;margin:8px auto 5px!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-copy strong{font-size:12px!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-copy span{font-size:10px!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-total{font-size:13px!important;min-width:88px!important}
+.ai-card:has(.ai-live-preview-row) .ai-order-dock-total::before{font-size:9px!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview{max-height:174px!important;margin-top:2px!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview-row{min-height:48px!important;padding:9px 3px!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview-name{font-size:12px!important;line-height:1.35!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview-qty{font-size:10px!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview-price{font-size:12px!important}
+/* The stage must clear the measured sheet height. `inset-bottom` is not a CSS
+   property; use the real bottom inset so character and mic cannot be covered. */
+.ai-agent-stage{bottom:var(--ai-sheet-height,176px)!important}
+.ai-card:has(.ai-live-preview-row) .ai-agent-character{width:250px!important;height:318px!important;bottom:45px!important}
+.ai-card:has(.ai-live-preview-row) .ai-hero-mic{z-index:14!important;bottom:10px!important}
+.ai-suggestion-message.ai-stage-dismiss{pointer-events:none;animation:aiSuggestionStageOut .22s ease-in both!important}
+@keyframes aiSuggestionStageOut{to{opacity:0;transform:translateY(12px) scale(.97)}}
 </style>
 
 <div class="ai-page">
     <div class="ai-card" data-agent-state="idle">
         <div class="ai-header">
-            <div class="ai-avatar">
-                <img src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" width="160" height="180" alt="Listening">
-            </div>
+            <a class="ai-home-back" href="{{ route('web.home') }}" aria-label="Back to home">‹</a>
             <div class="ai-header-text">
-                <div class="ai-title">AI Order Assistant</div>
-                <div class="ai-status"><span class="ai-status-dot"></span> Online now</div>
+                <div class="ai-title"><span class="ai-status-dot"></span> Shop AI</div>
             </div>
             <button class="ai-header-pill" type="button" id="aiHistoryButton">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
@@ -938,10 +1444,17 @@
 
         <section class="ai-agent-stage" aria-live="polite" aria-atomic="true">
             <div class="ai-agent-character" aria-hidden="true">
-                <img src="{{ asset('assets/zonik-agent-listening-v2.png') }}" width="1024" height="1024" alt="">
+                <img id="aiAgentCharacterImage"
+                     src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     data-ready-src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     data-listening-src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     data-searching-src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     data-success-src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     data-clarifying-src="{{ asset('assets/zonik-shop-ai-chef-3d.png') }}"
+                     width="1024" height="1024" alt="">
             </div>
             <div class="ai-agent-identity">
-                <strong class="ai-agent-name">Zonik AI</strong>
+                <div class="ai-agent-name"><span class="ai-agent-kicker">Shop effortlessly with</span> <strong>smart AI..</strong></div>
                 <span class="ai-agent-online">Online</span>
             </div>
             <div class="ai-mic-wrap ai-hero-mic">
@@ -950,8 +1463,8 @@
                 </button>
                 <span class="ai-mic-status" id="aiMicStatus" role="status" aria-live="polite">Tap to speak</span>
             </div>
-            <h1 class="ai-agent-state" id="aiAgentState">Tap to speak</h1>
-            <p class="ai-agent-detail" id="aiAgentDetail">Tell me what you'd like to order</p>
+            <h1 class="ai-agent-state" id="aiAgentState" role="button" tabindex="0">Start talking!</h1>
+            <p class="ai-agent-detail" id="aiAgentDetail">Tap to speak</p>
             <div class="ai-agent-wave" aria-hidden="true">
                 <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
@@ -989,17 +1502,15 @@
             </div>
         </div>
 
-        <div class="ai-chat-shell">
-            <div class="ai-chat" id="aiChat"></div>
-        </div>
-
-        <div class="ai-composer">
-            <button class="ai-order-dock visible" type="button" id="aiOrderDock" aria-label="Open live order">
+        <div class="ai-composer" id="aiComposer">
+            <div class="ai-order-dock visible" role="button" tabindex="0" id="aiOrderDock" aria-label="Open live order">
                 <span class="ai-order-dock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg></span>
-                <span class="ai-order-dock-copy"><strong>Live Order</strong><span id="aiOrderDockCount">0 items</span></span>
+                <span class="ai-order-dock-copy"><strong>Live Order</strong><span id="aiOrderDockCount">(0)</span></span>
                 <strong class="ai-order-dock-total" id="aiOrderDockTotal">₹0.00</strong>
-                <span class="ai-live-preview" id="aiLivePreview"><span class="ai-live-preview-empty">Your verified order will appear here.</span></span>
-            </button>
+                <span class="ai-live-preview" id="aiLivePreview"><span class="ai-live-preview-empty">Your order will appear here<br>as you speak.</span></span>
+                <div class="ai-chat ai-order-interactions" id="aiChat" aria-live="polite"></div>
+                <div class="ai-order-checkout" id="aiOrderCheckout"></div>
+            </div>
             <div class="ai-actions">
                 <button class="ai-action-btn" type="button" data-action="repeat" title="Repeat last response" aria-label="Repeat last response">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Repeat</span>
@@ -1024,6 +1535,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const chat = document.getElementById('aiChat');
+        const chatShell = document.getElementById('aiChatShell');
+        const composer = document.getElementById('aiComposer');
         const input = document.getElementById('aiInput');
         const sendBtn = document.getElementById('aiSendBtn');
         const micBtn = document.getElementById('aiMicBtn');
@@ -1031,10 +1544,23 @@
         const aiCard = document.querySelector('.ai-card');
         const agentStateLabel = document.getElementById('aiAgentState');
         const agentStateDetail = document.getElementById('aiAgentDetail');
+        const agentCharacterImage = document.getElementById('aiAgentCharacterImage');
         const orderDock = document.getElementById('aiOrderDock');
+        const orderCheckout = document.getElementById('aiOrderCheckout');
         const orderDockCount = document.getElementById('aiOrderDockCount');
         const orderDockTotal = document.getElementById('aiOrderDockTotal');
         const livePreview = document.getElementById('aiLivePreview');
+        function syncChatClearance() {
+            if (!composer || window.innerWidth > 640) return;
+            const clearance = Math.ceil(composer.getBoundingClientRect().height + 10);
+            chatShell?.style.setProperty('--ai-composer-clearance', clearance + 'px');
+            aiCard?.style.setProperty('--ai-sheet-height', Math.ceil(composer.getBoundingClientRect().height) + 'px');
+        }
+        if (window.ResizeObserver && composer) {
+            new ResizeObserver(syncChatClearance).observe(composer);
+        }
+        window.addEventListener('resize', syncChatClearance, {passive: true});
+        requestAnimationFrame(syncChatClearance);
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const chatUrl = '{{ route('assistant.chat') }}';
         const productsUrl = '{{ route('assistant.products') }}';
@@ -1070,10 +1596,32 @@
         const deleteConfirm = document.getElementById('aiDeleteConfirm');
         const deleteCancel = document.getElementById('aiDeleteCancel');
         const deleteConfirmButton = document.getElementById('aiDeleteConfirmButton');
+        function openAccessiblePanel(panel) {
+            if (!panel) return;
+            panel.inert = false;
+            panel.removeAttribute('inert');
+            panel.setAttribute('aria-hidden', 'false');
+            panel.classList.add('open');
+        }
+        function closeAccessiblePanel(panel, returnFocus) {
+            if (!panel) return;
+            if (panel.contains(document.activeElement) && returnFocus) {
+                try { returnFocus.focus({preventScroll: true}); } catch (error) { returnFocus.focus(); }
+            }
+            panel.classList.remove('open');
+            panel.setAttribute('aria-hidden', 'true');
+            panel.inert = true;
+        }
+        historyPanel.inert = true;
+        cartPanel.inert = true;
+        deleteConfirm.inert = true;
         let pendingDeleteConversation = null;
         let historyDetailOpen = false;
         let openedHistoryConversation = null;
         let mediaRecorder = null;
+        let accurateVoiceMode = false;
+        let voiceCaptureStarting = false;
+        let voiceSilenceTimer = null;
         let speechRecognition = null;
         let speechRecognitionRestartTimer = null;
         let speechRecognitionStartPending = false;
@@ -1257,7 +1805,7 @@
         }
 
         const agentUiCopy = {
-            idle: ['Tap to speak', "Tell me what you'd like to order"],
+            idle: ['Start talking!', 'Tap to speak'],
             listening: ['Listening…', 'Speak naturally — I’m listening.'],
             understanding: ['Understanding your order…', 'Checking product, quantity, pack and context.'],
             matching: ['Checking approved products…', 'Matching your request with your approved price list.'],
@@ -1268,12 +1816,40 @@
             checkout: ['Order ready', 'Confirm delivery and payment to place the order.'],
             error: ['Let’s try that again', 'I could not complete that request.']
         };
+        const agentPoseByState = {
+            idle: 'ready',
+            listening: 'listening',
+            understanding: 'searching',
+            matching: 'searching',
+            clarifying: 'clarifying',
+            executing: 'searching',
+            speaking: 'listening',
+            ready: 'success',
+            checkout: 'success',
+            error: 'clarifying'
+        };
+        const agentPoseSources = agentCharacterImage ? {
+            ready: agentCharacterImage.dataset.readySrc,
+            listening: agentCharacterImage.dataset.listeningSrc,
+            searching: agentCharacterImage.dataset.searchingSrc,
+            success: agentCharacterImage.dataset.successSrc,
+            clarifying: agentCharacterImage.dataset.clarifyingSrc
+        } : {};
+        Object.values(agentPoseSources).forEach(function (source) {
+            if (!source) return;
+            const preload = new Image();
+            preload.src = source;
+        });
         let agentUiResetTimer = null;
         function setAgentUiState(state, detail) {
             const normalized = Object.prototype.hasOwnProperty.call(agentUiCopy, state) ? state : 'idle';
             const copy = agentUiCopy[normalized];
             if (agentUiResetTimer) window.clearTimeout(agentUiResetTimer);
             aiCard?.setAttribute('data-agent-state', normalized);
+            const poseSource = agentPoseSources[agentPoseByState[normalized]];
+            if (agentCharacterImage && poseSource && agentCharacterImage.src !== poseSource) {
+                agentCharacterImage.src = poseSource;
+            }
             if (agentStateLabel) agentStateLabel.textContent = copy[0];
             if (agentStateDetail) agentStateDetail.textContent = detail || copy[1];
             if (normalized === 'ready') {
@@ -1296,7 +1872,7 @@
         }
 
         function scheduleSpeechRecognitionRestart(delay) {
-            if (!continuousTalkMode || speechRecognition || speechRecognitionStartPending) return;
+            if (accurateVoiceMode || !continuousTalkMode || speechRecognition || speechRecognitionStartPending) return;
             speechRecognitionStartPending = true;
             setMicStatus('Listening…', 'listening');
             micBtn?.classList.add('listening');
@@ -1437,7 +2013,7 @@
             const response = data || {};
             const workflow = response.workflow || {};
             const workflowStage = String(workflow.stage || response.workflow_stage || '');
-            const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakti hoon.');
+            const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakta hoon.');
             const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer'];
 
             onboardingStage = null;
@@ -1577,8 +2153,7 @@
             historyDetailOpen = false;
             openedHistoryConversation = null;
             historyContinue.style.display = 'none';
-            historyPanel.classList.add('open');
-            historyPanel.setAttribute('aria-hidden', 'false');
+            openAccessiblePanel(historyPanel);
             historyTitle.textContent = 'Chat history';
             historySubtitle.textContent = 'Your saved conversations';
             historyContent.innerHTML = '<div class="ai-history-empty">Loading chats…</div>';
@@ -1607,7 +2182,7 @@
                         const content = savedMessageHtml(message);
                         if (!content.trim()) return '';
                         const bubble = '<div class="ai-message ' + escapeHtml(message.role) + '">' + content + '<span class="ai-message-time">' + escapeHtml(message.time) + '</span></div>';
-                        return '<div class="ai-message-row ' + escapeHtml(message.role) + '">' + (message.role === 'assistant' ? '<img class="ai-reply-avatar" src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" alt="AI assistant">' : '') + bubble + '</div>';
+                        return '<div class="ai-message-row ' + escapeHtml(message.role) + '">' + bubble + '</div>';
                     }).join('') + '</div>';
                 }).catch(function () { historyContent.innerHTML = '<div class="ai-history-empty">Could not load this conversation.</div>'; });
         }
@@ -1615,14 +2190,13 @@
         historyButton?.addEventListener('click', openHistoryList);
         historyBack?.addEventListener('click', function () {
             if (historyDetailOpen) openHistoryList();
-            else { historyPanel.classList.remove('open'); historyPanel.setAttribute('aria-hidden', 'true'); }
+            else closeAccessiblePanel(historyPanel, historyButton);
         });
         historyContent?.addEventListener('click', function (event) {
             const deleteButton = event.target.closest('[data-delete-conversation]');
             if (deleteButton) {
                 pendingDeleteConversation = deleteButton.dataset.deleteConversation;
-                deleteConfirm.classList.add('open');
-                deleteConfirm.setAttribute('aria-hidden', 'false');
+                openAccessiblePanel(deleteConfirm);
                 return;
             }
             const item = event.target.closest('[data-history-conversation]');
@@ -1632,8 +2206,7 @@
             pendingDeleteConversation = null;
             deleteConfirmButton.disabled = false;
             deleteConfirmButton.textContent = 'Confirm Delete';
-            deleteConfirm.classList.remove('open');
-            deleteConfirm.setAttribute('aria-hidden', 'true');
+            closeAccessiblePanel(deleteConfirm, historyButton);
         }
         deleteCancel?.addEventListener('click', closeDeleteConfirm);
         deleteConfirm?.addEventListener('click', function (event) { if (event.target === deleteConfirm) closeDeleteConfirm(); });
@@ -1659,8 +2232,7 @@
                         (message.products || []).forEach(function (product) { html += historyProductCard(product); });
                         appendMessage(message.role, html, message.time);
                     });
-                    historyPanel.classList.remove('open');
-                    historyPanel.setAttribute('aria-hidden', 'true');
+                    closeAccessiblePanel(historyPanel, input);
                     input.focus();
                 });
         });
@@ -1670,9 +2242,7 @@
             const timestamp = time || new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
             wrap.className = 'ai-message-row ' + role;
             const bubble = '<div class="ai-message ' + role + '">' + html + '<span class="ai-message-time">' + escapeHtml(timestamp) + '</span></div>';
-            wrap.innerHTML = role === 'assistant'
-                ? '<img class="ai-reply-avatar" src="{{ asset('assets/voice-chefbot-fork-spoon.svg') }}" alt="AI assistant">' + bubble
-                : bubble;
+            wrap.innerHTML = bubble;
 
             // Voice-only chat: keep plain conversational text off-screen and
             // render only actionable product/order UI.
@@ -1709,10 +2279,14 @@ function appendTyping() {
         let elevenLabsRetryAt = 0;
         function useBrowserVoiceTemporarily() {
             voiceProviderMode = 'browser';
-            elevenLabsRetryAt = Date.now() + 30000;
+            elevenLabsRetryAt = Date.now() + 15000;
         }
         function resumeListeningAfterReply() {
             if (!continuousTalkMode || speechRecognition) return;
+            if (accurateVoiceMode) {
+                window.setTimeout(startAccurateVoiceCapture, 700);
+                return;
+            }
             scheduleSpeechRecognitionRestart(1100);
         }
 
@@ -1720,7 +2294,9 @@ function appendTyping() {
             if (activeAssistantAudio || !assistantAudioQueue.length) return;
             const item = assistantAudioQueue.shift();
             const audio = new Audio('data:' + (item.mime || 'audio/mpeg') + ';base64,' + item.base64);
-            audio.playbackRate = 0.92;
+            // ElevenLabs already controls pacing. Do not slow the generated
+            // clip a second time in the browser.
+            audio.playbackRate = 1.0;
             audio.preservesPitch = true;
             activeAssistantAudio = audio;
             const finish = function () {
@@ -1789,8 +2365,24 @@ function appendTyping() {
             else if (/[\u0E00-\u0E7F]/.test(cleanText)) utterance.lang = 'th-TH';
             else utterance.lang = conversationLanguage || navigator.language || 'en-IN';
             }
-            utterance.rate = 0.90;
-            utterance.pitch = 1.02;
+            // Prefer a natural male system voice in the detected language.
+            // Voice inventories differ by Android/iOS/desktop, so first use
+            // known male names and then fall back to the best locale match.
+            const voices = window.speechSynthesis.getVoices() || [];
+            const requestedLanguage = String(utterance.lang || 'en-IN').toLowerCase();
+            const maleName = /\b(?:ravi|madhur|hemant|rishi|david|daniel|mark|alex|aaron|guy|male)\b/i;
+            utterance.voice = voices.find(function (voice) {
+                return maleName.test(voice.name) && String(voice.lang || '').toLowerCase() === requestedLanguage;
+            }) || voices.find(function (voice) {
+                return maleName.test(voice.name) && String(voice.lang || '').toLowerCase().startsWith(requestedLanguage.split('-')[0]);
+            }) || voices.find(function (voice) {
+                return maleName.test(voice.name);
+            }) || voices.find(function (voice) {
+                return String(voice.lang || '').toLowerCase() === requestedLanguage;
+            }) || null;
+            utterance.rate = 0.92;
+            utterance.pitch = 0.84;
+            utterance.volume = 0.96;
             const finishBrowserSpeech = function () {
                 assistantSpeechEndedAt = Date.now();
                 setAgentUiState('idle');
@@ -1825,7 +2417,17 @@ function appendTyping() {
                 })
                 .replace(/₹\s*([\d,]+(?:\.\d+)?)/gu, '$1 rupees')
                 .replace(/\b([\d.]+)\s*%/gu, '$1 percent')
+                .replace(/\s*[×x]\s*/gu, ' times ')
                 .replace(/&/g, ' and ')
+                .replace(/\bZonik\b/giu, 'Zo-nik')
+                .replace(/\bAI\b/gu, 'A I')
+                .replace(/\bMRP\b/gu, 'M R P')
+                .replace(/\bGST\b/gu, 'G S T')
+                .replace(/\bUPI\b/gu, 'U P I')
+                .replace(/\bCOD\b/gu, 'C O D')
+                .replace(/\bSKU\b/gu, 'S K U')
+                .replace(/\bN\/?A\b/gu, 'not available')
+                .replace(/([.!?])(?=[^\s])/g, '$1 ')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
@@ -1845,7 +2447,7 @@ function appendTyping() {
                 completed = true;
                 if (controller) controller.abort();
                 useBrowserVoiceTemporarily();
-                console.info('ElevenLabs audio timed out; browser voice locked for this session.');
+                console.info('ElevenLabs audio timed out; using browser voice temporarily.');
                 speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
             }, 18000);
             fetch(speakUrl, {
@@ -1870,7 +2472,7 @@ function appendTyping() {
                 }
                 else {
                     useBrowserVoiceTemporarily();
-                    console.info('ElevenLabs unavailable; browser voice locked for this session.');
+                    console.info('ElevenLabs unavailable; using browser voice temporarily.');
                     speakWithBrowser(localizedText, onEnded, onStart);
                 }
             }).catch(function () {
@@ -1878,7 +2480,7 @@ function appendTyping() {
                 completed = true;
                 window.clearTimeout(requestTimeout);
                 useBrowserVoiceTemporarily();
-                console.info('ElevenLabs request failed; browser voice locked for this session.');
+                console.info('ElevenLabs request failed; using browser voice temporarily.');
                 speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
             });
         }
@@ -1908,7 +2510,7 @@ function appendTyping() {
                 const finalReminderByStage = {
                     confirm_product: 'Main is product par ruki hoon. Jab free ho, haan ya nahi bol dena.',
                     clarify_product: 'Options screen par hain. Product ka naam bolkar cart mein add ya enquiry bata dijiye.',
-                    await_quantity: 'Main quantity ka wait kar rahi hoon. Free hoke sirf number bol dena.',
+                    await_quantity: 'Main quantity ka wait kar raha hoon. Free hoke sirf number bol dena.',
                     confirm_quantity: 'Quantity pending hai. Jab ready ho, confirm ya change bol dena.',
                     anything_else: 'Aap busy ho toh koi problem nahi. Baad mein yahin se order continue ho jayega.',
                     confirm_order: 'Order summary safe hai. Free hone par confirm karke delivery continue kar lena.',
@@ -1928,7 +2530,7 @@ function appendTyping() {
                 confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir address aur delivery slot le lungi.', 'Order ready hai. Aapki haan milte hi next delivery details poochungi.'],
                 delivery_details: ['Delivery ke liye address ya location aur convenient slot bata dijiye.', 'Bas delivery details pending hain. Address aur time slot share kar dijiye, phir payment par aate hain.'],
                 payment_method: ['Payment ka option select kar dijiye, phir place order ka final button aa jayega.', 'Ab sirf payment method choose karna hai—online, delivery par, ya jo option dikh raha ho.'],
-                checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar rahi hoon—Place Order button dabaiye.'],
+                checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar raha hoon—Place Order button dabaiye.'],
                 customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.']
             };
             const options = remindersByStage[activeOrderingStage] || ['Main yahin hoon. Jab ready ho, bata dijiye aage kya karna hai.'];
@@ -2200,7 +2802,7 @@ function appendTyping() {
                         readyReply = 'Theek hai, jab ready hon tab new order bol dijiye.';
                     } else {
                         awaitingNewOrderReady = true;
-                        readyReply = 'Main samajh nahi paayi; please ek baar phir bataiye.';
+                        readyReply = 'Main samajh nahi paaya; please ek baar phir bataiye.';
                     }
                     appendMessage('assistant', escapeHtml(readyReply));
                     loadVoiceAsync(readyReply);
@@ -2255,7 +2857,7 @@ function appendTyping() {
             }
             if (false && !activeOrderingStage && /\b(checkout|place order)\b/.test(intent)) {
                 input.value = '';
-                appendMessage('assistant', 'Order complete karne ke liye pehle delivery location aur slot confirm kijiye. Main yahin se payment aur order placement complete karungi.');
+                appendMessage('assistant', 'Order complete karne ke liye pehle delivery location aur slot confirm kijiye. Main yahin se payment aur order placement complete karunga.');
                 return;
             }
             if (false && !activeOrderingStage && /\b(delivery|slot)\b/.test(intent)) {
@@ -2420,7 +3022,8 @@ function appendTyping() {
                     }
                 }
                 if (workflow.stage === 'delivery_details') {
-                    renderAssistantDeliveryOptions(workflow);
+                    dismissOrderSuggestionMessages();
+                    window.setTimeout(function () { renderAssistantDeliveryOptions(workflow); }, 230);
                     if (data.voice_base64) playVoice(data.voice_base64, data.voice_mime, scheduleResponseReminder);
                     else loadVoiceAsync(reply, scheduleResponseReminder);
                     return;
@@ -2430,7 +3033,9 @@ function appendTyping() {
                     Object.keys(workflow.payment_options || {}).forEach(function (method) {
                         paymentHtml += '<button type="button" class="ai-product-btn primary" data-payment-option="' + escapeHtml(method) + '">' + escapeHtml(workflow.payment_options[method]) + '</button>';
                     });
-                    if (paymentHtml) appendMessage('assistant', '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Payment method</span><div class="ai-checkout-choice-list">' + paymentHtml + '</div></div>');
+                    if (paymentHtml && orderCheckout) {
+                        replaceOrderCheckout('<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Payment method</span><div class="ai-checkout-choice-list">' + paymentHtml + '</div></div>');
+                    }
                 }
                 if (workflow.stage === 'customer_care_offer') {
                     const dialUrl = rememberCustomerCareDialer(workflow);
@@ -2456,14 +3061,16 @@ function appendTyping() {
                 }
                 if (workflow.stage === 'checkout_ready') {
                     const checkoutData = encodeURIComponent(JSON.stringify({payment_method: workflow.payment_method, delivery_details: workflow.delivery_details || ''}));
-                    appendMessage('assistant', '<div class="ai-cart-actions"><button type="button" class="ai-cart-btn primary" data-place-ai-order="' + checkoutData + '">Place Order</button></div>');
+                    if (orderCheckout) {
+                        replaceOrderCheckout('<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Payment confirmed: ' + escapeHtml(workflow.payment_method || '') + '</span><div class="ai-checkout-choice-list"><button type="button" class="ai-cart-btn primary" data-place-ai-order="' + checkoutData + '">Place Order</button></div></div>');
+                    }
                 }
             })
             .catch((error) => {
                 aiDebug('Chat API failed', {message: String(error), text: text, stage: requestStage});
                 removeTyping(typing);
                 setAgentUiState('error');
-                const failureReply = 'Sorry, abhi reply connect nahi hua. Ek baar phir boliye; main sun rahi hoon.';
+                const failureReply = 'Sorry, abhi reply connect nahi hua. Ek baar phir boliye; main sun raha hoon.';
                 appendMessage('assistant', escapeHtml(failureReply));
                 // Keep hands-free mode alive after a failed network request.
                 // Previously this branch produced no audio, so the normal
@@ -2472,6 +3079,30 @@ function appendTyping() {
                     if (continuousTalkMode) resumeListeningAfterReply();
                 });
             });
+        }
+
+        function dismissOrderSuggestionMessages() {
+            chat?.querySelectorAll('.ai-suggestion-message').forEach(function (message) {
+                if (message.classList.contains('ai-stage-dismiss')) return;
+                message.classList.add('ai-stage-dismiss');
+                window.setTimeout(function () { message.remove(); syncChatClearance(); }, 220);
+            });
+        }
+
+        let checkoutStageVersion = 0;
+        function replaceOrderCheckout(html) {
+            if (!orderCheckout) return;
+            const version = ++checkoutStageVersion;
+            const commit = function () {
+                if (version !== checkoutStageVersion) return;
+                orderCheckout.innerHTML = '<div class="ai-checkout-stage-enter">' + html + '</div>';
+                orderCheckout.classList.add('visible');
+                syncChatClearance();
+            };
+            const current = orderCheckout.firstElementChild;
+            if (!current) { commit(); return; }
+            current.classList.add('ai-checkout-stage-leave');
+            window.setTimeout(commit, 190);
         }
 
         function renderAssistantDeliveryOptions(workflow) {
@@ -2497,10 +3128,16 @@ function appendTyping() {
             });
 
             let html = '';
-            if (locationHtml) html += '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Delivery location</span><div class="ai-checkout-choice-list">' + locationHtml + '</div></div>';
-            if (slotHtml) html += '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Available delivery slots</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
+            // Checkout is intentionally progressive: location first, then
+            // replace it with slots only after the server confirms location.
+            if (!selectedLocation && locationHtml) {
+                html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery location</span><div class="ai-checkout-choice-list">' + locationHtml + '</div></div>';
+            } else if (selectedLocation && slotHtml) {
+                html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery slot</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
+            }
             if (!html) html = '<div class="ai-product-meta"><strong>Delivery options load nahi hue. Please location ka naam boliye ya dobara confirm kijiye.</strong></div>';
-            appendMessage('assistant', '<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
+            replaceOrderCheckout('<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
+            orderDock?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         }
 
         function clearAssistantDeliveryOptions() {
@@ -2619,6 +3256,7 @@ function appendTyping() {
             const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!Recognition) return false;
             if (speechRecognition || speechRecognitionStartPending) return true;
+            accurateVoiceMode = false;
             if (!fromContinuousMode) continuousTalkMode = true;
             if (activeAssistantAudio || assistantAudioQueue.length || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 1000) {
                 const retryDelay = Math.max(250, 1050 - (Date.now() - assistantSpeechEndedAt));
@@ -2629,11 +3267,23 @@ function appendTyping() {
             const recognition = new Recognition();
             speechRecognition = recognition;
             recognition.lang = conversationLanguage;
-            recognition.interimResults = false;
-            recognition.continuous = false;
+            // Collect the complete sentence instead of submitting Chrome's
+            // first short fragment as the customer's whole command.
+            recognition.interimResults = true;
+            recognition.continuous = true;
             recognition.maxAlternatives = 3;
             let receivedSpeech = false;
             let speechStartedAt = 0;
+            let finalTranscript = '';
+            let latestInterimTranscript = '';
+            let finishListeningTimer = null;
+            let bestConfidence = 0;
+            const finishCurrentUtterance = function (delay) {
+                if (finishListeningTimer) window.clearTimeout(finishListeningTimer);
+                finishListeningTimer = window.setTimeout(function () {
+                    try { recognition.stop(); } catch (error) {}
+                }, delay);
+            };
             recognition.onspeechstart = function () { speechStartedAt = Date.now(); };
             recognition.onstart = function () {
                 micBtn.classList.add('listening');
@@ -2643,35 +3293,30 @@ function appendTyping() {
             recognition.addEventListener('start', cancelResponseReminder, {once: true});
             recognition.onresult = function (event) {
                 if (activeAssistantAudio || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 900) return;
-                const alternatives = Array.from(event.results[event.resultIndex]);
-                const ranked = alternatives.map(function (alternative) {
-                    const normalized = normalizeSpokenQuantity(alternative.transcript);
-                    let score = (alternative.confidence || 0) * 10;
-                    if (/\d+/.test(normalized)) score += 20;
-                    if (/\b(box(?:es)?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\b/i.test(normalized)) score += 10;
-                    if (/\bzonik\b/i.test(normalized)) score += 25;
-                    return {text: normalized, score: score, confidence: Number(alternative.confidence || 0)};
-                }).sort(function (a, b) { return b.score - a.score; });
-                const bestMatch = ranked[0];
-                const transcript = bestMatch?.text;
-                const speechDuration = speechStartedAt ? Date.now() - speechStartedAt : 0;
-                aiDebug('Voice recognition result', {alternatives: ranked, selectedTranscript: transcript, speechDuration: speechDuration});
-                if (transcript) {
-                    if (isLikelyBackgroundSpeech(transcript, bestMatch.confidence, speechDuration, !!fromContinuousMode)) {
-                        aiDebug('Ignored probable background speech', {transcript: transcript, confidence: bestMatch.confidence, speechDuration: speechDuration});
-                        setMicStatus('Listening…', 'listening');
-                        return;
-                    }
-                    receivedSpeech = true;
-                    if ((bestMatch.confidence > 0 && bestMatch.confidence < 0.08) || transcript.length < 2) {
-                        const retryReply = 'Sorry, kya aap ek baar phir clearly bol sakte hain?';
-                        appendMessage('assistant', escapeHtml(retryReply));
-                        loadVoiceAsync(retryReply);
-                        return;
-                    }
-                    setMicStatus('Processing…', 'processing');
-                    sendMessage(transcript);
+                finalTranscript = '';
+                latestInterimTranscript = '';
+                for (let index = 0; index < event.results.length; index++) {
+                    const result = event.results[index];
+                    const alternatives = Array.from(result);
+                    const ranked = alternatives.map(function (alternative) {
+                        const normalized = normalizeSpokenQuantity(alternative.transcript);
+                        let score = (alternative.confidence || 0) * 10;
+                        if (/\d+/.test(normalized)) score += 20;
+                        if (/\b(box(?:es)?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\b/i.test(normalized)) score += 10;
+                        return {text: normalized, score: score, confidence: Number(alternative.confidence || 0)};
+                    }).sort(function (a, b) { return b.score - a.score; });
+                    const bestMatch = ranked[0];
+                    if (!bestMatch?.text) continue;
+                    bestConfidence = Math.max(bestConfidence, bestMatch.confidence);
+                    if (result.isFinal) finalTranscript += (finalTranscript ? ' ' : '') + bestMatch.text;
+                    else latestInterimTranscript += (latestInterimTranscript ? ' ' : '') + bestMatch.text;
                 }
+                const heardText = normalizeSpokenQuantity((finalTranscript + ' ' + latestInterimTranscript).trim());
+                if (!heardText) return;
+                receivedSpeech = true;
+                setMicStatus('Listening…', 'listening');
+                aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript});
+                finishCurrentUtterance(finalTranscript ? 850 : 1400);
             };
             recognition.onerror = function (event) {
                 if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
@@ -2687,15 +3332,21 @@ function appendTyping() {
                 }
             };
             recognition.onend = function () {
+                if (finishListeningTimer) window.clearTimeout(finishListeningTimer);
                 speechRecognition = null;
-                if (continuousTalkMode && !receivedSpeech) {
+                if (accurateVoiceMode) return;
+                const transcript = normalizeSpokenQuantity((finalTranscript || latestInterimTranscript).trim());
+                const speechDuration = speechStartedAt ? Date.now() - speechStartedAt : 0;
+                if (receivedSpeech && transcript && !isLikelyBackgroundSpeech(transcript, bestConfidence, speechDuration, !!fromContinuousMode)) {
+                    micBtn.classList.remove('listening');
+                    setMicStatus('Processing…', 'processing');
+                    aiDebug('Complete voice command', {transcript: transcript, speechDuration: speechDuration});
+                    sendMessage(transcript);
+                } else if (continuousTalkMode && !receivedSpeech) {
                     // Chrome ends a recognition session after silence. Keep
                     // the UI and continuous mode active while one controlled
                     // restart bridges that browser-imposed boundary.
                     scheduleSpeechRecognitionRestart(250);
-                } else if (continuousTalkMode && receivedSpeech) {
-                    micBtn.classList.remove('listening');
-                    setMicStatus('Processing…', 'processing');
                 } else if (!receivedSpeech) {
                     micBtn.classList.remove('listening');
                     setMicStatus('Mic ready', 'idle');
@@ -2753,6 +3404,87 @@ function appendTyping() {
                 });
         }
 
+        async function startAccurateVoiceCapture() {
+            if (voiceCaptureStarting || mediaRecorder?.state === 'recording' || activeAssistantAudio || window.speechSynthesis?.speaking) return true;
+            if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return false;
+            voiceCaptureStarting = true;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true}});
+                const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+                mediaRecorder = new MediaRecorder(stream, preferredMime ? {mimeType: preferredMime} : undefined);
+                audioChunks = [];
+                let speechDetected = false;
+                let lastVoiceAt = Date.now();
+                const startedAt = Date.now();
+                let audioContext = null;
+                let analyser = null;
+                let animationFrame = null;
+
+                const closeAudioAnalysis = function () {
+                    if (animationFrame) cancelAnimationFrame(animationFrame);
+                    if (voiceSilenceTimer) window.clearTimeout(voiceSilenceTimer);
+                    voiceSilenceTimer = null;
+                    if (audioContext) audioContext.close().catch(function () {});
+                };
+                const monitorSilence = function () {
+                    if (!analyser || mediaRecorder?.state !== 'recording') return;
+                    const levels = new Uint8Array(analyser.fftSize);
+                    analyser.getByteTimeDomainData(levels);
+                    let energy = 0;
+                    for (let index = 0; index < levels.length; index++) energy += Math.abs(levels[index] - 128);
+                    const average = energy / levels.length;
+                    if (average > 3.2) {
+                        speechDetected = true;
+                        lastVoiceAt = Date.now();
+                    }
+                    if (speechDetected && Date.now() - lastVoiceAt > 1050 && Date.now() - startedAt > 700) {
+                        mediaRecorder.stop();
+                        return;
+                    }
+                    animationFrame = requestAnimationFrame(monitorSilence);
+                };
+
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 512;
+                    audioContext.createMediaStreamSource(stream).connect(analyser);
+                } catch (error) {
+                    // Without an analyser, still submit the recorded clip at
+                    // the hard timeout instead of discarding valid speech.
+                    speechDetected = true;
+                }
+
+                mediaRecorder.ondataavailable = function (event) { if (event.data.size) audioChunks.push(event.data); };
+                mediaRecorder.onstop = function () {
+                    closeAudioAnalysis();
+                    micBtn.classList.remove('listening');
+                    setMicStatus('Processing…', 'processing');
+                    stream.getTracks().forEach(function (track) { track.stop(); });
+                    const recordedMime = mediaRecorder.mimeType || 'audio/webm';
+                    mediaRecorder = null;
+                    if (audioChunks.length && speechDetected) uploadRecordedAudio(new Blob(audioChunks, {type: recordedMime}));
+                    else if (continuousTalkMode) window.setTimeout(startAccurateVoiceCapture, 350);
+                };
+                mediaRecorder.start(200);
+                accurateVoiceMode = true;
+                continuousTalkMode = true;
+                micBtn.classList.add('listening');
+                setMicStatus('Listening…', 'listening');
+                if (analyser) monitorSilence();
+                voiceSilenceTimer = window.setTimeout(function () {
+                    if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+                }, 12000);
+                return true;
+            } catch (error) {
+                accurateVoiceMode = false;
+                setMicStatus('Tap mic to allow', 'idle');
+                return false;
+            } finally {
+                voiceCaptureStarting = false;
+            }
+        }
+
         micBtn?.addEventListener('click', async function () {
             // Barge-in: tapping the microphone while the assistant is speaking
             // immediately stops playback and hands control to the customer.
@@ -2760,24 +3492,31 @@ function appendTyping() {
                 stopAssistantAudio(true);
                 assistantSpeechEndedAt = 0;
                 continuousTalkMode = true;
-                window.setTimeout(function () { startBrowserSpeechRecognition(true); }, 100);
+                window.setTimeout(function () {
+                    if (!startBrowserSpeechRecognition() && !voiceCaptureStarting) startAccurateVoiceCapture();
+                }, 120);
                 return;
             }
             if (speechRecognition || speechRecognitionStartPending) {
-                continuousTalkMode = false;
+                accurateVoiceMode = true;
                 cancelSpeechRecognitionRestart();
-                if (speechRecognition) speechRecognition.stop();
-                setMicStatus('Mic off', 'idle');
-                return;
+                if (speechRecognition) {
+                    try { speechRecognition.abort(); } catch (error) {}
+                    speechRecognition = null;
+                }
             }
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 clearTimeout(recordingTimer);
                 mediaRecorder.stop();
                 return;
             }
-            // Native recognition streams speech while the customer is talking,
-            // avoiding a full audio upload and a separate transcription request.
+            // Use the browser's streaming speech recognizer first. It provides
+            // an immediate transcript even when the remote audio transcription
+            // service is slow or temporarily unreachable.
             if (startBrowserSpeechRecognition()) return;
+            // Fall back to recorded-audio transcription on browsers that do
+            // not expose SpeechRecognition.
+            if (await startAccurateVoiceCapture()) return;
             if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
                 browserSpeechFallback();
                 return;
@@ -2800,6 +3539,14 @@ function appendTyping() {
                 recordingTimer = setTimeout(function () { if (mediaRecorder?.state === 'recording') mediaRecorder.stop(); }, 12000);
             } catch (error) {
                 setMicStatus('Tap mic to allow', 'idle');
+            }
+        });
+
+        agentStateLabel?.addEventListener('click', function () { micBtn?.click(); });
+        agentStateLabel?.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                micBtn?.click();
             }
         });
 
@@ -2831,9 +3578,9 @@ function appendTyping() {
                         liveOrderMessage = null;
                         orderDock?.classList.add('visible');
                         if (orderDock) orderDock.hidden = false;
-                        if (orderDockCount) orderDockCount.textContent = '0 items';
+                        if (orderDockCount) orderDockCount.textContent = '(0)';
                         if (orderDockTotal) orderDockTotal.textContent = money(0);
-                        if (livePreview) livePreview.innerHTML = '<span class="ai-live-preview-empty">Your verified order will appear here.</span>';
+                        if (livePreview) livePreview.innerHTML = '<span class="ai-live-preview-empty">Your order will appear here<br>as you speak.</span>';
                         previousLiveOrderRows = new Map();
                         return;
                     }
@@ -2842,7 +3589,7 @@ function appendTyping() {
                         orderDock.hidden = false;
                         orderDock.classList.add('visible');
                     }
-                    if (orderDockCount) orderDockCount.textContent = itemCount + ' ' + (itemCount === 1 ? 'item' : 'items');
+                    if (orderDockCount) orderDockCount.textContent = '(' + itemCount + ')';
                     if (orderDockTotal) orderDockTotal.textContent = money(data.total);
                     if (livePreview) {
                         let newestChangedKey = '';
@@ -2853,9 +3600,12 @@ function appendTyping() {
                             const changed = previousLiveOrderRows.get(rowKey) !== signature;
                             if (changed) newestChangedKey = rowKey;
                             nextRows.set(rowKey, signature);
-                            return '<span class="ai-live-preview-row' + (changed ? ' is-new' : '') + '" data-live-preview-key="' + escapeHtml(rowKey) + '">'
+                            const quantityControl = liveOrderEditable
+                                ? '<span class="ai-qty-control"><button type="button" class="ai-qty-btn" data-live-qty="-1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Decrease quantity">&minus;</button><span class="ai-qty-value">' + escapeHtml(item.qty) + '</span><button type="button" class="ai-qty-btn" data-live-qty="1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Increase quantity">+</button></span>'
+                                : '<span class="ai-live-preview-qty">' + escapeHtml(item.qty) + ' &times; ' + escapeHtml(item.unit || 'unit') + '</span>';
+                            return '<span class="ai-live-preview-row' + (changed ? ' is-new' : '') + (liveOrderEditable ? ' has-controls' : '') + '" data-live-preview-key="' + escapeHtml(rowKey) + '">'
                                 + '<span class="ai-live-preview-name">' + escapeHtml(item.name) + '</span>'
-                                + '<span class="ai-live-preview-qty">' + escapeHtml(item.qty) + ' ' + escapeHtml(item.unit || 'unit') + '</span>'
+                                + quantityControl
                                 + '<span class="ai-live-preview-price">' + money(item.total) + '</span></span>';
                         }).join('');
                         previousLiveOrderRows = nextRows;
@@ -2871,6 +3621,19 @@ function appendTyping() {
                             }
                         }
                     }
+                    // Bottom Live Order is the single cart summary. Clean up
+                    // any duplicate produced by an older cached script, then
+                    // stop before the legacy chat-card renderer.
+                    liveOrderMessage?.remove();
+                    liveOrderMessage = null;
+                    chat.querySelectorAll('.ai-live-order-message').forEach(function (message) { message.remove(); });
+                    fetch(assistantCartSnapshotUrl, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                        body: JSON.stringify({conversation_id: conversationId})
+                    }).catch(function () {});
+                    return;
+
                     let html = '<strong>Live Order List</strong><div class="ai-cart-summary">';
                     items.forEach(function (item) {
                         const image = item.image
@@ -2910,8 +3673,7 @@ function appendTyping() {
 
         function openCartPanel() {
             const requestVersion = ++cartPanelRequestVersion;
-            cartPanel.classList.add('open');
-            cartPanel.setAttribute('aria-hidden', 'false');
+            openAccessiblePanel(cartPanel);
             cartPanelBody.innerHTML = '<div class="ai-history-empty">Loading your order…</div>';
             fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
                 .then(response => response.json()).then(function (data) {
@@ -2957,14 +3719,78 @@ function appendTyping() {
                 }).catch(function () { cartPanelBody.innerHTML = '<div class="ai-history-empty">Could not load your cart.</div>'; });
         }
 
-        orderDock?.addEventListener('click', openCartPanel);
+        orderDock?.addEventListener('click', function (event) {
+            // Agent actions are part of the Live Order dock. Their own click
+            // handlers must run without opening the separate cart panel.
+            if (event.target.closest('.ai-live-preview button, .ai-order-interactions button, .ai-order-interactions a, [data-delivery-option], [data-payment-option], [data-place-ai-order]')) return;
+            openCartPanel();
+        });
+        livePreview?.addEventListener('click', function (event) {
+            const button = event.target.closest('[data-live-qty]');
+            if (!button || button.disabled) return;
+            const current = Number(button.dataset.currentQty || 1);
+            const quantity = Math.max(1, current + Number(button.dataset.liveQty));
+            livePreview.querySelectorAll('[data-cart-id]').forEach(function (control) {
+                if (String(control.dataset.cartId) === String(button.dataset.cartId)) control.disabled = true;
+            });
+            fetch(assistantCartQuantityBaseUrl + '/' + encodeURIComponent(button.dataset.cartId) + '/quantity', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({quantity: quantity})
+            }).then(function (response) {
+                if (!response.ok) throw new Error('Quantity update failed');
+                return response.json();
+            }).then(renderLiveOrderList).catch(function () {
+                livePreview.querySelectorAll('[data-cart-id]').forEach(function (control) { control.disabled = false; });
+            });
+        });
+        orderDock?.addEventListener('keydown', function (event) {
+            if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) {
+                event.preventDefault();
+                openCartPanel();
+            }
+        });
 
-        cartBack?.addEventListener('click', function () { cartPanelRequestVersion++; cartPanel.classList.remove('open'); cartPanel.setAttribute('aria-hidden', 'true'); });
+        orderCheckout?.addEventListener('click', function (event) {
+            const delivery = event.target.closest('[data-delivery-option]');
+            if (delivery) {
+                if (delivery.disabled || delivery.dataset.deliverySelectionPending === 'true') return;
+                const choices = Array.from(orderCheckout.querySelectorAll('[data-delivery-option]'));
+                choices.forEach(function (choice) {
+                    choice.disabled = true;
+                    choice.dataset.deliverySelectionPending = 'true';
+                    choice.setAttribute('aria-busy', 'true');
+                });
+                sendMessage(delivery.dataset.deliveryOption);
+                return;
+            }
+            const payment = event.target.closest('[data-payment-option]');
+            if (payment) {
+                const labels = {online: 'Pay Online', pay_on_delivery: 'Pay on Delivery', credit: 'Pay on Credit'};
+                sendMessage(labels[payment.dataset.paymentOption] || payment.dataset.paymentOption);
+                return;
+            }
+            const placeOrder = event.target.closest('[data-place-ai-order]');
+            if (placeOrder) {
+                continuousTalkMode = false;
+                cancelSpeechRecognitionRestart();
+                if (speechRecognition) {
+                    try { speechRecognition.abort(); } catch (error) {}
+                    speechRecognition = null;
+                }
+                micBtn?.classList.remove('listening');
+                setMicStatus('Mic off', 'idle');
+                placeOrder.disabled = true;
+                placeOrderInsideAssistant(placeOrder.dataset.placeAiOrder);
+            }
+        });
+
+        cartBack?.addEventListener('click', function () { cartPanelRequestVersion++; closeAccessiblePanel(cartPanel, orderDock); });
         cartReview?.addEventListener('click', function () {
             if (cartReview.disabled) return;
             cartPanelRequestVersion++;
-            cartPanel.classList.remove('open');
-            appendMessage('assistant', 'Order complete karne ke liye voice ya message mein boliye: bas itna hi. Phir main location, slot aur payment yahin confirm karungi.');
+            closeAccessiblePanel(cartPanel, input);
+            appendMessage('assistant', 'Order complete karne ke liye voice ya message mein boliye: bas itna hi. Phir main location, slot aur payment yahin confirm karunga.');
             input.focus();
         });
         cartClear?.addEventListener('click', function () {
@@ -2983,6 +3809,10 @@ function appendTyping() {
             }).catch(function (error) {
                 setAgentUiState('error', error.message || 'Your live order was not changed.');
             });
+            if (orderCheckout) {
+                orderCheckout.innerHTML = '';
+                orderCheckout.classList.remove('visible');
+            }
         });
         cartPanelBody?.addEventListener('click', function (event) {
             const remove = event.target.closest('[data-remove-cart]');
@@ -2998,8 +3828,7 @@ function appendTyping() {
             }
             if (event.target.closest('[data-cart-close]')) {
                 cartPanelRequestVersion++;
-                cartPanel.classList.remove('open');
-                input.focus();
+                closeAccessiblePanel(cartPanel, input);
             }
         });
 
@@ -3109,7 +3938,7 @@ function appendTyping() {
                         renderAssistantDeliveryOptions(next);
                         loadVoiceAsync(reply);
                     } else {
-                        loadVoiceAsync(next.reply || (isOrderSuggestion
+                        loadVoiceAsync(next.reply || selection.message || (isOrderSuggestion
                             ? 'Suggested product add ho gaya. Updated order summary confirm kijiye.'
                             : 'Product add ho gaya. Aur kuch chahiye?'));
                     }
@@ -3196,12 +4025,18 @@ function appendTyping() {
             } else if (button.dataset.skipOrderSuggestions) {
                 const suggestionRow = button.closest('.ai-message-row');
                 suggestionRow?.querySelectorAll('button').forEach(function (choice) { choice.disabled = true; });
+                dismissOrderSuggestionMessages();
                 sendMessage('No, continue delivery');
             } else if (button.dataset.removeProduct) {
                 sendMessage(button.dataset.removeProduct + ' remove kar do');
             } else if (button.dataset.chooseProduct) {
                 sendMessage(button.dataset.chooseProduct, Number(button.dataset.chooseProductId));
             } else if (button.dataset.catalogueEnquiry) {
+                const enquiryActions = button.closest('.ai-product-actions');
+                const enquiryCard = enquiryActions?.previousElementSibling?.classList.contains('ai-product-card')
+                    ? enquiryActions.previousElementSibling
+                    : null;
+                const enquiryMessage = button.closest('.ai-message-row');
                 button.disabled = true;
                 fetch(catalogueEnquiryUrl, {
                     method: 'POST',
@@ -3210,13 +4045,17 @@ function appendTyping() {
                 }).then(function (response) {
                     return response.json().then(function (data) { if (!response.ok) throw new Error(data.message || 'Enquiry failed'); return data; });
                 }).then(function (data) {
-                    button.textContent = data.already_available ? 'Available in Price List' : 'Enquiry Sent';
+                    if (enquiryCard) enquiryCard.remove();
+                    if (enquiryActions) enquiryActions.remove();
+                    if (enquiryMessage && !enquiryMessage.querySelector('.ai-product-card, [data-catalogue-enquiry], [data-add-product], [data-choose-product]')) {
+                        enquiryMessage.remove();
+                    }
                     appendMessage('assistant', escapeHtml(data.message || 'Price-list enquiry customer care ko bhej di hai.'));
                     loadVoiceAsync(data.message || 'Price-list enquiry customer care ko bhej di hai. Ab doosra product bataiye.');
                     activeOrderingStage = 'anything_else';
                 }).catch(function (error) {
                     button.disabled = false;
-                    appendMessage('assistant', escapeHtml(error.message || 'Enquiry nahi bhej paayi. Dobara try karein.'));
+                    appendMessage('assistant', escapeHtml(error.message || 'Enquiry nahi bhej paaya. Dobara try karein.'));
                 });
             } else if (button.dataset.addProduct) {
                 addAssistantProductCard(button);

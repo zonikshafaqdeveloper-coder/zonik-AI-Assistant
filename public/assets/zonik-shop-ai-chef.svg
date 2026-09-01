@@ -1,0 +1,15 @@
+<svg viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zonik chef assistant">
+  <g><ellipse cx="150" cy="80" rx="80" ry="28" fill="#edf2f6"/><circle cx="100" cy="62" r="34" fill="#fff"/><circle cx="137" cy="44" r="38" fill="#fff"/><circle cx="178" cy="47" r="39" fill="#fff"/><circle cx="208" cy="66" r="31" fill="#fff"/></g>
+  <ellipse cx="150" cy="140" rx="68" ry="70" fill="#dfa064"/><circle cx="82" cy="145" r="15" fill="#d8955b"/><circle cx="218" cy="145" r="15" fill="#d8955b"/>
+  <path d="M101 112Q112 85 150 85Q188 85 199 112Q177 102 150 104Q123 102 101 112" fill="#302623"/>
+  <path d="M111 126Q125 117 137 125M163 125Q176 117 189 126" stroke="#302623" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <ellipse cx="125" cy="139" rx="9" ry="12" fill="#fff"/><ellipse cx="175" cy="139" rx="9" ry="12" fill="#fff"/><circle cx="126" cy="141" r="5" fill="#222"/><circle cx="174" cy="141" r="5" fill="#222"/>
+  <path d="M151 140Q142 163 153 166Q163 166 164 158" stroke="#9b603c" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M149 168Q132 157 117 170Q132 184 149 171Q166 184 183 170Q168 157 149 168Z" fill="#292321"/>
+  <path d="M132 183Q150 198 168 183Q150 214 132 183Z" fill="#8d3f35"/><path d="M132 198Q150 212 168 198L168 230H132Z" fill="#dfa064"/>
+  <path d="M70 360Q74 235 112 216L150 232L188 216Q226 235 230 360Z" fill="#fafafa" stroke="#dce4eb" stroke-width="3"/>
+  <path d="M113 218Q150 242 187 218L177 247Q150 263 123 247Z" fill="#0067a5"/><path d="M171 238L193 282L178 292L159 250Z" fill="#0b2265"/>
+  <g fill="#374151"><circle cx="139" cy="276" r="4"/><circle cx="139" cy="300" r="4"/><circle cx="139" cy="324" r="4"/><circle cx="164" cy="276" r="4"/><circle cx="164" cy="300" r="4"/><circle cx="164" cy="324" r="4"/></g>
+  <text x="172" y="269" font-family="Arial" font-size="13" font-weight="800" fill="#0067a5">zonik</text>
+  <g><path d="M74 280Q45 252 36 220Q32 207 43 202Q53 198 59 210L75 239L66 207Q64 194 75 192Q85 191 89 205L97 236Q99 247 92 258Z" fill="#d9955b"/><path d="M226 283Q254 257 264 226Q268 212 258 207Q247 202 241 215L225 241L234 207Q236 194 225 192Q215 191 211 205L203 237Q201 248 208 260Z" fill="#d9955b"/></g>
+</svg>
