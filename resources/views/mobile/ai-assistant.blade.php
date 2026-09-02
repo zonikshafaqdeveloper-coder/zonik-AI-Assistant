@@ -1723,7 +1723,6 @@ body:has(.ai-page){background:#edf2f5}
             catalogueScrim?.classList.add('open');
             catalogueTrigger?.setAttribute('aria-expanded', 'true');
             loadCatalogueProducts(catalogueSearch?.value || '');
-            window.setTimeout(function () { catalogueSearch?.focus(); }, 240);
         }
         function closeCataloguePanel() {
             closeAccessiblePanel(cataloguePanel, catalogueTrigger);
