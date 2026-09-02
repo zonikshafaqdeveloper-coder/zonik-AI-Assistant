@@ -324,6 +324,24 @@ public function assistantProducts(Request $request)
     if (!$outlet) return response()->json(['products' => []]);
 
     $q = $this->normalizeAssistantSearchText(trim($request->query('q', '')));
+    if ($request->boolean('catalogue')) {
+        $prices = CustomerPrice::where('outlet_id', $outlet->id)
+            ->pluck('product_price', 'product_id');
+        $query = Product::where('status', 'active')->whereIn('id', $prices->keys());
+        if ($q !== '') $query->where('product_name', 'like', '%' . $q . '%');
+        $products = $query->orderBy('product_name')->get([
+            'id', 'product_name', 'unit', 'carton_size', 'image',
+        ])->map(fn ($product) => [
+            'id' => (int) $product->id,
+            'name' => $product->product_name,
+            'unit' => $product->unit ?: 'unit',
+            'carton_size' => $product->carton_size ?: '-',
+            'price' => (float) ($prices[$product->id] ?? 0),
+            'image' => $product->image ? asset('uploads/' . $product->image) : null,
+        ])->values();
+
+        return response()->json(['products' => $products]);
+    }
     if ($q === '') {
         // The cart panel calls this endpoint without a query. Prefer the
         // customer's own history, then actual outlet top sellers; never show
@@ -1341,6 +1359,19 @@ public function assistantChat(Request $request)
     // to the real address and delivery-slot workflow.
     $currentStage = $orderFlow['stage'] ?? null;
     $explicitCheckout = $this->isAssistantExplicitOrderConfirmation($message);
+    // Customer-care is only a temporary interruption. An explicit order
+    // confirmation must resume the saved checkout state before the normal
+    // deterministic summary/delivery transitions run; otherwise the support
+    // consent stage can swallow the command and fall through to a generic AI
+    // refusal even though the cart is valid.
+    if ($currentStage === 'customer_care_offer' && $explicitCheckout && !empty($cartItems)) {
+        $orderFlow = $this->assistantCustomerCareResumeState($orderFlow);
+        $currentStage = $orderFlow['stage'] ?? 'anything_else';
+        $request->session()->put($flowKey, $orderFlow);
+        if ($user && $conversationId) {
+            Cache::put($this->assistantStateCacheKey($user->id, $conversationId), $orderFlow, now()->addHours(24));
+        }
+    }
     // An empty cart can never be confirmed or placed. Keep the conversation
     // in the normal shopping stage instead of trusting a generic AI reply.
     if (empty($cartItems) && ($explicitCheckout

@@ -1209,7 +1209,7 @@ body:has(.ai-page) .mobile-main{width:100%;height:100dvh;padding:0!important}
 .ai-agent-stage{position:absolute;inset:66px 0 128px;min-height:0!important;display:block;padding:0 20px}
 .ai-agent-identity{position:absolute;z-index:5;top:6px;left:0;right:0;display:block;text-align:center}.ai-agent-name{margin:0;color:#2a3a51;font-size:23px;line-height:1.16;letter-spacing:-.6px;font-weight:500}.ai-agent-kicker{display:inline;font-weight:500}.ai-agent-kicker::after{content:'\A';white-space:pre}.ai-agent-name strong{color:#066fc2;font-weight:700}
 .ai-agent-state{position:absolute;z-index:6;top:50px;left:50%;width:max-content;min-height:0;margin:0;padding:7px 16px;transform:translateX(-50%);border:1px solid #75b7ec;border-radius:99px;background:#fff;color:#066fc2;box-shadow:0 3px 12px #2f87c51a;font-size:11px;font-weight:650;line-height:1}.ai-agent-state::before{content:'♧\00a0'}
-.ai-agent-character{position:absolute!important;z-index:2;left:50%!important;bottom:47px!important;width:240px!important;height:310px!important;margin:0!important;transform:translateX(-50%)!important;border:0;background:transparent;filter:drop-shadow(0 14px 12px #0d77ad22)}.ai-agent-character::before{display:none}.ai-agent-character img{width:100%;height:100%;object-fit:contain}
+.ai-agent-character{position:absolute!important;z-index:2;left:50%!important;bottom:47px!important;width:240px!important;height:310px!important;margin:0!important;transform:translateX(-50%) scale(.92)!important;transform-origin:center bottom!important;border:0;background:transparent;filter:drop-shadow(0 14px 12px #0d77ad22)}.ai-agent-character::before{display:none}.ai-agent-character img{width:100%;height:100%;object-fit:contain}
 .ai-hero-mic{position:absolute;z-index:7;left:50%;bottom:9px;width:auto;margin:0;transform:translateX(-50%)}.ai-hero-mic .ai-mic-btn{width:57px;height:57px;margin:0 auto 3px;border:5px solid #d5ecff;border-radius:50%;background:radial-gradient(circle at 35% 28%,#3cceff,#1679cc 56%,#005ea4);box-shadow:0 7px 17px #0075ce55;color:#fff}.ai-hero-mic .ai-mic-btn svg{display:none}.ai-hero-mic .ai-mic-btn::before{content:'♪';font-size:27px;font-weight:700}.ai-mic-status{display:block;color:#607086;font-size:10px;white-space:nowrap}.ai-agent-detail{display:none!important}
 .ai-agent-wave{position:absolute;z-index:3;left:50%;bottom:57px;width:240px;margin:0;transform:translateX(-50%);opacity:0}.ai-card[data-agent-state=listening] .ai-agent-wave,.ai-card[data-agent-state=speaking] .ai-agent-wave{opacity:.8}
 .ai-composer{position:absolute;z-index:10;left:0;right:0;bottom:0;min-height:128px;max-height:67%;display:flex;gap:8px;padding:0 20px 16px;overflow-y:auto;border:0;border-radius:21px 21px 0 0;background:#fff;box-shadow:0 -11px 34px #133d5922}.ai-composer::before{width:28px;height:4px;flex:0 0 4px;margin:8px auto 3px;background:#c5cbd1}
@@ -1419,11 +1419,70 @@ body:has(.ai-page){background:#edf2f5}
 .ai-card:has(.ai-live-preview-row) .ai-order-dock-copy span{font-size:10px!important}
 .ai-card:has(.ai-live-preview-row) .ai-order-dock-total{font-size:13px!important;min-width:88px!important}
 .ai-card:has(.ai-live-preview-row) .ai-order-dock-total::before{font-size:9px!important}
-.ai-card:has(.ai-live-preview-row) .ai-live-preview{max-height:174px!important;margin-top:2px!important}
+.ai-card:has(.ai-live-preview-row) .ai-live-preview{max-height:145px!important;margin-top:2px!important;overflow-y:auto!important;overscroll-behavior:contain!important}
 .ai-card:has(.ai-live-preview-row) .ai-live-preview-row{min-height:48px!important;padding:9px 3px!important}
 .ai-card:has(.ai-live-preview-row) .ai-live-preview-name{font-size:12px!important;line-height:1.35!important}
 .ai-card:has(.ai-live-preview-row) .ai-live-preview-qty{font-size:10px!important}
 .ai-card:has(.ai-live-preview-row) .ai-live-preview-price{font-size:12px!important}
+.ai-card:has(.ai-live-preview-row) .ai-agent-state{display:block!important;top:58px!important}
+.ai-order-dock.is-delivery-stage .ai-live-preview{display:none!important}
+/* Use the Live Order body as a temporary interaction surface. Once the
+   actionable row is removed after a successful choice, the cart rows return. */
+.ai-order-dock:has(.ai-order-interactions .ai-product-card) .ai-live-preview,
+.ai-order-dock:has(.ai-order-interactions [data-order-suggestions]) .ai-live-preview,
+.ai-order-dock:has(.ai-order-interactions [data-customer-care-call]) .ai-live-preview,
+.ai-order-dock:has(.ai-order-checkout.visible) .ai-live-preview{
+    display:none!important;
+}
+/* Keep product/help actions inside the sheet instead of letting them grow the
+   sheet and push the agent upward. This overrides the older `max-height:none`. */
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-order-interactions{
+    display:grid!important;
+    max-height:min(30dvh,210px)!important;
+    min-height:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain!important;
+    touch-action:pan-y!important;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+}
+.ai-order-dock:has(.ai-order-interactions .ai-product-card) .ai-order-interactions,
+.ai-order-dock:has(.ai-order-interactions [data-order-suggestions]) .ai-order-interactions{
+    height:min(30dvh,210px)!important;
+    align-content:start!important;
+}
+.ai-order-interactions > .ai-message-row{
+    min-height:min-content!important;
+    flex-shrink:0!important;
+}
+.ai-order-interactions .ai-message.assistant:has(.ai-product-card){
+    max-height:none!important;
+    overflow:visible!important;
+}
+.ai-card:has(.ai-order-interactions .ai-message-row) .ai-composer{
+    max-height:min(52dvh,360px)!important;
+}
+.ai-catalogue-trigger{position:absolute;z-index:18;top:31%;right:0;width:38px;height:58px;display:grid;place-items:center;padding:0;border:1px solid #b9dcf5;border-right:0;border-radius:16px 0 0 16px;background:#fff;color:#0879d9;box-shadow:0 6px 18px rgba(21,104,167,.17);cursor:pointer}
+.ai-catalogue-trigger svg{width:21px;height:21px}
+.ai-catalogue-panel{position:absolute;z-index:45;top:72px;right:5px;bottom:calc(var(--ai-sheet-height,176px) + 10px);width:min(58%,210px);display:flex;flex-direction:column;gap:8px;padding:10px;visibility:hidden;transform:translateX(110%);border:1px solid #d5e7f5;border-radius:17px;background:rgba(255,255,255,.97);box-shadow:-7px 5px 25px rgba(25,67,101,.18);transition:transform .24s ease,visibility .24s}
+.ai-catalogue-panel.open{visibility:visible;transform:translateX(0)}
+.ai-catalogue-head{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.ai-catalogue-heading{min-width:0;flex:1;display:grid;gap:2px;color:#102a43;font-size:12px;font-weight:800}
+.ai-catalogue-heading small{color:#718096;font-size:8px;font-weight:500;line-height:1.25}
+.ai-catalogue-close{width:28px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:#edf5fb;color:#17324d;font-size:19px;line-height:1;cursor:pointer}
+.ai-catalogue-search{width:100%;height:34px;flex:0 0 auto;padding:7px 9px;border:1px solid #d5e3ee;border-radius:9px;outline:0;color:#172b4d;font:inherit;font-size:10px}
+.ai-catalogue-search:focus{border-color:#1688df;box-shadow:0 0 0 3px rgba(22,136,223,.10)}
+.ai-catalogue-list{min-height:0;flex:1;display:grid;align-content:start;gap:8px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.ai-catalogue-item{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr);gap:7px;align-items:center;padding:6px;border:1px solid #e0eaf2;border-radius:10px;background:#f9fcff;color:#142b44;text-align:left;cursor:pointer}
+.ai-catalogue-image{width:34px;height:34px;border-radius:7px;background:#edf3f7;object-fit:contain}
+.ai-catalogue-copy{min-width:0;display:grid;gap:3px}
+.ai-catalogue-name{overflow:hidden;font-size:9px;font-weight:750;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+.ai-catalogue-meta{color:#708197;font-size:7px;line-height:1.25}
+.ai-catalogue-price{color:#0871c9;font-size:9px;font-weight:800}
+.ai-catalogue-empty{padding:28px 8px;color:#718096;font-size:11px;line-height:1.5;text-align:center}
+.ai-catalogue-scrim{position:absolute;z-index:44;inset:0;display:none;border:0;background:rgba(22,43,63,.16)}
+.ai-catalogue-scrim.open{display:none}
 /* The stage must clear the measured sheet height. `inset-bottom` is not a CSS
    property; use the real bottom inset so character and mic cannot be covered. */
 .ai-agent-stage{bottom:var(--ai-sheet-height,176px)!important}
@@ -1458,7 +1517,6 @@ body:has(.ai-page){background:#edf2f5}
                      width="1024" height="1024" alt="">
             </div>
             <div class="ai-agent-identity">
-                <div class="ai-agent-name"><span class="ai-agent-kicker">Shop effortlessly with</span> <strong>smart AI..</strong></div>
                 <span class="ai-agent-online">Online</span>
             </div>
             <div class="ai-mic-wrap ai-hero-mic">
@@ -1473,6 +1531,19 @@ body:has(.ai-page){background:#edf2f5}
                 <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
         </section>
+
+        <button class="ai-catalogue-trigger" type="button" id="aiCatalogueTrigger" aria-label="Open your price list" aria-controls="aiCataloguePanel" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+        </button>
+        <button class="ai-catalogue-scrim" type="button" id="aiCatalogueScrim" aria-label="Close price list"></button>
+        <aside class="ai-catalogue-panel" id="aiCataloguePanel" aria-hidden="true" aria-label="Your price list">
+            <div class="ai-catalogue-head">
+                <div class="ai-catalogue-heading">Your Price List<small>Tap a product, then tell AI the quantity</small></div>
+                <button class="ai-catalogue-close" type="button" id="aiCatalogueClose" aria-label="Close price list">&times;</button>
+            </div>
+            <input class="ai-catalogue-search" id="aiCatalogueSearch" type="search" placeholder="Search product..." autocomplete="off">
+            <div class="ai-catalogue-list" id="aiCatalogueList"><div class="ai-catalogue-empty">Loading your products...</div></div>
+        </aside>
 
         <section class="ai-history-panel" id="aiHistoryPanel" aria-hidden="true">
             <div class="ai-history-header">
@@ -1554,6 +1625,12 @@ body:has(.ai-page){background:#edf2f5}
         const orderDockCount = document.getElementById('aiOrderDockCount');
         const orderDockTotal = document.getElementById('aiOrderDockTotal');
         const livePreview = document.getElementById('aiLivePreview');
+        const catalogueTrigger = document.getElementById('aiCatalogueTrigger');
+        const cataloguePanel = document.getElementById('aiCataloguePanel');
+        const catalogueClose = document.getElementById('aiCatalogueClose');
+        const catalogueScrim = document.getElementById('aiCatalogueScrim');
+        const catalogueSearch = document.getElementById('aiCatalogueSearch');
+        const catalogueList = document.getElementById('aiCatalogueList');
         function syncChatClearance() {
             if (!composer || window.innerWidth > 640) return;
             const clearance = Math.ceil(composer.getBoundingClientRect().height + 10);
@@ -1616,9 +1693,47 @@ body:has(.ai-page){background:#edf2f5}
             panel.setAttribute('aria-hidden', 'true');
             panel.inert = true;
         }
+        let catalogueSearchTimer = null;
+        function renderCatalogueProducts(products) {
+            if (!catalogueList) return;
+            if (!products.length) {
+                catalogueList.innerHTML = '<div class="ai-catalogue-empty">Aapki price list mein matching product nahi mila.</div>';
+                return;
+            }
+            catalogueList.innerHTML = products.map(function (product) {
+                const image = product.image
+                    ? '<img class="ai-catalogue-image" src="' + escapeHtml(product.image) + '" alt="">'
+                    : '<span class="ai-catalogue-image"></span>';
+                return '<button class="ai-catalogue-item" type="button" data-catalogue-product="' + escapeHtml(product.name) + '">'
+                    + image + '<span class="ai-catalogue-copy"><span class="ai-catalogue-name">' + escapeHtml(product.name) + '</span>'
+                    + '<span class="ai-catalogue-meta">' + escapeHtml(product.unit || 'unit') + ' · Carton: ' + escapeHtml(product.carton_size || '-') + '</span>'
+                    + '<span class="ai-catalogue-price">' + money(product.price) + '</span></span></button>';
+            }).join('');
+        }
+        function loadCatalogueProducts(query) {
+            if (!catalogueList) return;
+            catalogueList.innerHTML = '<div class="ai-catalogue-empty">Loading your products...</div>';
+            fetch(productsUrl + '?catalogue=1&q=' + encodeURIComponent(query || ''), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(function (response) { if (!response.ok) throw new Error('Catalogue failed'); return response.json(); })
+                .then(function (data) { renderCatalogueProducts(data.products || []); })
+                .catch(function () { catalogueList.innerHTML = '<div class="ai-catalogue-empty">Price list load nahi hui. Dobara try kijiye.</div>'; });
+        }
+        function openCataloguePanel() {
+            openAccessiblePanel(cataloguePanel);
+            catalogueScrim?.classList.add('open');
+            catalogueTrigger?.setAttribute('aria-expanded', 'true');
+            loadCatalogueProducts(catalogueSearch?.value || '');
+            window.setTimeout(function () { catalogueSearch?.focus(); }, 240);
+        }
+        function closeCataloguePanel() {
+            closeAccessiblePanel(cataloguePanel, catalogueTrigger);
+            catalogueScrim?.classList.remove('open');
+            catalogueTrigger?.setAttribute('aria-expanded', 'false');
+        }
         historyPanel.inert = true;
         cartPanel.inert = true;
         deleteConfirm.inert = true;
+        if (cataloguePanel) cataloguePanel.inert = true;
         let pendingDeleteConversation = null;
         let historyDetailOpen = false;
         let openedHistoryConversation = null;
@@ -2246,7 +2361,11 @@ body:has(.ai-page){background:#edf2f5}
             if (!hasVisualContent) return wrap;
 
             chat.appendChild(wrap);
-            chat.parentElement.scrollTop = chat.parentElement.scrollHeight;
+            // The actionable UI has its own bounded scroll area. Keep the
+            // newest selection/enquiry fully reachable inside that area.
+            requestAnimationFrame(function () {
+                chat.scrollTop = chat.scrollHeight;
+            });
             return wrap;
         }
 
@@ -2597,8 +2716,8 @@ function appendTyping() {
         // parallel so the customer never sees a silent blank assistant.
         const instantWelcomeText = {!! json_encode('Namaste ' . (auth()->user()->name ?? 'there') . ' ji. Aap voice se ya text se order kar sakte hain. Aap naya order karna chahenge ya purana order?') !!};
         appendMessage('assistant', escapeHtml(instantWelcomeText));
-        // Most returning users have history. Do not start welcome DB + TTS
-        // requests until history confirms this is a new conversation.
+        // Load the greeting after bootstrap so every visit welcomes the user
+        // before hands-free listening starts, including restored conversations.
         let welcomePromise = null;
         function loadWelcome() {
             if (welcomePromise) return welcomePromise;
@@ -2653,9 +2772,11 @@ function appendTyping() {
                     if (html.trim()) appendMessage(message.role, html, message.time);
                 });
                 renderLiveOrderList();
-                finishWelcomeAndListen();
+                playWelcome().catch(finishWelcomeAndListen);
             })
-            .catch(finishWelcomeAndListen);
+            .catch(function () {
+                playWelcome().catch(finishWelcomeAndListen);
+            });
         // Safety attempt for browsers that block welcome audio autoplay and
         // therefore never fire the audio-ended callback.
         window.setTimeout(function () {
@@ -3129,6 +3250,7 @@ function appendTyping() {
             // older copy rather than leaving stale location/slot buttons in
             // the chat for the customer to tap again.
             clearAssistantDeliveryOptions();
+            orderDock?.classList.add('is-delivery-stage');
             let locationHtml = '';
             let slotHtml = '';
             const locations = Array.isArray(workflow.locations) ? workflow.locations : Object.values(workflow.locations || {});
@@ -3163,6 +3285,7 @@ function appendTyping() {
             // Invalidate the retry timer created by an earlier click before
             // replacing this screen with fresh server-verified choices.
             deliveryOptionRequestVersion++;
+            orderDock?.classList.remove('is-delivery-stage');
             chat?.querySelectorAll('[data-assistant-delivery-options]').forEach(function (options) {
                 const message = options.closest('.ai-message-row');
                 if (message) message.remove();
@@ -3588,6 +3711,11 @@ function appendTyping() {
 
         function renderLiveOrderList() {
             aiDebug('Loading live order list', {conversationId: conversationId, stage: activeOrderingStage});
+            if (activeOrderingStage !== 'customer_care_offer') {
+                chat?.querySelectorAll('[data-customer-care-call]').forEach(function (choice) {
+                    choice.closest('.ai-message-row')?.remove();
+                });
+            }
             return fetch(cartUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
                 .then(response => response.json()).then(function (data) {
                     aiDebug('Live order list loaded', {items: data.items, total: data.total, count: data.count});
@@ -4113,6 +4241,7 @@ function appendTyping() {
             }
             else if (button.dataset.customerCareCall) {
                 const wantsCall = button.dataset.customerCareCall === 'yes';
+                const customerCareMessage = button.closest('.ai-message-row');
                 if (wantsCall) {
                     // Stop rapid duplicate taps before the request returns.
                     const actions = button.closest('.ai-product-actions');
@@ -4121,6 +4250,10 @@ function appendTyping() {
                         choice.setAttribute('aria-busy', 'true');
                     });
                 }
+                // The choice has been made. Retire this temporary interaction
+                // immediately so the updated Live Order panel can return.
+                customerCareMessage?.remove();
+                syncChatClearance();
                 sendMessage(
                     wantsCall ? 'haan call laga do' : 'nahi yahin continue karo',
                     null,
@@ -4158,6 +4291,26 @@ function appendTyping() {
             }
         });
 
+        catalogueTrigger?.addEventListener('click', openCataloguePanel);
+        catalogueClose?.addEventListener('click', closeCataloguePanel);
+        catalogueScrim?.addEventListener('click', closeCataloguePanel);
+        catalogueSearch?.addEventListener('input', function () {
+            window.clearTimeout(catalogueSearchTimer);
+            catalogueSearchTimer = window.setTimeout(function () {
+                loadCatalogueProducts(catalogueSearch.value.trim());
+            }, 280);
+        });
+        catalogueList?.addEventListener('click', function (event) {
+            const product = event.target.closest('[data-catalogue-product]');
+            if (!product) return;
+            input.value = product.dataset.catalogueProduct + ' ';
+            closeCataloguePanel();
+            input.focus();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && cataloguePanel?.classList.contains('open')) closeCataloguePanel();
+        });
+
         document.querySelectorAll('.ai-action-btn[data-action]').forEach(function (button) {
             button.addEventListener('click', function () {
                 const action = button.getAttribute('data-action');
@@ -4174,6 +4327,7 @@ function appendTyping() {
                     awaitingNewOrderReady = false;
                     liveOrderEditable = false;
                     selectedDeliveryDetails = '';
+                    orderDock?.classList.remove('is-delivery-stage');
                     assistantOrderSubmitting = false;
                     assistantOrderCompleted = false;
                     customerCareDialUrl = '';
