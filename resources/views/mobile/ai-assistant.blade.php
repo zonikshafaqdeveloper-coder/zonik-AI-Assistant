@@ -2714,7 +2714,16 @@ function appendTyping() {
 
         // Render the first sentence immediately; network/TTS work continues in
         // parallel so the customer never sees a silent blank assistant.
-        const instantWelcomeText = {!! json_encode('Namaste ' . (auth()->user()->name ?? 'there') . ' ji. Aap voice se ya text se order kar sakte hain. Aap naya order karna chahenge ya purana order?') !!};
+        @php
+            $instantCustomerName = html_entity_decode(strip_tags((string) (auth()->user()->name ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $instantCustomerName = preg_replace('/[\p{C}\r\n\t]+/u', ' ', $instantCustomerName) ?? $instantCustomerName;
+            $instantCustomerName = preg_replace('/\s+/u', ' ', trim($instantCustomerName)) ?? trim($instantCustomerName);
+            $instantCustomerName = preg_replace('/^(?:(?:mr|mrs|ms|miss|dr|shri|smt)\.?\s+)+/iu', '', $instantCustomerName) ?? $instantCustomerName;
+            $instantCustomerName = preg_replace('/(?:\s+ji)+[.!]*$/iu', '', trim($instantCustomerName)) ?? trim($instantCustomerName);
+            $instantCustomerName = trim($instantCustomerName, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
+            $instantCustomerName = $instantCustomerName !== '' ? mb_substr($instantCustomerName, 0, 80) : 'Customer';
+        @endphp
+        const instantWelcomeText = @json('Namaste, ' . $instantCustomerName . ' ji! Zonik AI mein aapka swagat hai.');
         appendMessage('assistant', escapeHtml(instantWelcomeText));
         // Load the greeting after bootstrap so every visit welcomes the user
         // before hands-free listening starts, including restored conversations.

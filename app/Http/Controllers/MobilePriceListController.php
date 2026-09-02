@@ -780,13 +780,17 @@ public function completeAssistantConversation(Request $request)
 public function assistantWelcome(Request $request)
 {
     $user = $request->user();
-    $name = $user->name ?: 'there';
+    $name = $this->assistantWelcomeName((string) $user->name);
     $outlet = $this->getCurrentOutlet($user);
     $hasPreviousOrder = $outlet && Order::where('user_id', $user->id)
         ->where('outlet_id', $outlet->id)->exists();
-    $text = "Namaste {$name} ji. Aap voice se ya text se order kar sakte hain. Aap naya order karna chahenge ya purana order?";
+    $text = "Namaste, {$name} ji! Zonik AI mein aapka swagat hai. ";
+    $text .= $hasPreviousOrder
+        ? 'Aap naya order shuru kar sakte hain ya apna purana order repeat kar sakte hain. Bataiye, aaj kya karna chahenge?'
+        : 'Aap voice ya text se aasani se order de sakte hain. Shuru karne ke liye product ka naam aur quantity boliye.';
     return response()->json([
         'text' => $text,
+        'customer_name' => $name,
         'has_previous_order' => (bool) $hasPreviousOrder,
         // Text must render immediately; the browser requests speech in parallel.
         'voice_base64' => null,
@@ -3369,6 +3373,19 @@ private function assistantCompletedConversationKey(int $userId, string $conversa
     return 'ai-assistant:completed:' . $userId . ':' . hash('sha256', $conversationId);
 }
 
+private function assistantWelcomeName(string $name): string
+{
+    $name = html_entity_decode(strip_tags($name), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $name = preg_replace('/[\p{C}\r\n\t]+/u', ' ', $name) ?? $name;
+    $name = preg_replace('/\s+/u', ' ', trim($name)) ?? trim($name);
+    // Avoid awkward greetings such as "Mr Rahul ji" or "Rahul ji ji".
+    $name = preg_replace('/^(?:(?:mr|mrs|ms|miss|dr|shri|smt)\.?\s+)+/iu', '', $name) ?? $name;
+    $name = preg_replace('/(?:\s+ji)+[.!]*$/iu', '', trim($name)) ?? trim($name);
+    $name = trim($name, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
+
+    return $name !== '' ? mb_substr($name, 0, 80) : 'Customer';
+}
+
 private function normalizeAssistantSpeechText(string $text): string
 {
     $spoken = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -3442,7 +3459,7 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
     $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v2|' . $instruction . '|' . $normalized);
     $speech = trim((string) Cache::get($cacheKey, ''));
     if ($speech === '') {
-        $prompt = "Convert the following assistant reply into pronunciation-ready text for ElevenLabs multilingual text-to-speech. {$instruction} This is an active voice conversation: when asking the customer for a spoken answer, say the natural equivalent of 'boliye' or 'bataiye'; never tell them to type, send, message, or share their answer. Preserve the exact meaning and every verified product name, brand, flavour, quantity, price, address, date, slot, and payment term. Never translate or respell a product/brand name unless ordinary spacing clearly improves its pronunciation. Expand abbreviations naturally, keep sentences short with useful punctuation, and do not add, remove, or answer anything. Return only the speakable text.\nText: {$normalized}";
+        $prompt = "Convert the following assistant reply into pronunciation-ready text for ElevenLabs multilingual text-to-speech. {$instruction} This is an active voice conversation: when asking the customer for a spoken answer, say the natural equivalent of 'boliye' or 'bataiye'; never tell them to type, send, message, or share their answer. Preserve the exact meaning and every verified product name, brand, flavour, quantity, price, address, date, slot, and payment term. In a greeting, preserve the customer's exact name but phonetically transliterate a Roman-script personal name into the active native script so an Indian multilingual voice pronounces it naturally. Never translate or respell a product/brand name unless ordinary spacing clearly improves its pronunciation. Expand abbreviations naturally, keep sentences short with useful punctuation, and do not add, remove, or answer anything. Return only the speakable text.\nText: {$normalized}";
         $speech = trim((string) ($this->callGemini($prompt, 0.0, 220) ?? ''));
         if ($speech !== '') Cache::put($cacheKey, $speech, now()->addDays(7));
     }

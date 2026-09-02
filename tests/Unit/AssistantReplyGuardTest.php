@@ -728,6 +728,17 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertSame('नमस्ते जी. आप कौनसा product चाहिए बोलिए.', $speech);
     }
 
+    public function test_welcome_name_is_clean_and_does_not_repeat_honorifics(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantWelcomeName');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertSame('Rahul Sharma', $method->invoke($controller, "  Mr.  Rahul\nSharma ji  "));
+        $this->assertSame('Customer', $method->invoke($controller, "\n\t"));
+        $this->assertSame('Aarav & Sons', $method->invoke($controller, 'Aarav &amp; Sons'));
+    }
+
     public function test_voice_order_prompt_asks_customer_to_speak_instead_of_send(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantVoiceInstructions');
