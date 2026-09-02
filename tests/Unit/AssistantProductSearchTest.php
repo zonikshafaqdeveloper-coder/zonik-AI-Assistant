@@ -210,6 +210,24 @@ class AssistantProductSearchTest extends TestCase
         $this->assertSame(17, $response['state']['delivery_outlet_id']);
     }
 
+    public function test_spoken_position_variants_select_the_visible_delivery_location(): void
+    {
+        $locations = [
+            ['outlet_id' => 10, 'outlet_name' => 'Zohik', 'label' => 'Zohik - Assa nagar Mulund West'],
+            ['outlet_id' => 20, 'outlet_name' => 'AI Test', 'label' => 'AI Test - Mulund railway station East'],
+        ];
+        $method = new ReflectionMethod(MobilePriceListController::class, 'resolveAssistantDeliveryLocation');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        foreach (['first wala select karo', 'number one', 'left wala', 'पहला वाला'] as $message) {
+            $this->assertSame(10, $method->invoke($controller, $message, $locations)['outlet_id']);
+        }
+        foreach (['second wala select karo', 'number two', 'right wala', 'दूसरा वाला'] as $message) {
+            $this->assertSame(20, $method->invoke($controller, $message, $locations)['outlet_id']);
+        }
+    }
+
     public function test_cash_on_delivery_voice_variants_resolve_consistently(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantPaymentMethod');

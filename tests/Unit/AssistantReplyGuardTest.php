@@ -718,6 +718,16 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertStringContainsString('Indian English', $method->invoke($controller, 'Please show rice', 'English'));
     }
 
+    public function test_common_roman_hindi_words_are_made_pronunciation_safe_for_tts(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantHindiSpeechWords');
+        $method->setAccessible(true);
+
+        $speech = $method->invoke(new MobilePriceListController(), 'Namaste ji. Aap kaunsa product chahiye boliye.');
+
+        $this->assertSame('नमस्ते जी. आप कौनसा product चाहिए बोलिए.', $speech);
+    }
+
     public function test_voice_order_prompt_asks_customer_to_speak_instead_of_send(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantVoiceInstructions');

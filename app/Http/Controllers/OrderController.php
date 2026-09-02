@@ -264,7 +264,14 @@ public function exportDelivery()
             'order_id' => $order->order_id,
             'tracking_code' => $delivery->delivery_id,
         ];
-        if ($completedKey) Cache::put($completedKey, $orderResponse, now()->addDay());
+        if ($completedKey) {
+            Cache::put($completedKey, $orderResponse, now()->addDay());
+            Cache::put(
+                'ai-assistant:completed:' . $user->id . ':' . hash('sha256', $assistantToken),
+                true,
+                now()->addDays(30)
+            );
+        }
         if ($processingKey) Cache::forget($processingKey);
         return response()->json($orderResponse);
     }

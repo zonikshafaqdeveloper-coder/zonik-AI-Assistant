@@ -1650,6 +1650,7 @@ body:has(.ai-page){background:#edf2f5}
         const assistantCartQuantityBaseUrl = '{{ url('/assistant/cart') }}';
         const assistantCartSnapshotUrl = '{{ route('assistant.cart.snapshot') }}';
         const historyUrl = '{{ route('assistant.history') }}';
+        const completeConversationUrl = '{{ route('assistant.conversation.complete') }}';
         const selectionUrl = '{{ route('assistant.selection') }}';
         const transcribeUrl = '{{ route('assistant.transcribe') }}';
         const speakUrl = '{{ route('assistant.speak') }}';
@@ -3359,6 +3360,12 @@ function appendTyping() {
         function showAssistantOrderSuccess(data) {
             assistantOrderSubmitting = false;
             assistantOrderCompleted = true;
+            fetch(completeConversationUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({conversation_id: conversationId}),
+                keepalive: true
+            }).catch(function () {});
             document.querySelectorAll('[data-place-ai-order]').forEach(function (button) { button.disabled = true; button.remove(); });
             chat.querySelector('.ai-message.ai-typing')?.remove();
             cartShortcut.hidden = true;

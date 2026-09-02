@@ -490,6 +490,20 @@ public function assistantHistory(Request $request)
     // even though that list is not visible until the History panel is opened.
     if ($request->boolean('bootstrap')) {
         $latestConversationId = (clone $query)->latest('id')->value('conversation_id');
+
+        // A placed order closes the active assistant session. Keep its messages
+        // available in History, but never restore its cart/workflow on re-entry.
+        if ($latestConversationId && (
+            Cache::has($this->assistantCompletedConversationKey($user->id, $latestConversationId))
+            || Cache::has('assistant_order_done:' . $user->id . ':' . hash('sha256', $latestConversationId))
+        )) {
+            return response()->json([
+                'messages' => [],
+                'active_conversation_id' => null,
+                'active_workflow_state' => [],
+            ]);
+        }
+
         $latestMessages = collect();
         if ($latestConversationId) {
             $latestMessages = (clone $query)->where('conversation_id', $latestConversationId)
@@ -732,6 +746,35 @@ public function deleteAssistantConversation(Request $request, string $conversati
         ->delete();
 
     return response()->json(['success' => $deleted > 0]);
+}
+
+public function completeAssistantConversation(Request $request)
+{
+    $data = $request->validate([
+        'conversation_id' => ['required', 'string', 'max:255'],
+    ]);
+    $user = $request->user();
+    $outlet = $this->getCurrentOutlet($user);
+    $conversationId = $data['conversation_id'];
+    $belongsToUser = AiAssistantMessage::where('user_id', $user->id)
+        ->where('conversation_id', $conversationId)
+        ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
+        ->exists();
+
+    abort_unless($belongsToUser, 404);
+
+    Cache::put(
+        $this->assistantCompletedConversationKey($user->id, $conversationId),
+        true,
+        now()->addDays(30)
+    );
+    Cache::forget($this->assistantStateCacheKey($user->id, $conversationId));
+    $request->session()->forget([
+        'assistant_order_flow.' . $conversationId,
+        'assistant_resume_delivery.' . $conversationId,
+    ]);
+
+    return response()->json(['success' => true, 'completed' => true]);
 }
 
 public function assistantWelcome(Request $request)
@@ -1611,7 +1654,9 @@ public function assistantChat(Request $request)
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_update'])
         : ($isCartRequest
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
-        : (($isRecommendation || $isProductDiscovery || $selectedProductId || ($isQuantityReply && !empty($pendingProducts)))
+        : (($isRecommendation || $isProductDiscovery || $selectedProductId
+            || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
+            || ($isQuantityReply && !empty($pendingProducts)))
         ? array_merge($this->localAssistantIntent($message), ['search_query' => $isProductDiscovery ? $this->normalizeAssistantSearchText($message) : ''])
         : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)))));
     if ($isCartQuantityUpdate) {
@@ -3032,9 +3077,9 @@ private function resolveAssistantDeliveryLocation(string $message, array $locati
     if ($fullLabelMatches->count() === 1) return $fullLabelMatches->first();
 
     $positions = [
-        0 => '/\b(?:first|1st|pehla|pehli|pehle|pahla|pahli|upar)\b/iu',
-        1 => '/\b(?:second|2nd|dusra|doosra|dusri|doosri|another|other)\b/iu',
-        2 => '/\b(?:third|3rd|teesra|tisra|last|aakhri|akhri)\b/iu',
+        0 => '/(?:\b(?:first|1st|one|number\s*(?:one|1)|1\s*number|ek\s*(?:number|wala|wali)|pehla|pehli|pehle|pahla|pahli|upar|top|left)\b|पहला|पहली|एक\s*(?:नंबर|वाला|वाली)|ऊपर|बाय[ााँ])/iu',
+        1 => '/(?:\b(?:second|2nd|two|number\s*(?:two|2)|2\s*number|do\s*(?:number|wala|wali)|dusra|doosra|dusri|doosri|another|other|right)\b|दूसरा|दूसरी|दो\s*(?:नंबर|वाला|वाली)|दाय[ााँ])/iu',
+        2 => '/(?:\b(?:third|3rd|three|number\s*(?:three|3)|3\s*number|teen\s*(?:number|wala|wali)|teesra|tisra|teesri|tisri|last|aakhri|akhri)\b|तीसरा|तीसरी|तीन\s*(?:नंबर|वाला|वाली)|आखिरी)/iu',
     ];
     foreach ($positions as $index => $pattern) {
         if (preg_match($pattern, $needle) && isset($locations[$index])) return $locations[$index];
@@ -3100,9 +3145,9 @@ private function resolveAssistantDeliverySelection(string $message, array $deliv
     $slots = array_values($delivery['slots'] ?? []);
     if ($value === '' || empty($slots)) return null;
     $positions = [
-        0 => '/\b(?:first|1st|pehla|pehli|pehle|pahla|pahli|upar|top)\b/iu',
-        1 => '/\b(?:second|2nd|dusra|doosra|dusri|doosri|beech|middle)\b/iu',
-        2 => '/\b(?:third|3rd|teesra|tisra|teesri|tisri|last|aakhri|akhri|neeche|bottom)\b/iu',
+        0 => '/(?:\b(?:first|1st|one|number\s*(?:one|1)|1\s*number|ek\s*(?:number|wala|wali)|pehla|pehli|pehle|pahla|pahli|upar|top)\b|पहला|पहली|एक\s*(?:नंबर|वाला|वाली)|ऊपर)/iu',
+        1 => '/(?:\b(?:second|2nd|two|number\s*(?:two|2)|2\s*number|do\s*(?:number|wala|wali)|dusra|doosra|dusri|doosri|beech|middle)\b|दूसरा|दूसरी|दो\s*(?:नंबर|वाला|वाली)|बीच)/iu',
+        2 => '/(?:\b(?:third|3rd|three|number\s*(?:three|3)|3\s*number|teen\s*(?:number|wala|wali)|teesra|tisra|teesri|tisri|last|aakhri|akhri|neeche|bottom)\b|तीसरा|तीसरी|तीन\s*(?:नंबर|वाला|वाली)|आखिरी|नीचे)/iu',
     ];
     foreach ($positions as $index => $pattern) {
         if (preg_match($pattern, $value) && isset($slots[$index])) return $slots[$index];
@@ -3319,6 +3364,11 @@ private function assistantStateCacheKey(int $userId, string $conversationId): st
     return 'ai-assistant:state:' . $userId . ':' . hash('sha256', $conversationId);
 }
 
+private function assistantCompletedConversationKey(int $userId, string $conversationId): string
+{
+    return 'ai-assistant:completed:' . $userId . ':' . hash('sha256', $conversationId);
+}
+
 private function normalizeAssistantSpeechText(string $text): string
 {
     $spoken = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -3382,12 +3432,14 @@ private function normalizeAssistantSpeechText(string $text): string
 private function prepareAssistantTtsText(string $text, string $customerText = '', ?string $languageHint = null): string
 {
     $normalized = $this->normalizeAssistantSpeechText($text);
+    $instruction = $this->assistantTtsLanguageInstruction($customerText, $languageHint);
+    $isHindiSpeech = str_contains($instruction, 'Hinglish');
     if ($normalized === '' || empty(config('services.gemini.api_key'))) {
-        return $this->normalizeAssistantVoiceInstructions($normalized);
+        $fallbackSpeech = $this->normalizeAssistantVoiceInstructions($normalized);
+        return $isHindiSpeech ? $this->normalizeAssistantHindiSpeechWords($fallbackSpeech) : $fallbackSpeech;
     }
 
-    $instruction = $this->assistantTtsLanguageInstruction($customerText, $languageHint);
-    $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v1|' . $instruction . '|' . $normalized);
+    $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v2|' . $instruction . '|' . $normalized);
     $speech = trim((string) Cache::get($cacheKey, ''));
     if ($speech === '') {
         $prompt = "Convert the following assistant reply into pronunciation-ready text for ElevenLabs multilingual text-to-speech. {$instruction} This is an active voice conversation: when asking the customer for a spoken answer, say the natural equivalent of 'boliye' or 'bataiye'; never tell them to type, send, message, or share their answer. Preserve the exact meaning and every verified product name, brand, flavour, quantity, price, address, date, slot, and payment term. Never translate or respell a product/brand name unless ordinary spacing clearly improves its pronunciation. Expand abbreviations naturally, keep sentences short with useful punctuation, and do not add, remove, or answer anything. Return only the speakable text.\nText: {$normalized}";
@@ -3395,8 +3447,33 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
         if ($speech !== '') Cache::put($cacheKey, $speech, now()->addDays(7));
     }
 
-    if ($speech === '') return $this->normalizeAssistantVoiceInstructions($normalized);
-    return $this->normalizeAssistantVoiceInstructions($this->normalizeAssistantSpeechText($speech));
+    if ($speech === '') {
+        $speech = $this->normalizeAssistantVoiceInstructions($normalized);
+    } else {
+        $speech = $this->normalizeAssistantVoiceInstructions($this->normalizeAssistantSpeechText($speech));
+    }
+    return $isHindiSpeech ? $this->normalizeAssistantHindiSpeechWords($speech) : $speech;
+}
+
+private function normalizeAssistantHindiSpeechWords(string $speech): string
+{
+    // Multilingual voices occasionally read leftover Roman Hindi as English.
+    // Convert only the assistant's common conversational vocabulary; verified
+    // product and brand names remain untouched in their original script.
+    $words = [
+        'namaste' => 'नमस्ते', 'aap' => 'आप', 'aapka' => 'आपका', 'aapke' => 'आपके', 'aapki' => 'आपकी',
+        'main' => 'मैं', 'mujhe' => 'मुझे', 'yeh' => 'ये', 'ye' => 'ये', 'kya' => 'क्या',
+        'kaunsa' => 'कौनसा', 'kaunsi' => 'कौनसी', 'kitna' => 'कितना', 'kitni' => 'कितनी',
+        'chahiye' => 'चाहिए', 'hai' => 'है', 'hain' => 'हैं', 'hoon' => 'हूँ', 'nahi' => 'नहीं',
+        'haan' => 'हाँ', 'ji' => 'जी', 'theek' => 'ठीक', 'gaya' => 'गया', 'gayi' => 'गई', 'karo' => 'करो',
+        'kijiye' => 'कीजिए', 'boliye' => 'बोलिए', 'bataiye' => 'बताइए', 'dijiye' => 'दीजिए',
+        'lijiye' => 'लीजिए', 'dekhiye' => 'देखिए', 'chuniye' => 'चुनिए', 'ab' => 'अब',
+        'aur' => 'और', 'ya' => 'या', 'phir' => 'फिर', 'yahin' => 'यहीं', 'wapis' => 'वापस',
+    ];
+    foreach ($words as $roman => $devanagari) {
+        $speech = preg_replace('/(?<![\p{L}\p{N}])' . preg_quote($roman, '/') . '(?![\p{L}\p{N}])/iu', $devanagari, $speech) ?? $speech;
+    }
+    return trim($speech);
 }
 
 private function normalizeAssistantVoiceInstructions(string $speech): string
@@ -5024,19 +5101,16 @@ private function callGemini(string $prompt, float $temperature, int $maxOutputTo
     if ($this->assistantGeminiIsTemporarilyUnavailable()) return null;
 
     try {
-        // TLS negotiation can itself take several seconds on mobile-hosted or
-        // Windows/XAMPP deployments. Six seconds made healthy Gemini calls
-        // look unavailable and silently pushed the whole assistant onto its
-        // keyword fallback. Allow a realistic response window and retry only
-        // transient transport/server failures.
+        // Keep conversational AI responsive. Deterministic ordering fallbacks
+        // already handle provider/network failures, so one bounded attempt is
+        // better than making the customer wait through a second long request.
         $response = Http::withOptions([
-                'connect_timeout' => 8,
+                'connect_timeout' => 4,
                 // Windows/XAMPP can intermittently prefer an unusable IPv6
                 // resolver path and report cURL error 6 for healthy APIs.
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
             ])
-            ->timeout(25)
-            ->retry(2, 250)
+            ->timeout(12)
             ->withHeaders(['x-goog-api-key' => $apiKey])
             ->post('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', [
                 'contents' => [['parts' => [['text' => $prompt]]]],
@@ -5216,12 +5290,12 @@ private function buildVoiceReply(string $text): array
                 'voice_settings' => [
                     // Slightly slower, expressive pacing avoids a rushed or
                     // robotic delivery while keeping order details clear.
-                    'stability' => 0.68,
-                    'similarity_boost' => 0.75,
+                    'stability' => 0.76,
+                    'similarity_boost' => 0.78,
                     'style' => 0.02,
                     // Keep Hinglish clear, but avoid the noticeably slow
                     // delivery that makes a normal conversation feel delayed.
-                    'speed' => 0.96,
+                    'speed' => 0.92,
                     'use_speaker_boost' => true,
                 ],
                 'apply_text_normalization' => 'on',

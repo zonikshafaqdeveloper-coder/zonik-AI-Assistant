@@ -162,6 +162,7 @@ Route::post('/assistant/cart/{cartId}/quantity', [MobilePriceListController::cla
 Route::delete('/assistant/cart/{cartId}', [MobilePriceListController::class, 'assistantCartRemove'])->name('assistant.cart.remove');
 Route::delete('/assistant/cart', [MobilePriceListController::class, 'assistantCartClear'])->name('assistant.cart.clear');
 Route::get('/assistant/history', [MobilePriceListController::class, 'assistantHistory'])->name('assistant.history');
+Route::post('/assistant/conversation/complete', [MobilePriceListController::class, 'completeAssistantConversation'])->name('assistant.conversation.complete');
 Route::delete('/assistant/history/{conversationId}', [MobilePriceListController::class, 'deleteAssistantConversation'])->name('assistant.history.delete');
 Route::get('/assistant/welcome', [MobilePriceListController::class, 'assistantWelcome'])->name('assistant.welcome');
 Route::post('/assistant/onboarding-intent', [MobilePriceListController::class, 'assistantOnboardingIntent'])->name('assistant.onboarding-intent');
