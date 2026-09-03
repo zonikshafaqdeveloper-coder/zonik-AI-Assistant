@@ -3451,9 +3451,18 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
     $normalized = $this->normalizeAssistantSpeechText($text);
     $instruction = $this->assistantTtsLanguageInstruction($customerText, $languageHint);
     $isHindiSpeech = str_contains($instruction, 'Hinglish');
+    // Do not ask a generative model to rewrite Hinglish before speech. Even
+    // with a strict prompt it can occasionally paraphrase or omit a short
+    // word. Deterministic transliteration preserves the complete verified
+    // reply while giving the multilingual voice an Indian pronunciation.
+    if ($isHindiSpeech) {
+        return $this->normalizeAssistantHindiSpeechWords(
+            $this->normalizeAssistantVoiceInstructions($normalized)
+        );
+    }
     if ($normalized === '' || empty(config('services.gemini.api_key'))) {
         $fallbackSpeech = $this->normalizeAssistantVoiceInstructions($normalized);
-        return $isHindiSpeech ? $this->normalizeAssistantHindiSpeechWords($fallbackSpeech) : $fallbackSpeech;
+        return $fallbackSpeech;
     }
 
     $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v2|' . $instruction . '|' . $normalized);
@@ -3469,7 +3478,7 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
     } else {
         $speech = $this->normalizeAssistantVoiceInstructions($this->normalizeAssistantSpeechText($speech));
     }
-    return $isHindiSpeech ? $this->normalizeAssistantHindiSpeechWords($speech) : $speech;
+    return $speech;
 }
 
 private function normalizeAssistantHindiSpeechWords(string $speech): string
@@ -3486,6 +3495,16 @@ private function normalizeAssistantHindiSpeechWords(string $speech): string
         'kijiye' => 'कीजिए', 'boliye' => 'बोलिए', 'bataiye' => 'बताइए', 'dijiye' => 'दीजिए',
         'lijiye' => 'लीजिए', 'dekhiye' => 'देखिए', 'chuniye' => 'चुनिए', 'ab' => 'अब',
         'aur' => 'और', 'ya' => 'या', 'phir' => 'फिर', 'yahin' => 'यहीं', 'wapis' => 'वापस',
+        'mein' => 'में', 'me' => 'में', 'ka' => 'का', 'ki' => 'की', 'ke' => 'के', 'ko' => 'को',
+        'ho' => 'हो', 'kar' => 'कर', 'karna' => 'करना', 'diya' => 'दिया', 'do' => 'दो',
+        // Common Zonik workflow terms are normally spoken with an Indian
+        // pronunciation. Native-script phonetics prevent voices from saying
+        // "order" like American "arder" while brand names stay untouched.
+        'order' => 'ऑर्डर', 'orders' => 'ऑर्डर्स', 'cart' => 'कार्ट', 'product' => 'प्रोडक्ट',
+        'products' => 'प्रोडक्ट्स', 'quantity' => 'क्वांटिटी', 'delivery' => 'डिलीवरी',
+        'payment' => 'पेमेंट', 'checkout' => 'चेकआउट', 'customer' => 'कस्टमर',
+        'confirm' => 'कन्फर्म', 'confirmed' => 'कन्फर्म्ड', 'update' => 'अपडेट',
+        'updated' => 'अपडेटेड', 'total' => 'टोटल', 'price' => 'प्राइस', 'slot' => 'स्लॉट',
     ];
     foreach ($words as $roman => $devanagari) {
         $speech = preg_replace('/(?<![\p{L}\p{N}])' . preg_quote($roman, '/') . '(?![\p{L}\p{N}])/iu', $devanagari, $speech) ?? $speech;

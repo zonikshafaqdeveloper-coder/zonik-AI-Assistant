@@ -723,9 +723,27 @@ class AssistantReplyGuardTest extends TestCase
         $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantHindiSpeechWords');
         $method->setAccessible(true);
 
-        $speech = $method->invoke(new MobilePriceListController(), 'Namaste ji. Aap kaunsa product chahiye boliye.');
+        $speech = $method->invoke(new MobilePriceListController(), 'Namaste ji. Aap kaunsa product order karna chahiye boliye.');
 
-        $this->assertSame('नमस्ते जी. आप कौनसा product चाहिए बोलिए.', $speech);
+        $this->assertSame('नमस्ते जी. आप कौनसा प्रोडक्ट ऑर्डर करना चाहिए बोलिए.', $speech);
+    }
+
+    public function test_hinglish_tts_preserves_every_word_without_a_gemini_rewrite(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'prepareAssistantTtsText');
+        $method->setAccessible(true);
+
+        $speech = $method->invoke(
+            new MobilePriceListController(),
+            'Aapka order cart mein update ho gaya. Delivery slot confirm kijiye.',
+            'mera order dikhao',
+            'Hinglish'
+        );
+
+        $this->assertSame(
+            'आपका ऑर्डर कार्ट में अपडेट हो गया. डिलीवरी स्लॉट कन्फर्म कीजिए.',
+            $speech
+        );
     }
 
     public function test_welcome_name_is_clean_and_does_not_repeat_honorifics(): void
