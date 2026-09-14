@@ -171,9 +171,12 @@ class SmsService
         ->whereBetween('created_at', [$date, $now])
         ->count();
 
-    if ($otps > 5) {
-        return response()->json(['error' => 'Too many OTP requests. Please wait 5 minutes.']);
-    }
+	    if ($otps > 5) {
+	        return [
+	            'success' => false,
+	            'message' => 'Too many OTP requests. Please wait 5 minutes.',
+	        ];
+	    }
 
   
     $message = "Welcome To Zonik, $otp is your OTP for Zonik Log In (Infipara Solutions). Do not share this OTP with anyone. Enjoy Shopping!";
@@ -214,17 +217,24 @@ class SmsService
         CURLOPT_POSTFIELDS => json_encode($data),
     ]);
 
-    $response = curl_exec($ch);
-    curl_close($ch);
+	    $response = curl_exec($ch);
+	    $curlError = curl_error($ch);
+	    curl_close($ch);
 
+	    if ($curlError) {
+	        Log::warning('AiSensy OTP request failed', [
+	            'mobile' => $mobile,
+	            'error' => $curlError,
+	        ]);
+	    } else {
+	        Log::info('AiSensy OTP response received', [
+	            'mobile' => $mobile,
+	            'response' => $response,
+	        ]);
+	    }
 
-    file_put_contents('whatsapp_debug_log.txt', $response . PHP_EOL, FILE_APPEND);
-
-   
-    echo $response;
-
-    return $this->sendSMS($mobile, $message, $otp);
-}
+	    return $this->sendSMS($mobile, $message, $otp);
+	}
 
     // commnet on 17-10-25
 //       public function sendOtp($mobile)

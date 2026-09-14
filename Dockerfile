@@ -24,11 +24,12 @@ RUN apt-get update \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \
+        libcurl4-openssl-dev \
         libonig-dev \
         libxml2-dev \
         default-mysql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring zip exif pcntl bcmath gd \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring zip exif pcntl bcmath gd curl \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
