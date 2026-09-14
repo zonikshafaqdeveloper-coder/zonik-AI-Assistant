@@ -1430,57 +1430,44 @@ html.loading {
         }
 
 function sendOtp() {
-    var mobile = $('.mobile_number2').val();
+    var signupMobile = $('.mobile_number2').val().trim();
+    var loginMobile = $('.mobile_number3').val().trim();
+    var isLoginOtp = $('#loginModal').hasClass('show') && loginMobile !== '';
+    var mobile = isLoginOtp ? loginMobile : signupMobile;
+    var modalSelector = isLoginOtp ? '#loginModal' : '#locationModal';
 
-    if (mobile == '') {
-        mobile = $('.mobile_number3').val();
+    if (mobile.length !== 10) {
+        toastr.error('Please enter a valid 10-digit mobile number.');
+        return;
     }
 
-console.log(mobile.length);
-
-
-        if (mobile.length === 10) {
-            axios.get(`/customer/name/${mobile}`)
-                .then((res) => {
-                    if (res.data?.name) {
-                        axios.post('/customer/sendOtp', {
-                            mobile: mobile,
-                        }).then(function(response) {
-                            if (response.data) {
-                                toastr.success('OTP sent successfully');
-                                $('.otp-box').removeClass('d-none');
-                                $('.mobileBox').addClass('d-none');
-                            } else {
-                                toastr.error('Failed to send OTP');
-                            }
-                        }).catch(function(error) {
-                            console.error('Error:', error);
-                            toastr.error('Failed to send OTP');
-                        });
-                    }else{
-                        axios.post('/customer/sendOtp', {
-                            mobile: mobile,
-                        }).then(function(response) {
-                            if (response.data) {
-                                toastr.success('OTP sent successfully');
-                                $('.otp-box').removeClass('d-none');
-                                $('.mobileBox').addClass('d-none');
-                            } else {
-                                toastr.error('Failed to send OTP');
-                            }
-                        }).catch(function(error) {
-                            console.error('Error:', error);
-                            toastr.error('Failed to send OTP');
-                        });
-                    }
-                });
+    axios.post('/customer/sendOtp', {
+        mobile: mobile,
+    }).then(function(response) {
+        if (response.data) {
+            toastr.success('OTP sent successfully');
+            showOtpStep(modalSelector, mobile);
+        } else {
+            toastr.error('Failed to send OTP');
         }
+    }).catch(function(error) {
+        console.error('Error:', error);
+        toastr.error('Failed to send OTP');
+    });
+}
 
+function showOtpStep(modalSelector, mobile) {
+    var modal = $(modalSelector);
+    modal.find('.mobile_number_display').text(mobile);
+    modal.find('.mobileBox').addClass('d-none');
+    modal.find('.otp-box').removeClass('d-none').show();
 
-        $('.mobile_number_display').text(mobile);
-
-
-
+    setTimeout(function() {
+        var otpInput = modal.find('.otp-box input').first();
+        if (otpInput.length) {
+            otpInput.val('').trigger('focus');
+        }
+    }, 150);
 }
 
 
@@ -1891,6 +1878,17 @@ $('#loginModal').on('shown.bs.modal', function () {
     $('#mobile_number3').val('');
     $('#error-message').hide();
     $('#messageBox').html('');
+    $('#loginModal').find('.otp-box').addClass('d-none').hide();
+    $('#loginModal').find('.mobileBox').removeClass('d-none').show();
+    $('#email-login-tab').addClass('active').attr('aria-selected', 'true');
+    $('#otp-login-tab').removeClass('active').attr('aria-selected', 'false');
+    $('#email-login').addClass('show active');
+    $('#otp-login').removeClass('show active');
+});
+
+$('#locationModal').on('shown.bs.modal', function () {
+    $('#locationModal').find('.otp-box').addClass('d-none').hide();
+    $('#locationModal').find('.mobileBox').removeClass('d-none').show();
 });
 
 
