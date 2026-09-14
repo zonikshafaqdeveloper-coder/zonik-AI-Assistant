@@ -1,3 +1,13 @@
+FROM node:18-bookworm-slim AS assets
+
+WORKDIR /app
+
+COPY package.json package-lock.json webpack.mix.js ./
+COPY resources ./resources
+COPY public ./public
+RUN npm ci --no-audit --no-fund \
+    && npm run production
+
 FROM php:8.1-apache
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
@@ -23,22 +33,13 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-COPY --from=node:18-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:18-bookworm-slim /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node:18-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 COPY composer.json composer.lock ./
 COPY app ./app
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader --no-scripts
 
-COPY package.json package-lock.json webpack.mix.js ./
-COPY resources ./resources
-COPY public ./public
-RUN npm ci --no-audit --no-fund \
-    && npm run production \
-    && rm -rf node_modules
-
 COPY . .
+COPY --from=assets /app/public ./public
 
 RUN composer dump-autoload --optimize \
     && php artisan package:discover --ansi \
