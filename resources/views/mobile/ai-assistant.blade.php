@@ -1739,15 +1739,16 @@ body:has(.ai-page){background:#edf2f5}
         let openedHistoryConversation = null;
         let mediaRecorder = null;
         let accurateVoiceMode = false;
+        let serverTranscriptionUnavailable = false;
         let voiceCaptureStarting = false;
         let voiceSilenceTimer = null;
         let speechRecognition = null;
         let speechRecognitionRestartTimer = null;
         let speechRecognitionStartPending = false;
         let continuousTalkMode = false;
-        // Default to Indian English for voice input. Detected Hindi, Hinglish
-        // and every other supported language replace this after a message.
-        let conversationLanguage = 'en-IN';
+        // Product names and brands are mostly English while commands are
+        // Hinglish, so Indian English recognition is the safest default.
+        let conversationLanguage = 'hi-IN';
         let conversationReplyLanguage = 'hinglish';
         let audioChunks = [];
         let recordingTimer = null;
@@ -1769,6 +1770,7 @@ body:has(.ai-page){background:#edf2f5}
         let assistantOrderSubmitting = false;
         let assistantOrderCompleted = false;
         let cartPanelRequestVersion = 0;
+        let assistantChatRequestVersion = 0;
         let lastUserMessage = '';
         let welcomeGreetingFinished = false;
         let onboardingStage = 'choose_order';
@@ -2005,17 +2007,18 @@ body:has(.ai-page){background:#edf2f5}
             }, Math.max(150, Number(delay) || 250));
         }
 
-        function startAutoListening() {
+        async function startAutoListening() {
             setMicStatus('Starting…', 'processing');
-            window.setTimeout(function () {
+            window.setTimeout(async function () {
                 if (speechRecognition) return;
                 if (activeAssistantAudio || window.speechSynthesis?.speaking) {
-                    window.setTimeout(startAutoListening, 500);
+                    window.setTimeout(startAutoListening, 200);
                     return;
                 }
+                if (await startAccurateVoiceCapture()) return;
                 if (!startBrowserSpeechRecognition()) setMicStatus('Tap mic', 'idle');
             // Wait until the post-speech echo guard has cleared.
-            }, 1200);
+            }, 350);
         }
 
         function finishWelcomeAndListen() {
@@ -2055,6 +2058,7 @@ body:has(.ai-page){background:#edf2f5}
             // Marathi uses Devanagari too, so it must be identified before
             // the generic Hindi-script rule below. This also keeps browser
             // voice recognition on mr-IN for longer Marathi requests.
+            if (/(?:\u092e\u0932\u093e|\u092e\u093e\u091d|\u0924\u0941\u092e\u094d\u0939|\u0906\u092e\u094d\u0939|\u092a\u093e\u0939\u093f\u091c\u0947|\u0926\u094d\u092f\u093e|\u0906\u0939\u0947|\u0906\u0939\u0947\u0924|\u0928\u0915\u094b|\u0915\u093f\u0924\u0940|\u0915\u093e\u092f|\u0915\u0938\u093e|\u0915\u0936\u0940|\u0915\u094b\u0923\u0924|\u0939\u0935\u0947|\u0939\u0935\u0902|\u0915\u093e\u0930\u094d\u091f\u092e\u0927\u094d\u092f\u0947|\u0906\u0923\u0916\u0940|\u091d\u093e\u0932\u0947|\u091d\u093e\u0932\u0902|\u090f\u0935\u0922\u0947\u091a|\u0907\u0924\u0915\u0947\u091a|\u0928\u093f\u0936\u094d\u091a\u093f\u0924 \u0915\u0930\u093e)/u.test(text)) return 'marathi';
             if (/(?:मला|माझ|तुम्ह|आम्ह|पाहिजे|द्या|आहे|आहेत|नको|किती|काय|कसा|कशी|कोणत|हवे|हवं|कार्टमध्ये|आणखी|झाले|झालं|एवढेच|इतकेच|निश्चित करा)/u.test(text)) return 'marathi';
             if (/[஀-௿]/.test(text)) return 'tamil';
             if (/[ঀ-৿]/.test(text)) return 'bengali';
@@ -2089,7 +2093,9 @@ body:has(.ai-page){background:#edf2f5}
             const explicit = String(language || '').trim();
             const inferred = inferredAssistantLanguage(sampleText);
             const locale = localeForAssistantLanguage(explicit) || localeForAssistantLanguage(inferred);
-            if (locale) conversationLanguage = locale;
+            if (locale) {
+                conversationLanguage = locale;
+            }
             if (explicit) conversationReplyLanguage = explicit.toLowerCase();
             else if (inferred) conversationReplyLanguage = inferred;
             return locale;
@@ -2120,7 +2126,7 @@ body:has(.ai-page){background:#edf2f5}
         // remote intent request merely to start a fresh order.
         function isNewOrderIntent(value) {
             const message = String(value || '');
-            const latinPhrase = /\b(?:(?:new|fresh|naya|nayaa|nayi)(?:\s+(?:wala|ka))?(?:\s+order)?|order\s+(?:new|fresh|naya|nayaa|nayi)|(?:mai|main|me|hum|ham)\s+(?:new|fresh|naya|nayaa|nayi))\b/i;
+            const latinPhrase = /\b(?:(?:new|fresh|naya|nayaa|nayi)(?:\s+(?:wala|ka))?(?:\s+order)?|order\s+(?:new|fresh|naya|nayaa|nayi)|(?:mai|main|me|hum|ham)\s+(?:new|fresh|naya|nayaa|nayi)|in\s+the\s+game\s+(?:they\s+are\s+)?order(?:ing)?)\b/i;
             // Browser speech recognition uses hi-IN here, so it can return
             // Devanagari even when the customer speaks Hinglish. `\b` only
             // understands Latin word characters, hence the separate pattern.
@@ -2177,13 +2183,43 @@ body:has(.ai-page){background:#edf2f5}
             onboardingStage = null;
             awaitingNewOrderReady = false;
             previousOrdersVisible = false;
-            // Only clear the idle state. We never discard the cart or an
-            // in-progress checkout merely because the customer said "new".
-            if (!activeOrderingStage || activeOrderingStage === 'anything_else') activeOrderingStage = null;
-            const reply = 'Theek hai, product ka naam aur quantity saath mein boliye.';
-            appendMessage('assistant', escapeHtml(reply));
-            loadVoiceAsync(reply);
-            input.focus();
+            conversationId = window.crypto?.randomUUID ? window.crypto.randomUUID() : ('chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+            chat.innerHTML = '';
+            liveOrderMessage = null;
+            clarificationMessage = null;
+            activeOrderingStage = null;
+            activeOrderingProductId = null;
+            activeClarificationOptions = [];
+            activeCandidateSetId = '';
+            liveOrderEditable = false;
+            selectedDeliveryDetails = '';
+            orderDock?.classList.remove('is-delivery-stage');
+            assistantOrderSubmitting = false;
+            assistantOrderCompleted = false;
+            customerCareDialUrl = '';
+            lastCustomerCareDialAttemptAt = 0;
+            lastCustomerCareDialAttemptUrl = '';
+            if (orderCheckout) {
+                orderCheckout.innerHTML = '';
+                orderCheckout.classList.remove('visible');
+            }
+            setAgentUiState('executing', 'Starting fresh order...');
+            fetch(assistantCartBaseUrl, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({confirmed: true})
+            }).then(function (response) {
+                return assistantJsonResponse(response, 'Could not clear old order.');
+            }).catch(function () {
+                return null;
+            }).then(function () {
+                renderLiveOrderList();
+                setAgentUiState('ready', 'Fresh order ready.');
+                const reply = 'Theek hai, naya order shuru karte hain. Product ka naam aur quantity saath me boliye.';
+                appendMessage('assistant', escapeHtml(reply));
+                loadVoiceAsync(reply, startAutoListening);
+                input.focus();
+            });
         }
 
         function normalizeCatalogLanguage(text) {
@@ -2203,15 +2239,39 @@ body:has(.ai-page){background:#edf2f5}
             return { name: name, quantity: Math.max(1, Math.round(Number(quantity?.[0] || 1))), unit: unit?.[0] || 'unit' };
         }
 
+        function normalizeHindiNumberWords(text) {
+            return String(text || '')
+                .replace(/[\u0966-\u096F]/g, function (digit) { return String(digit.charCodeAt(0) - 0x0966); })
+                .replace(/(?:\u0936\u0942\u0928\u094d\u092f|\u0938\u0941\u0928\u094d\u092f)/g, '0')
+                .replace(/(?:\u090f\u0915|\u0907\u0915)/g, '1')
+                .replace(/(?:\u0926\u094b|\u0926\u094b\u0928)/g, '2')
+                .replace(/(?:\u0924\u0940\u0928)/g, '3')
+                .replace(/(?:\u091a\u093e\u0930)/g, '4')
+                .replace(/(?:\u092a\u093e\u0901\u091a|\u092a\u093e\u0902\u091a|\u092a\u093e\u091a)/g, '5')
+                .replace(/(?:\u091b\u0939|\u091b\u0903|\u0938\u0939\u093e)/g, '6')
+                .replace(/(?:\u0938\u093e\u0924)/g, '7')
+                .replace(/(?:\u0906\u0920)/g, '8')
+                .replace(/(?:\u0928\u094c|\u0928\u090a)/g, '9')
+                .replace(/(?:\u0926\u0938|\u0926\u0939\u093e)/g, '10');
+        }
+
         function normalizeSpokenQuantity(text) {
-            let result = String(text || '')
+            let result = normalizeHindiNumberWords(text)
                 .replace(/(?:सोनिक|ज़ोनिक|झोनिक)/g, 'zonik')
                 .replace(/\b(?:sonic|zonic|jonik|zone\s*ik|zo\s*nik)\b/gi, 'zonik')
+                .replace(/\bin\s+the\s+game\s+(?:they\s+are\s+)?order(?:ing)?\b/gi, 'new order')
+                .replace(/\b(?:apple\s+garden|american\s+apple\s+garden|american\s+gardens)\b/gi, 'American Garden')
+                .replace(/\b(?:jusice|jucie|juse|juce)\b/gi, 'juice')
+                .replace(/\b(?:cylinder|clinder|cyder)\b/gi, 'cider')
+                .replace(/\b(?:abel\s+agarwal|agarwal)\s+powder\b/gi, 'agar agar powder')
+                .replace(/\b(add|added|order|give|select|choose)\s+(?:curry|carry|kari|kerry|query)\b/gi, '$1 karo')
+                .replace(/\b(?:curry|carry|kari|kerry)\s+(?:do|please)\b/gi, 'karo')
                 .replace(/\b(?:fire|file|fife)\s*box(?:es)?\b/gi, '5 box')
                 .replace(/\b(?:fire|file|fife)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '5 $1')
+                .replace(/\b(?:dough|doe|though|to|too|two|do)\s*(packet|pack|carton|box|piece|pieces|pcs|kg|kgs|kilo|gram|litre|liter|ltr)\b/gi, '2 $1')
                 .replace(/\b(?:search|surge|church|turn|term|then|den|tan|tin)\s*box(?:es)?\b/gi, '10 box')
                 .replace(/\b(?:turn|term|then|den|tan|tin)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '10 $1');
-            const numbers = {zero:0, one:1, won:1, ek:1, two:2, to:2, too:2, do:2, three:3, tree:3, teen:3, four:4, for:4, char:4, chaar:4, five:5, fife:5, panch:5, paanch:5, six:6, che:6, chhe:6, seven:7, saat:7, eight:8, aath:8, nine:9, nau:9, ten:10, das:10};
+            const numbers = {zero:0, one:1, won:1, ek:1, two:2, to:2, too:2, do:2, three:3, tree:3, teen:3, four:4, for:4, char:4, chaar:4, five:5, fife:5, panch:5, paanch:5, paach:5, pach:5, paanchh:5, six:6, che:6, chhe:6, seven:7, saat:7, eight:8, aath:8, nine:9, nau:9, ten:10, das:10};
             const units = '(?=\\s*(?:boxes?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\\b)';
             Object.keys(numbers).forEach(function (word) {
                 result = result.replace(new RegExp('\\b' + word + '\\b' + units, 'gi'), String(numbers[word]));
@@ -2220,6 +2280,28 @@ body:has(.ai-page){background:#edf2f5}
                 if (new RegExp('^\\s*' + word + '\\s*$', 'i').test(result)) result = String(numbers[word]);
             });
             return result.replace(/\s+/g, ' ').trim();
+        }
+
+        function normalizeVoiceTranscriptForStage(text) {
+            let result = normalizeSpokenQuantity(text);
+            const value = result.toLowerCase().trim();
+            if ((activeOrderingStage === 'await_quantity' || activeOrderingStage === 'await_remove_quantity')
+                && !/\d/.test(value)) {
+                const quantityAliases = [
+                    [/^(?:by|buy|bye|why)\s+(?:the|da)$/i, '5'],
+                    [/^(?:five|fife|file|fire|fight|fine|hive|high|why|bye|by)$/i, '5'],
+                    [/^(?:panch|paanch|paach|pach|paanchh|punch|bunch|patch|pass|past|parts|batch|watch)$/i, '5'],
+                    [/^(?:to|too|do)$/i, '2'],
+                    [/^(?:tree|teen)$/i, '3'],
+                    [/^(?:for|four)$/i, '4'],
+                    [/^(?:sex|six)$/i, '6'],
+                    [/^(?:ate|eight)$/i, '8'],
+                    [/^(?:then|ten)$/i, '10']
+                ];
+                const match = quantityAliases.find(function (entry) { return entry[0].test(value); });
+                if (match) result = match[1];
+            }
+            return result;
         }
 
         function productCard(product, quantity, unit, label, requiresQuantity, workflowStage) {
@@ -2398,10 +2480,10 @@ function appendTyping() {
         function resumeListeningAfterReply() {
             if (!continuousTalkMode || speechRecognition) return;
             if (accurateVoiceMode) {
-                window.setTimeout(startAccurateVoiceCapture, 700);
+                window.setTimeout(startAccurateVoiceCapture, 350);
                 return;
             }
-            scheduleSpeechRecognitionRestart(1100);
+            scheduleSpeechRecognitionRestart(450);
         }
 
         function playNextAssistantAudio() {
@@ -2458,7 +2540,7 @@ function appendTyping() {
             // A server/transcriber detected locale is more accurate than a
             // broad Unicode-script guess for mixed text or Kanji-only text.
             const knownLocale = localeForAssistantLanguage(conversationReplyLanguage);
-            if (knownLocale && conversationReplyLanguage !== 'hinglish') {
+            if (knownLocale) {
                 utterance.lang = knownLocale;
             } else {
             if (/(झाले|आणखी|किती|हवे|कोणता|पर्याय|मध्ये)/u.test(cleanText)) utterance.lang = 'mr-IN';
@@ -2494,8 +2576,8 @@ function appendTyping() {
             }) || voices.find(function (voice) {
                 return String(voice.lang || '').toLowerCase() === requestedLanguage;
             }) || null;
-            utterance.rate = 0.92;
-            utterance.pitch = 0.84;
+            utterance.rate = 0.86;
+            utterance.pitch = 0.88;
             utterance.volume = 0.96;
             const finishBrowserSpeech = function () {
                 assistantSpeechEndedAt = Date.now();
@@ -2533,14 +2615,21 @@ function appendTyping() {
                 .replace(/\b([\d.]+)\s*%/gu, '$1 percent')
                 .replace(/\s*[×x]\s*/gu, ' times ')
                 .replace(/&/g, ' and ')
-                .replace(/\bZonik\b/giu, 'Zo-nik')
-                .replace(/\bAI\b/gu, 'A I')
+                .replace(/\bZonik\s+AI\b/giu, 'Zonik assistant')
+                .replace(/\bAI\b/gu, 'assistant')
                 .replace(/\bMRP\b/gu, 'M R P')
                 .replace(/\bGST\b/gu, 'G S T')
                 .replace(/\bUPI\b/gu, 'U P I')
                 .replace(/\bCOD\b/gu, 'C O D')
                 .replace(/\bSKU\b/gu, 'S K U')
                 .replace(/\bN\/?A\b/gu, 'not available')
+                .replace(/\b(?:bata\s*(?:dijiye|dijye|deejiye)|batadijiye|batadijye)\b/giu, 'bataiye')
+                .replace(/\b(?:bol\s*(?:dijiye|dijye|deejiye)|boldijiye|boldijye)\b/giu, 'boliye')
+                .replace(/\b(?:kar|select|choose|check|press|tap)\s+(?:dijiye|dijye|deejiye)\b/giu, '$1 kariye')
+                .replace(/\b(?:karungi|kar\s+rahi\s+hoon|dungi|lungi)\b/giu, function (word) {
+                    const map = {karungi: 'karunga', dungi: 'dunga', lungi: 'lunga'};
+                    return map[String(word).toLowerCase()] || 'kar raha hoon';
+                })
                 .replace(/([.!?])(?=[^\s])/g, '$1 ')
                 .replace(/\s+/g, ' ')
                 .trim();
@@ -2630,21 +2719,21 @@ function appendTyping() {
                     confirm_quantity: 'Quantity pending hai. Jab ready ho, confirm ya change bol dena.',
                     anything_else: 'Aap busy ho toh koi problem nahi. Baad mein yahin se order continue ho jayega.',
                     confirm_order: 'Order summary safe hai. Free hone par confirm karke delivery continue kar lena.',
-                    delivery_details: 'Cart safe hai. Jab free ho, delivery location aur slot select kar lena.',
+                    delivery_details: 'Cart safe hai. Jab free ho, selected outlet ke liye delivery slot select kar lena.',
                     payment_method: 'Order details safe hain. Free hone par payment option choose kar lena.',
                     checkout_ready: 'Order abhi submit nahi hua hai. Ready hone par Place Order button dabana.',
-                    customer_care_offer: 'Main yahin ruk rahi hoon. Free hone par call ya continue bol dena.'
+                    customer_care_offer: 'Main yahin ruk raha hoon. Free hone par call ya continue bol dena.'
                 };
                 return finalReminderByStage[activeOrderingStage] || 'Aap busy ho toh koi problem nahi. Free hone par yahin se continue kar lena.';
             }
             const remindersByStage = {
                 confirm_product: ['Jab ready ho, bas haan ya nahi bol dijiye—main isi product ke saath aage badh jaungi.', 'Koi jaldi nahi hai. Yeh product rakhna hai ya koi aur option dekhna hai?'],
                 clarify_product: ['Product ka naam ya brand bolkar saath mein cart mein add ya enquiry bol dijiye.', 'Kaunsa flavour chahiye aur usko cart mein add karna hai ya price enquiry bhejni hai?'],
-                await_quantity: ['Bas quantity bata dijiye, jaise 1, 2 ya 3—phir main add kar dungi.', 'Is product ki kitni quantity rakhni hai? Aap araam se bata dijiye.'],
-                confirm_quantity: ['Quantity confirm kar dijiye, phir main order list update kar dungi.', 'Jo quantity batayi thi, wahi rakhni hai ya change karni hai?'],
-                anything_else: ['Aur kuch chahiye ho toh bata dijiye. Nahi toh order confirm bol dijiye, main summary dikha dungi.', 'Main yahin hoon—kuch add karna hai, ya order summary ke liye confirm bolna hai?'],
-                confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir address aur delivery slot le lungi.', 'Order ready hai. Aapki haan milte hi next delivery details poochungi.'],
-                delivery_details: ['Delivery ke liye address ya location aur convenient slot bata dijiye.', 'Bas delivery details pending hain. Address aur time slot share kar dijiye, phir payment par aate hain.'],
+                await_quantity: ['Bas quantity bata dijiye, jaise 1, 2 ya 3—phir main add kar dunga.', 'Is product ki kitni quantity rakhni hai? Aap araam se bata dijiye.'],
+                confirm_quantity: ['Quantity confirm kar dijiye, phir main order list update kar dunga.', 'Jo quantity batayi thi, wahi rakhni hai ya change karni hai?'],
+                anything_else: ['Aur kuch chahiye ho toh bata dijiye. Nahi toh order confirm bol dijiye, main summary dikha dunga.', 'Main yahin hoon—kuch add karna hai, ya order summary ke liye confirm bolna hai?'],
+                confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir selected outlet ke slots dikha dunga.', 'Order ready hai. Aapki haan milte hi selected outlet ke delivery slots dikha dunga.'],
+                delivery_details: ['Selected outlet par delivery jayegi. Convenient slot choose kar lijiye.', 'Bas delivery slot pending hai. Slot confirm hote hi payment par aate hain.'],
                 payment_method: ['Payment ka option select kar dijiye, phir place order ka final button aa jayega.', 'Ab sirf payment method choose karna hai—online, delivery par, ya jo option dikh raha ho.'],
                 checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar raha hoon—Place Order button dabaiye.'],
                 customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.']
@@ -2833,7 +2922,7 @@ function appendTyping() {
             // the onboarding request so a slow/failed request can never put a
             // recognised phrase such as "main new order karunga" back into the
             // previous/new clarification loop.
-            if (!sendOptions.skipOrderChoice && (onboardingStage === 'choose_order' || onboardingStage === 'resolving_order') && isNewOrderIntent(intent)) {
+            if (!sendOptions.skipOrderChoice && isNewOrderIntent(intent)) {
                 input.value = '';
                 beginNewOrder();
                 return;
@@ -2992,7 +3081,7 @@ function appendTyping() {
             }
             if (false && !activeOrderingStage && /\b(checkout|place order)\b/.test(intent)) {
                 input.value = '';
-                appendMessage('assistant', 'Order complete karne ke liye pehle delivery location aur slot confirm kijiye. Main yahin se payment aur order placement complete karunga.');
+                appendMessage('assistant', 'Order complete karne ke liye selected outlet ka delivery slot confirm kijiye. Main yahin se payment aur order placement complete karunga.');
                 return;
             }
             if (false && !activeOrderingStage && /\b(delivery|slot)\b/.test(intent)) {
@@ -3021,6 +3110,9 @@ function appendTyping() {
             // dialer. On a real tap or Enter press, launch it in this same
             // synchronous event so mobile browser popup rules cannot force a
             // second tap on the phone number.
+            const turnVersion = ++assistantChatRequestVersion;
+            const turnId = conversationId + ':' + turnVersion + ':' + Date.now();
+            const turnTiming = {startedAt: performance.now()};
             const chatRequest = fetch(chatUrl, {
                 method: 'POST',
                 headers: {
@@ -3031,6 +3123,7 @@ function appendTyping() {
                 body: JSON.stringify({
                     message: text,
                     conversation_id: conversationId,
+                    turn_id: turnId,
                     selected_product_id: selectedProductId || activeOrderingProductId || null,
                     workflow_stage: activeOrderingStage || null,
                     clarification_options: activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
@@ -3055,10 +3148,25 @@ function appendTyping() {
                 return response.json();
             })
             .then(data => {
+                turnTiming.backendReturnedAt = performance.now();
+                if (turnVersion !== assistantChatRequestVersion) {
+                    aiDebug('Ignoring stale chat response', {
+                        turnId: turnId,
+                        responseTurnId: data.turn_id || null,
+                        currentVersion: assistantChatRequestVersion,
+                        staleVersion: turnVersion,
+                        backendMs: data.metrics?.backend_ms || null
+                    });
+                    removeTyping(typing);
+                    return;
+                }
                 aiDebug('Chat API response', {
+                    turnId: turnId,
                     reply: data.reply,
                     intent: data.intent,
                     workflow: data.workflow,
+                    backendMs: data.metrics?.backend_ms || null,
+                    roundTripMs: Math.round(turnTiming.backendReturnedAt - turnTiming.startedAt),
                     products: (data.products || []).map(function (product) {
                         return {id: product.id, name: product.name, requestedQuantity: product.requested_quantity};
                     }),
@@ -3213,6 +3321,10 @@ function appendTyping() {
                 }
             })
             .catch((error) => {
+                if (turnVersion !== assistantChatRequestVersion) {
+                    removeTyping(typing);
+                    return;
+                }
                 aiDebug('Chat API failed', {message: String(error), text: text, stage: requestStage});
                 removeTyping(typing);
                 sourceProductMessage?.querySelectorAll('button').forEach(function (choice) {
@@ -3264,7 +3376,7 @@ function appendTyping() {
             let slotHtml = '';
             const locations = Array.isArray(workflow.locations) ? workflow.locations : Object.values(workflow.locations || {});
             const slots = Array.isArray(workflow.slots) ? workflow.slots : Object.values(workflow.slots || {});
-            const selectedLocation = workflow.selected_location || null;
+            const selectedLocation = workflow.selected_location || workflow.current_location || (locations.length === 1 ? locations[0] : null);
 
             locations.forEach(function (location) {
                 const isSelected = selectedLocation && Number(selectedLocation.outlet_id) === Number(location.outlet_id);
@@ -3278,14 +3390,14 @@ function appendTyping() {
             });
 
             let html = '';
-            // Checkout is intentionally progressive: location first, then
-            // replace it with slots only after the server confirms location.
+            // The app already has a selected outlet. In the common single
+            // outlet case, skip address selection and go straight to slots.
             if (!selectedLocation && locationHtml) {
                 html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery location</span><div class="ai-checkout-choice-list">' + locationHtml + '</div></div>';
             } else if (selectedLocation && slotHtml) {
                 html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery slot</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
             }
-            if (!html) html = '<div class="ai-product-meta"><strong>Delivery options load nahi hue. Please location ka naam boliye ya dobara confirm kijiye.</strong></div>';
+            if (!html) html = '<div class="ai-product-meta"><strong>Delivery slot load nahi hua. Please dobara confirm kijiye.</strong></div>';
             replaceOrderCheckout('<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
             orderDock?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         }
@@ -3340,20 +3452,27 @@ function appendTyping() {
             let selection = {};
             try { selection = JSON.parse(decodeURIComponent(encoded)); } catch (error) {}
             appendTyping();
+            const readJsonResponse = function (response, fallbackMessage) {
+                return response.json().catch(function () { return {}; }).then(function (data) {
+                    if (!response.ok) throw new Error(data.message || fallbackMessage || 'Request failed');
+                    return data;
+                });
+            };
             fetch(assistantCheckoutDataUrl, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({delivery_details: selection.delivery_details || ''})})
-                .then(function (response) { if (!response.ok) return response.json().then(function (data) { throw new Error(data.message || 'Checkout data unavailable'); }); return response.json(); })
+                .then(function (response) { return readJsonResponse(response, 'Checkout data unavailable'); })
                 .then(function (data) {
                     const payload = data.payload;
                     const method = String(selection.payment_method || '').toLowerCase();
                     if (method.includes('online') || method.includes('upi') || method.includes('card') || method.includes('wallet')) {
+                        if (typeof Razorpay === 'undefined') throw new Error('Online payment abhi load nahi hua. Page refresh karke dobara try karein, ya Cash on Delivery choose karein.');
                         payload.payment_status = 'paid';
                         return fetch('/create-order', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || ''}, body: JSON.stringify(payload)})
-                            .then(function (response) { return response.json(); }).then(function (razorpayOrder) {
+                            .then(function (response) { return readJsonResponse(response, 'Online payment order create nahi hua'); }).then(function (razorpayOrder) {
                                 if (razorpayOrder.error) throw new Error(razorpayOrder.error);
                                 new Razorpay({key: razorpayOrder.razorpay_key || '{{ env('RAZORPAY_KEY') }}', amount: razorpayOrder.amount, currency: 'INR', name: 'Zonik', description: 'Order payment', order_id: razorpayOrder.order_id,
                                     handler: function (payment) {
                                         fetch('{{ route('razorpay.payment.success') }}', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify(payment)})
-                                            .then(function (response) { if (!response.ok) throw new Error('Payment verification failed'); return response.json(); })
+                                            .then(function (response) { return readJsonResponse(response, 'Payment verification failed'); })
                                             .then(showAssistantOrderSuccess).catch(function () { appendMessage('assistant', 'Payment verify nahi ho paya. Support se contact karein.'); });
                                     }}).open();
                             });
@@ -3362,7 +3481,7 @@ function appendTyping() {
                     const body = new URLSearchParams();
                     payload.assistant_order_token = conversationId;
                     Object.keys(payload).forEach(function (key) { if (key === 'cart') payload.cart.forEach(function (item, index) { Object.keys(item).forEach(function (field) { body.append('cart[' + index + '][' + field + ']', item[field] ?? ''); }); }); else body.append(key, payload[key] ?? ''); });
-                    return fetch('/insert-order', {method: 'POST', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: body}).then(function (response) { if (!response.ok) throw new Error('Order failed'); return response.json(); }).then(showAssistantOrderSuccess);
+                    return fetch('/insert-order', {method: 'POST', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: body}).then(function (response) { return readJsonResponse(response, 'Order failed'); }).then(showAssistantOrderSuccess);
                 }).catch(function (error) { assistantOrderSubmitting = false; document.querySelectorAll('[data-place-ai-order]').forEach(function (button) { button.disabled = false; }); chat.querySelector('.ai-message.ai-typing')?.remove(); appendMessage('assistant', escapeHtml(error.message || 'Order place nahi ho paya.')); });
         }
 
@@ -3415,24 +3534,29 @@ function appendTyping() {
             if (speechRecognition || speechRecognitionStartPending) return true;
             accurateVoiceMode = false;
             if (!fromContinuousMode) continuousTalkMode = true;
-            if (activeAssistantAudio || assistantAudioQueue.length || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 1000) {
-                const retryDelay = Math.max(250, 1050 - (Date.now() - assistantSpeechEndedAt));
+            if (activeAssistantAudio || assistantAudioQueue.length || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 450) {
+                const retryDelay = Math.max(150, 500 - (Date.now() - assistantSpeechEndedAt));
                 scheduleSpeechRecognitionRestart(retryDelay);
                 return true;
             }
             cancelSpeechRecognitionRestart();
             const recognition = new Recognition();
             speechRecognition = recognition;
-            recognition.lang = conversationLanguage;
+            recognition.lang = (activeOrderingStage === 'await_quantity' || activeOrderingStage === 'await_remove_quantity')
+                ? 'hi-IN'
+                : (conversationLanguage || 'en-IN');
             // Collect the complete sentence instead of submitting Chrome's
             // first short fragment as the customer's whole command.
             recognition.interimResults = true;
-            recognition.continuous = true;
+            recognition.continuous = false;
             recognition.maxAlternatives = 3;
             let receivedSpeech = false;
             let speechStartedAt = 0;
             let finalTranscript = '';
             let latestInterimTranscript = '';
+            let bestNumericTranscript = '';
+            let bestNumericScore = 0;
+            let finalizedResultIndexes = new Set();
             let finishListeningTimer = null;
             let bestConfidence = 0;
             const finishCurrentUtterance = function (delay) {
@@ -3449,31 +3573,40 @@ function appendTyping() {
             };
             recognition.addEventListener('start', cancelResponseReminder, {once: true});
             recognition.onresult = function (event) {
-                if (activeAssistantAudio || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 900) return;
-                finalTranscript = '';
+                if (activeAssistantAudio || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 350) return;
                 latestInterimTranscript = '';
-                for (let index = 0; index < event.results.length; index++) {
+                const firstChangedResult = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
+                for (let index = firstChangedResult; index < event.results.length; index++) {
                     const result = event.results[index];
                     const alternatives = Array.from(result);
                     const ranked = alternatives.map(function (alternative) {
-                        const normalized = normalizeSpokenQuantity(alternative.transcript);
+                        const normalized = normalizeVoiceTranscriptForStage(alternative.transcript);
                         let score = (alternative.confidence || 0) * 10;
-                        if (/\d+/.test(normalized)) score += 20;
+                        if (/\d+/.test(normalized)) score += (activeOrderingStage === 'await_quantity' || activeOrderingStage === 'await_remove_quantity') ? 80 : 20;
                         if (/\b(box(?:es)?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\b/i.test(normalized)) score += 10;
                         return {text: normalized, score: score, confidence: Number(alternative.confidence || 0)};
                     }).sort(function (a, b) { return b.score - a.score; });
                     const bestMatch = ranked[0];
                     if (!bestMatch?.text) continue;
                     bestConfidence = Math.max(bestConfidence, bestMatch.confidence);
-                    if (result.isFinal) finalTranscript += (finalTranscript ? ' ' : '') + bestMatch.text;
-                    else latestInterimTranscript += (latestInterimTranscript ? ' ' : '') + bestMatch.text;
+                    if (/\d/.test(bestMatch.text) && bestMatch.score >= bestNumericScore) {
+                        bestNumericTranscript = bestMatch.text;
+                        bestNumericScore = bestMatch.score;
+                    }
+                    if (result.isFinal) {
+                        if (finalizedResultIndexes.has(index)) continue;
+                        finalizedResultIndexes.add(index);
+                        finalTranscript += (finalTranscript ? ' ' : '') + bestMatch.text;
+                    } else {
+                        latestInterimTranscript += (latestInterimTranscript ? ' ' : '') + bestMatch.text;
+                    }
                 }
-                const heardText = normalizeSpokenQuantity((finalTranscript + ' ' + latestInterimTranscript).trim());
+                const heardText = normalizeVoiceTranscriptForStage((finalTranscript + ' ' + latestInterimTranscript).trim());
                 if (!heardText) return;
                 receivedSpeech = true;
                 setMicStatus('Listening…', 'listening');
                 aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript});
-                finishCurrentUtterance(finalTranscript ? 850 : 1400);
+                finishCurrentUtterance(finalTranscript ? 850 : 1250);
             };
             recognition.onerror = function (event) {
                 if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
@@ -3492,7 +3625,16 @@ function appendTyping() {
                 if (finishListeningTimer) window.clearTimeout(finishListeningTimer);
                 speechRecognition = null;
                 if (accurateVoiceMode) return;
-                const transcript = normalizeSpokenQuantity((finalTranscript || latestInterimTranscript).trim());
+                let transcript = normalizeVoiceTranscriptForStage((finalTranscript + ' ' + latestInterimTranscript).trim());
+                if (!/\d/.test(transcript)
+                    && /\d/.test(bestNumericTranscript)
+                    && (
+                        activeOrderingStage === 'await_quantity'
+                        || activeOrderingStage === 'await_remove_quantity'
+                        || /\b(box(?:es)?|packet|pack|carton|kg|kgs|kilo|gram|litre|liter|ltr|pcs?|pieces?|dozen|unit)\b/i.test(transcript)
+                    )) {
+                    transcript = normalizeVoiceTranscriptForStage(bestNumericTranscript);
+                }
                 const speechDuration = speechStartedAt ? Date.now() - speechStartedAt : 0;
                 if (receivedSpeech && transcript && !isLikelyBackgroundSpeech(transcript, bestConfidence, speechDuration, !!fromContinuousMode)) {
                     micBtn.classList.remove('listening');
@@ -3546,22 +3688,39 @@ function appendTyping() {
             form.append('audio', blob, 'voice-order.webm');
             const typing = appendTyping();
             fetch(transcribeUrl, {method: 'POST', headers: {'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'}, body: form})
-                .then(function (response) { if (!response.ok) throw new Error('Transcription failed'); return response.json(); })
-                .then(function (data) {
+                .then(function (response) { return response.json().then(function (data) { return {ok: response.ok, data: data}; }); })
+                .then(function (result) {
                     removeTyping(typing);
-                    if (!data.transcript) throw new Error('Empty transcript');
+                    if (!result.ok) throw new Error(result.data?.message || 'Transcription failed');
+                    const data = result.data || {};
+                    if (data.provider_unavailable) {
+                        serverTranscriptionUnavailable = true;
+                        accurateVoiceMode = false;
+                        setMicStatus('Browser voice mode', 'idle');
+                        browserSpeechFallback();
+                        return;
+                    }
+                    if (!data.transcript) {
+                        setMicStatus('Could not hear clearly', 'idle');
+                        if (continuousTalkMode && !activeAssistantAudio && !window.speechSynthesis?.speaking) {
+                            window.setTimeout(startAccurateVoiceCapture, 700);
+                        }
+                        return;
+                    }
                     applyDetectedLanguage(data.language, data.transcript);
                     sendMessage(data.transcript);
                 })
                 .catch(function () {
                     removeTyping(typing);
-                    const retryReply = 'Sorry, kya aap ek baar phir clearly bol sakte hain? Aap text bhi type kar sakte hain.';
-                    appendMessage('assistant', escapeHtml(retryReply));
-                    loadVoiceAsync(retryReply);
+                    serverTranscriptionUnavailable = true;
+                    accurateVoiceMode = false;
+                    setMicStatus('Browser voice mode', 'idle');
+                    browserSpeechFallback();
                 });
         }
 
         async function startAccurateVoiceCapture() {
+            if (serverTranscriptionUnavailable) return false;
             if (voiceCaptureStarting || mediaRecorder?.state === 'recording' || activeAssistantAudio || window.speechSynthesis?.speaking) return true;
             if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return false;
             voiceCaptureStarting = true;
@@ -3594,7 +3753,7 @@ function appendTyping() {
                         speechDetected = true;
                         lastVoiceAt = Date.now();
                     }
-                    if (speechDetected && Date.now() - lastVoiceAt > 1050 && Date.now() - startedAt > 700) {
+                    if (speechDetected && Date.now() - lastVoiceAt > 1050 && Date.now() - startedAt > 900) {
                         mediaRecorder.stop();
                         return;
                     }
@@ -3621,7 +3780,7 @@ function appendTyping() {
                     const recordedMime = mediaRecorder.mimeType || 'audio/webm';
                     mediaRecorder = null;
                     if (audioChunks.length && speechDetected) uploadRecordedAudio(new Blob(audioChunks, {type: recordedMime}));
-                    else if (continuousTalkMode) window.setTimeout(startAccurateVoiceCapture, 350);
+                    else if (continuousTalkMode) window.setTimeout(startAccurateVoiceCapture, 500);
                 };
                 mediaRecorder.start(200);
                 accurateVoiceMode = true;
@@ -3631,7 +3790,7 @@ function appendTyping() {
                 if (analyser) monitorSilence();
                 voiceSilenceTimer = window.setTimeout(function () {
                     if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
-                }, 12000);
+                }, 15000);
                 return true;
             } catch (error) {
                 accurateVoiceMode = false;
@@ -3649,8 +3808,9 @@ function appendTyping() {
                 stopAssistantAudio(true);
                 assistantSpeechEndedAt = 0;
                 continuousTalkMode = true;
-                window.setTimeout(function () {
-                    if (!startBrowserSpeechRecognition() && !voiceCaptureStarting) startAccurateVoiceCapture();
+                window.setTimeout(async function () {
+                    if (await startAccurateVoiceCapture()) return;
+                    if (!startBrowserSpeechRecognition()) setMicStatus('Tap mic', 'idle');
                 }, 120);
                 return;
             }
@@ -3667,13 +3827,10 @@ function appendTyping() {
                 mediaRecorder.stop();
                 return;
             }
-            // Use the browser's streaming speech recognizer first. It provides
-            // an immediate transcript even when the remote audio transcription
-            // service is slow or temporarily unreachable.
-            if (startBrowserSpeechRecognition()) return;
-            // Fall back to recorded-audio transcription on browsers that do
-            // not expose SpeechRecognition.
+            // Use recorded-audio transcription first because mixed Hindi and
+            // English product names are often misheard by browser recognition.
             if (await startAccurateVoiceCapture()) return;
+            if (startBrowserSpeechRecognition()) return;
             if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
                 browserSpeechFallback();
                 return;
@@ -4008,7 +4165,7 @@ function appendTyping() {
             activeClarificationOptions = [];
             activeCandidateSetId = '';
             renderLiveOrderList();
-            const reply = workflow.reply || 'Saved address aur delivery slot confirm kijiye.';
+            const reply = workflow.reply || 'Selected outlet ke liye delivery slot confirm kijiye.';
             appendMessage('assistant', escapeHtml(reply));
             renderAssistantDeliveryOptions(workflow);
             loadVoiceAsync(reply);
@@ -4097,7 +4254,7 @@ function appendTyping() {
                     setAgentUiState('ready');
 
                     if (nextStage === 'delivery_details') {
-                        const reply = next.reply || 'Saved address aur delivery slot confirm kijiye.';
+                        const reply = next.reply || 'Selected outlet ke liye delivery slot confirm kijiye.';
                         renderAssistantDeliveryOptions(next);
                         loadVoiceAsync(reply);
                     } else {
@@ -4330,28 +4487,7 @@ function appendTyping() {
             button.addEventListener('click', function () {
                 const action = button.getAttribute('data-action');
                 if (action === 'fresh') {
-                    conversationId = window.crypto?.randomUUID ? window.crypto.randomUUID() : ('chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
-                    chat.innerHTML = '';
-                    liveOrderMessage = null;
-                    clarificationMessage = null;
-                    activeOrderingStage = null;
-                    activeOrderingProductId = null;
-                    activeClarificationOptions = [];
-                    activeCandidateSetId = '';
-                    previousOrdersVisible = false;
-                    awaitingNewOrderReady = false;
-                    liveOrderEditable = false;
-                    selectedDeliveryDetails = '';
-                    orderDock?.classList.remove('is-delivery-stage');
-                    assistantOrderSubmitting = false;
-                    assistantOrderCompleted = false;
-                    customerCareDialUrl = '';
-                    lastCustomerCareDialAttemptAt = 0;
-                    lastCustomerCareDialAttemptUrl = '';
-                    setAgentUiState('idle');
-                    const freshReply = @json('Hi ' . (auth()->user()->name ?? 'there') . '! I am ready for a new order. Tell me the first item.');
-                    loadVoiceAsync(freshReply, startAutoListening);
-                    input.focus();
+                    beginNewOrder();
                 } else if (action === 'history') {
                     openHistoryList();
                 } else {
