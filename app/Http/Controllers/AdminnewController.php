@@ -1178,7 +1178,7 @@ $preShortLogMonth = DB::table('pre_material_short_logs')
 {
     $credentials = $request->only('email', 'password');
 
-    if (Auth::guard('admin')->attempt($credentials)) {
+    if (Auth::guard('admin')->attempt($credentials, true)) {
         $request->session()->regenerate(); 
         return redirect('dashboardd');
     }

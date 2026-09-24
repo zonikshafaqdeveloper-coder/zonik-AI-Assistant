@@ -83,7 +83,7 @@ class CustomerAuthController extends Controller
         $userExists = User::where('mobile_number', $request->mobile)->first();
 
         if ($userExists) {
-            Auth::login($userExists);
+            Auth::login($userExists, true);
             return response()->json([
                 'success' => true,
                 'message' => 'Logged in successfully.',
@@ -114,7 +114,7 @@ class CustomerAuthController extends Controller
                 ]
             );
 
-            Auth::login($user);
+            Auth::login($user, true);
 
             $url = route('edit-customer', ['id' => $user->id], false);
 
@@ -164,7 +164,7 @@ class CustomerAuthController extends Controller
             ], 404);
         }
 
-        Auth::login($userExists);
+        Auth::login($userExists, true);
 
         return response()->json([
             'success' => true,
@@ -236,7 +236,7 @@ class CustomerAuthController extends Controller
         }
     
         // Log the customer in
-        Auth::login($customer);
+        Auth::login($customer, true);
     
         return response()->json([
             'success' => true,
@@ -301,7 +301,7 @@ public function resetPassword(Request $request)
     $user->save();
 
     
-    Auth::login($user);
+    Auth::login($user, true);
 
     
     return response()->json(['success' => true, 'message' => 'Password updated successfully.']);

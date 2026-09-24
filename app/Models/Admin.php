@@ -19,7 +19,8 @@ class Admin extends Authenticatable
     ];
 
     protected $hidden = [
-        'password'
+        'password',
+        'remember_token',
     ];
 
     // If you are using plain text password now (not recommended),
