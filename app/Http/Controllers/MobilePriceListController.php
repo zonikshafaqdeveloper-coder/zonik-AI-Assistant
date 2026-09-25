@@ -1677,6 +1677,20 @@ public function assistantChat(Request $request)
         $intent['intent'] = 'product_search';
         if (trim((string) ($intent['search_query'] ?? '')) === '') $intent['search_query'] = $message;
     }
+    if (!$isRecommendation
+        && ($looksLikeProductRequest || $isQuantityProductUtterance || $isProductDiscovery)
+        && !empty(config('services.gemini.api_key'))
+        && !Cache::has('gemini_assistant_rate_limited')
+        && !Cache::has('gemini_assistant_auth_unavailable')
+        && !Cache::has('gemini_assistant_model_unavailable')
+        && !Cache::has('gemini_assistant_network_unavailable')) {
+        $semanticIntent = $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow);
+        if (($semanticIntent['intent'] ?? '') === 'product_search'
+            && trim((string) ($semanticIntent['search_query'] ?? '')) !== '') {
+            $intent = array_merge($intent, $semanticIntent);
+            $intent['intent'] = 'product_search';
+        }
+    }
     // The main semantic analysis returns all requested products. This covers
     // every language without relying on an English/Hinglish conjunction such
     // as "and" or "aur" before the batch-order path is allowed to run.
@@ -1753,6 +1767,16 @@ public function assistantChat(Request $request)
     if (!$isRecommendation && $intent['intent'] === 'product_search' && empty($productHints)) {
         $productHints = $this->findAssistantApprovedAlternatives($intent['search_query'] ?: $message, $outlet);
         $approvedAlternatives = !empty($productHints);
+    }
+    if (!$isRecommendation && ($intent['intent'] ?? '') === 'product_search' && !empty($productHints)) {
+        $guardedHints = $this->assistantFilterProductsByRequestedType($productHints, $rawMessage);
+        if (!empty($guardedHints)) {
+            $productHints = $guardedHints;
+        } elseif ($this->assistantRequestedProductType($rawMessage) !== '') {
+            $productHints = [];
+            $approvedAlternatives = false;
+            $catalogSuggestions = false;
+        }
     }
     if ($selectedProductId) {
         $selected = collect($pendingProducts)->first(fn ($product) => (int) ($product['id'] ?? 0) === $selectedProductId);
@@ -4690,7 +4714,7 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
     $history = empty($recentMessages) ? 'None' : implode("\n", $recentMessages);
     $cartContext = empty($cartItems) ? 'Cart is empty' : json_encode($cartItems, JSON_UNESCAPED_UNICODE);
     $workflowSummary = json_encode($this->assistantSemanticWorkflowContext($workflowContext), JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Understand ANY language, writing system, dialect, mixed language, word order, grammar, spelling, and speech-to-text error. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent) and unit. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
+    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Understand ANY language, writing system, dialect, mixed language, word order, grammar, spelling, and speech-to-text error. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent) and unit. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -4921,6 +4945,62 @@ private function findAssistantApprovedAlternatives(string $message, ?User $outle
         }
     }
     return array_values($alternatives);
+}
+
+private function assistantRequestedProductType(string $message): string
+{
+    $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
+    $types = [
+        'milk' => ['milk', 'doodh', 'dudh', 'paal'],
+        'butter' => ['butter', 'makkhan'],
+        'ghee' => ['ghee'],
+        'cheese' => ['cheese'],
+        'paneer' => ['paneer'],
+        'curd' => ['curd', 'dahi', 'yogurt', 'yoghurt'],
+        'juice' => ['juice', 'jus'],
+        'water' => ['water'],
+        'bread' => ['bread'],
+    ];
+    foreach ($types as $type => $needles) {
+        foreach ($needles as $needle) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($needle, '/') . '(?![a-z0-9])/iu', $q)) return $type;
+        }
+    }
+    return '';
+}
+
+private function assistantFilterProductsByRequestedType(array $products, string $requestText): array
+{
+    $type = $this->assistantRequestedProductType($requestText);
+    if ($type === '') return $products;
+
+    $rules = [
+        'milk' => [
+            'allow' => ['milk', 'taaza', 'taza', 'gold', 'slim', 'trim', 'toned', 'homogenised', 'homogenized', 'cow', 'buffalo'],
+            'deny' => ['butter', 'ghee', 'cheese', 'paneer', 'curd', 'dahi', 'yogurt', 'yoghurt', 'lassi'],
+        ],
+        'butter' => ['allow' => ['butter'], 'deny' => ['milk', 'ghee', 'cheese', 'paneer', 'curd', 'yogurt']],
+        'ghee' => ['allow' => ['ghee'], 'deny' => ['milk', 'butter', 'cheese', 'paneer', 'curd', 'yogurt']],
+        'cheese' => ['allow' => ['cheese'], 'deny' => ['milk', 'butter', 'ghee', 'paneer', 'curd', 'yogurt']],
+        'paneer' => ['allow' => ['paneer'], 'deny' => ['milk', 'butter', 'ghee', 'cheese', 'curd', 'yogurt']],
+        'curd' => ['allow' => ['curd', 'dahi', 'yogurt', 'yoghurt'], 'deny' => ['milk', 'butter', 'ghee', 'cheese', 'paneer']],
+        'juice' => ['allow' => ['juice', 'jus', 'nectar', 'drink'], 'deny' => ['milk', 'butter', 'ghee', 'cheese', 'paneer', 'curd']],
+        'water' => ['allow' => ['water'], 'deny' => ['juice', 'milk', 'butter']],
+        'bread' => ['allow' => ['bread'], 'deny' => ['butter', 'milk', 'cheese']],
+    ];
+    $rule = $rules[$type] ?? null;
+    if (!$rule) return $products;
+
+    return array_values(array_filter($products, function ($product) use ($rule) {
+        $text = mb_strtolower(trim((string) ($product['brand'] ?? '') . ' ' . (string) ($product['name'] ?? '') . ' ' . (string) ($product['unit'] ?? '')));
+        foreach ($rule['deny'] as $deny) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($deny, '/') . '(?![a-z0-9])/iu', $text)) return false;
+        }
+        foreach ($rule['allow'] as $allow) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($allow, '/') . '(?![a-z0-9])/iu', $text)) return true;
+        }
+        return false;
+    }));
 }
 
 private function findAssistantProducts(string $message, ?User $outlet, bool $includeGlobalCatalogue = false): array
