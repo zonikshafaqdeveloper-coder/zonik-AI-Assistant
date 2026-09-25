@@ -1577,6 +1577,18 @@ body:has(.ai-page){background:#edf2f5}
             </div>
         </div>
 
+        <div class="ai-confirm-overlay" id="aiClearCartConfirm" role="dialog" aria-modal="true" aria-labelledby="aiClearCartConfirmTitle" aria-hidden="true">
+            <div class="ai-confirm-box">
+                <div class="ai-confirm-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/><path d="M10 11h6"/></svg></div>
+                <h3 id="aiClearCartConfirmTitle">Clear order?</h3>
+                <p>Remove all items from this order list?</p>
+                <div class="ai-confirm-actions">
+                    <button class="ai-confirm-btn" type="button" id="aiClearCartCancel">Cancel</button>
+                    <button class="ai-confirm-btn delete" type="button" id="aiClearCartConfirmButton">Clear All</button>
+                </div>
+            </div>
+        </div>
+
         <div class="ai-composer" id="aiComposer">
             <div class="ai-order-dock visible is-empty" role="button" tabindex="0" id="aiOrderDock" aria-label="Open live order">
                 <span class="ai-order-dock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.4 10.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 8H6"/></svg></span>
@@ -1678,6 +1690,9 @@ body:has(.ai-page){background:#edf2f5}
         const deleteConfirm = document.getElementById('aiDeleteConfirm');
         const deleteCancel = document.getElementById('aiDeleteCancel');
         const deleteConfirmButton = document.getElementById('aiDeleteConfirmButton');
+        const clearCartConfirm = document.getElementById('aiClearCartConfirm');
+        const clearCartCancel = document.getElementById('aiClearCartCancel');
+        const clearCartConfirmButton = document.getElementById('aiClearCartConfirmButton');
         function openAccessiblePanel(panel) {
             if (!panel) return;
             panel.inert = false;
@@ -1733,8 +1748,10 @@ body:has(.ai-page){background:#edf2f5}
         historyPanel.inert = true;
         cartPanel.inert = true;
         deleteConfirm.inert = true;
+        clearCartConfirm.inert = true;
         if (cataloguePanel) cataloguePanel.inert = true;
         let pendingDeleteConversation = null;
+        let clearCartConfirmed = false;
         let historyDetailOpen = false;
         let openedHistoryConversation = null;
         let mediaRecorder = null;
@@ -2320,6 +2337,11 @@ body:has(.ai-page){background:#edf2f5}
             deleteConfirmButton.textContent = 'Confirm Delete';
             closeAccessiblePanel(deleteConfirm, historyButton);
         }
+        function closeClearCartConfirm() {
+            clearCartConfirmButton.disabled = false;
+            clearCartConfirmButton.textContent = 'Clear All';
+            closeAccessiblePanel(clearCartConfirm, cartClear);
+        }
         deleteCancel?.addEventListener('click', closeDeleteConfirm);
         deleteConfirm?.addEventListener('click', function (event) { if (event.target === deleteConfirm) closeDeleteConfirm(); });
         deleteConfirmButton?.addEventListener('click', function () {
@@ -2332,6 +2354,14 @@ body:has(.ai-page){background:#edf2f5}
                 .then(function () { closeDeleteConfirm(); openHistoryList(); })
                 .catch(function () { deleteConfirmButton.textContent = 'Try Again'; })
                 .finally(function () { deleteConfirmButton.disabled = false; if (deleteConfirmButton.textContent !== 'Try Again') deleteConfirmButton.textContent = 'Confirm Delete'; });
+        });
+        clearCartCancel?.addEventListener('click', closeClearCartConfirm);
+        clearCartConfirm?.addEventListener('click', function (event) { if (event.target === clearCartConfirm) closeClearCartConfirm(); });
+        clearCartConfirmButton?.addEventListener('click', function () {
+            clearCartConfirmed = true;
+            clearCartConfirmButton.disabled = true;
+            clearCartConfirmButton.textContent = 'Clearing...';
+            cartClear?.click();
         });
         historyContinue?.addEventListener('click', function () {
             if (!openedHistoryConversation) return;
@@ -2392,6 +2422,7 @@ function appendTyping() {
         let lastVoiceRequestAt = 0;
         let lastSubmittedCommandKey = '';
         let lastSubmittedCommandAt = 0;
+        let lastVoiceUnavailableNoticeAt = 0;
         let voiceProviderMode = 'auto';
         let elevenLabsRetryAt = 0;
         function useBrowserVoiceTemporarily() {
@@ -2403,6 +2434,12 @@ function appendTyping() {
             setAgentUiState('idle');
             resumeListeningAfterReply();
             if (typeof onEnded === 'function') onEnded();
+        }
+        function showVoiceUnavailableNotice() {
+            const now = Date.now();
+            if (now - lastVoiceUnavailableNoticeAt < 60000) return;
+            lastVoiceUnavailableNoticeAt = now;
+            appendMessage('assistant', '<div class="ai-product-meta"><strong>ElevenLabs voice credit/API unavailable hai.</strong><br>Text reply continue rahega aur mic active rahega.</div>');
         }
         function resumeListeningAfterReply() {
             if (!continuousTalkMode || speechRecognition) return;
@@ -2582,6 +2619,7 @@ function appendTyping() {
                 completed = true;
                 if (controller) controller.abort();
                 console.info('ElevenLabs audio timed out; browser TTS disabled.');
+                showVoiceUnavailableNotice();
                 finishSpeechWithoutBrowser(onEnded);
             }, fallbackAfterMs);
             fetch(speakUrl, {
@@ -2608,6 +2646,7 @@ function appendTyping() {
                 }
                 else {
                     console.info('ElevenLabs unavailable; browser TTS disabled.');
+                    showVoiceUnavailableNotice();
                     finishSpeechWithoutBrowser(onEnded);
                 }
             }).catch(function () {
@@ -2615,6 +2654,7 @@ function appendTyping() {
                 completed = true;
                 window.clearTimeout(requestTimeout);
                 console.info('ElevenLabs request failed; browser TTS disabled.');
+                showVoiceUnavailableNotice();
                 finishSpeechWithoutBrowser(onEnded);
             });
         }
@@ -3986,7 +4026,11 @@ function appendTyping() {
             input.focus();
         });
         cartClear?.addEventListener('click', function () {
-            if (!window.confirm('Remove all items from this order?')) return;
+            if (!clearCartConfirmed) {
+                openAccessiblePanel(clearCartConfirm);
+                return;
+            }
+            clearCartConfirmed = false;
             setAgentUiState('executing', 'Clearing your live order…');
             fetch(assistantCartBaseUrl, {
                 method: 'DELETE',
@@ -3995,10 +4039,13 @@ function appendTyping() {
             }).then(function (response) {
                 return assistantJsonResponse(response, 'Could not clear your order.');
             }).then(function () {
+                closeClearCartConfirm();
                 setAgentUiState('ready', 'Your live order is empty.');
                 renderLiveOrderList();
                 openCartPanel();
             }).catch(function (error) {
+                clearCartConfirmButton.disabled = false;
+                clearCartConfirmButton.textContent = 'Try Again';
                 setAgentUiState('error', error.message || 'Your live order was not changed.');
             });
             if (orderCheckout) {
