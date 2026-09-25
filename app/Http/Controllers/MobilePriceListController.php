@@ -1053,12 +1053,7 @@ public function assistantCheckoutData(Request $request)
     $cart = Cart::with('product')->where('user_id', $user->id)->where('outlet_id', $outlet->id)->get();
     $kyc = $outlet->kycdocuments()->first();
     $delivery = $this->assistantDeliveryChoices($outlet);
-    $chosenLocation = collect($delivery['locations'])->first(fn ($location) =>
-        str_contains(mb_strtolower($data['delivery_details']), mb_strtolower((string) ($location['label'] ?? '')))
-    );
-    $deliveryOutlet = $chosenLocation
-        ? User::where('priority', $user->id)->where('type', 'outlet')->where('id', $chosenLocation['outlet_id'])->first()
-        : $outlet;
+    $deliveryOutlet = $outlet;
     $deliveryKyc = $deliveryOutlet?->kycdocuments()->first() ?: $kyc;
     $shipping = trim(($deliveryKyc?->outlet_address ?? '') . ' - ' . ($deliveryKyc?->outlet_pincode ?? ''), ' -');
     $billing = trim(($kyc?->billing_address ?? '') . ' - ' . ($kyc?->billing_pincode ?? ''), ' -');
@@ -1644,6 +1639,7 @@ public function assistantChat(Request $request)
     $isCartRemove = $this->isAssistantCartRemoveRequest($message);
     $isProductDiscovery = $this->isAssistantProductDiscoveryRequest($message);
     $looksLikeProductRequest = $this->looksLikeAssistantProductRequest($message);
+    $isQuantityProductUtterance = $this->isAssistantQuantityProductUtterance($message);
     // When a customer interrupts a soft prompt (for example with another
     // product or a Zonik question), give the semantic layer the verified
     // workflow summary. It can then understand the latest message without
@@ -1658,10 +1654,10 @@ public function assistantChat(Request $request)
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_update'])
         : ($isCartRequest
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
-        : (($isRecommendation || $isProductDiscovery || $selectedProductId
+        : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance
             || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
             || ($isQuantityReply && !empty($pendingProducts)))
-        ? array_merge($this->localAssistantIntent($message), ['search_query' => $isProductDiscovery ? $this->normalizeAssistantSearchText($message) : ''])
+        ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest) ? $this->assistantLocalProductSearchQuery($message) : ''])
         : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)))));
     if ($isCartQuantityUpdate) {
         // In a correction such as "500 nahi, 1 chahiye, 1 kardo", the first
@@ -2475,13 +2471,13 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
                 return $this->assistantDeliverySlotPaymentResponse($user, $outlet, $selectedLocation, $delivery, $selectedSlot);
             }
 
-            return ['reply' => ($selectedLocation['outlet_name'] ?? 'Location') . ' delivery location select ho gayi. Ab preferred slot choose kijiye.', 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots'], 'selected_location' => $selectedLocation], 'state' => ['stage' => 'delivery_details', 'selected_location' => $selectedLocation]];
+            return ['reply' => 'Delivery selected outlet ke saved address par jayegi. Ab preferred slot choose kijiye.', 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots'], 'selected_location' => $delivery['selected_location'] ?? $selectedLocation], 'state' => ['stage' => 'delivery_details', 'selected_location' => $delivery['selected_location'] ?? $selectedLocation]];
         }
         $selectedSlot = $this->resolveAssistantDeliverySelectionSemantically($message, $delivery);
         if (!$selectedSlot) {
             $contextReply = trim((string) ($understanding['assistant_reply'] ?? ''));
             if ($this->assistantReplyClaimsUnverifiedMutation($contextReply)) $contextReply = '';
-            $nextPrompt = empty($delivery['slots']) ? 'Ab delivery location choose kijiye.' : 'Ab valid delivery slot choose kijiye.';
+            $nextPrompt = empty($delivery['slots']) ? 'Selected outlet address ke liye delivery slot available nahi mila. Please admin se check kijiye.' : 'Ab valid delivery slot choose kijiye.';
             $reply = $contextReply !== '' ? $contextReply . ' ' . $nextPrompt : $nextPrompt;
             return ['reply' => $reply, 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots'], 'selected_location' => $flow['selected_location'] ?? null], 'state' => $flow];
         }
@@ -2559,7 +2555,7 @@ private function assistantDeliverySlotPaymentResponse(?User $user, ?User $outlet
     $deliveryDetails = trim(($location !== '' ? $location . ', ' : '') . trim((string) ($selectedSlot['label'] ?? '')));
 
     return [
-        'reply' => 'Delivery slot confirm ho gaya. Payment method choose kijiye.',
+        'reply' => 'Delivery slot confirm ho gaya. Order selected outlet ke saved address par jayega. Payment method choose kijiye.',
         'products' => [],
         'workflow' => [
             'stage' => 'payment_method',
@@ -2981,32 +2977,18 @@ private function assistantDeliveryChoices(?User $outlet, ?int $deliveryOutletId 
 {
     $locations = [];
     $slots = [];
-    if (!$outlet) return ['reply' => 'Delivery location aur preferred slot bataiye.', 'locations' => [], 'slots' => []];
-    $parentId = (int) ($outlet->priority ?: $outlet->id);
-    $availableOutlets = User::with('kycdocuments')->where('priority', $parentId)
-        ->where('type', 'outlet')
-        ->where(function ($query) {
-            $query->whereNull('status')->orWhereRaw('LOWER(status) != ?', ['inactive']);
-        })->get()
-        ->filter(fn ($availableOutlet) => $availableOutlet->kycdocuments->isNotEmpty());
-    if ($availableOutlets->isEmpty()) $availableOutlets = collect([$outlet->loadMissing('kycdocuments')]);
-    foreach ($availableOutlets as $availableOutlet) {
-        $locationKyc = $availableOutlet->kycdocuments->first();
-        $locationAddress = trim((string) ($locationKyc?->outlet_address ?? ''));
-        if ($locationAddress === '') $locationAddress = trim((string) ($availableOutlet->location ?? ''));
-        $locationPincode = trim((string) ($locationKyc?->outlet_pincode ?? ''));
-        if ($locationPincode === '') $locationPincode = trim((string) ($availableOutlet->pincode ?? ''));
-        if ($locationAddress !== '') $locations[] = [
-            'outlet_id' => (int) $availableOutlet->id,
-            'outlet_name' => $availableOutlet->outlet_name ?: $availableOutlet->name,
-            'label' => trim(($availableOutlet->outlet_name ?: $availableOutlet->name) . ' - ' . $locationAddress . ($locationPincode !== '' ? ' - ' . $locationPincode : ''), ' -'),
-            'pincode' => $locationPincode,
-        ];
-    }
-    $slotOutlet = $availableOutlets->firstWhere('id', $deliveryOutletId ?: $outlet->id) ?: $outlet;
+    if (!$outlet) return ['reply' => 'Delivery ke liye selected outlet ka address use hoga. Preferred slot choose kijiye.', 'locations' => [], 'slots' => [], 'selected_location' => null];
+    $slotOutlet = $outlet->loadMissing('kycdocuments');
     $kyc = $slotOutlet->kycdocuments->first();
     $address = trim((string) ($kyc?->outlet_address ?? $slotOutlet->location ?? ''));
     $pincode = trim((string) ($kyc?->outlet_pincode ?? $slotOutlet->pincode ?? ''));
+    $selectedLocation = [
+        'outlet_id' => (int) $slotOutlet->id,
+        'outlet_name' => $slotOutlet->outlet_name ?: $slotOutlet->name,
+        'label' => trim(($slotOutlet->outlet_name ?: $slotOutlet->name) . ' - ' . $address . ($pincode !== '' ? ' - ' . $pincode : ''), ' -'),
+        'pincode' => $pincode,
+    ];
+    if ($selectedLocation['label'] !== '') $locations[] = $selectedLocation;
     $pincodeData = $pincode !== '' ? Pincode::where('pincode', $pincode)->first() : null;
     $zone = $pincodeData?->zone_id ? ZoneProcessing::find($pincodeData->zone_id) : null;
     if ($zone && strtolower((string) $zone->status) === 'active') {
@@ -3027,17 +3009,10 @@ private function assistantDeliveryChoices(?User $outlet, ?int $deliveryOutletId 
             if ($zone->week_day_slot) $slots[] = ['date' => $tomorrow->copy()->addDay()->toDateString(), 'label' => $tomorrow->copy()->addDay()->format('j M, l') . ' - ' . $zone->week_day_slot];
         }
     }
-    if (count($locations) > 1 && $deliveryOutletId === null) {
-        $slots = [];
-        $locationNames = collect($locations)->values()->map(fn ($location, $index) =>
-            ($index + 1) . '. ' . ($location['outlet_name'] ?: $location['label'])
-        )->implode(', ');
-        $reply = 'Delivery ke liye pehle location choose kijiye: ' . $locationNames . '.';
-    }
-    elseif ($locations && $slots) $reply = 'Aapki saved location mil gayi. Delivery isi location par chahiye? Neeche preferred slot choose kar lijiye.';
-    elseif ($locations) $reply = 'Aapki saved location mil gayi. Delivery isi address par chahiye? Preferred slot bataiye.';
-    else $reply = 'Delivery ke liye location aur preferred slot bataiye.';
-    return ['reply' => $reply, 'locations' => $locations, 'slots' => array_slice($slots, 0, 3)];
+    if ($locations && $slots) $reply = 'Delivery selected outlet ke saved address par jayegi: ' . $selectedLocation['label'] . '. Ab preferred slot choose kijiye.';
+    elseif ($locations) $reply = 'Delivery selected outlet ke saved address par jayegi: ' . $selectedLocation['label'] . '. Preferred slot bataiye.';
+    else $reply = 'Delivery selected outlet ke address par jayegi. Preferred slot choose kijiye.';
+    return ['reply' => $reply, 'locations' => $locations, 'slots' => array_slice($slots, 0, 3), 'selected_location' => $selectedLocation];
 }
 
 private function resolveAssistantDeliveryLocationSemantically(string $message, array $locations): ?array
@@ -3051,7 +3026,7 @@ private function resolveAssistantDeliveryLocationSemantically(string $message, a
     ])->filter(fn ($location) => $location['outlet_id'] > 0 && $location['label'] !== '')->values()->all();
     if (empty($safeLocations)) return null;
 
-    $prompt = "The customer is choosing one saved delivery location from the verified list below. Understand any language, script, dialect, transliteration, and position words. Match only an outlet_id shown in the list; never infer a new address. Set matched false if the message is not a unique location selection. Return structured data only.\nLocations: "
+    $prompt = "The customer may mention the selected outlet's saved delivery address while choosing checkout details. Understand any language, script, dialect, transliteration, and position words. Match only an outlet_id shown in the list; never infer a new address. Set matched false if the message is not a unique match for the selected outlet address. Return structured data only.\nLocations: "
         . json_encode($safeLocations, JSON_UNESCAPED_UNICODE)
         . "\nCustomer: {$message}";
     $schema = ['type' => 'OBJECT', 'properties' => [
@@ -3465,6 +3440,13 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
         return $fallbackSpeech;
     }
 
+    if (Cache::has('gemini_assistant_rate_limited')
+        || Cache::has('gemini_assistant_auth_unavailable')
+        || Cache::has('gemini_assistant_model_unavailable')
+        || Cache::has('gemini_assistant_network_unavailable')) {
+        return $this->normalizeAssistantVoiceInstructions($normalized);
+    }
+
     $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v2|' . $instruction . '|' . $normalized);
     $speech = trim((string) Cache::get($cacheKey, ''));
     if ($speech === '') {
@@ -3588,7 +3570,7 @@ private function assistantResolveRememberedCheckout(?User $user, ?User $outlet, 
         return [
             'reply' => $slotQuery !== ''
                 ? 'Requested delivery time available nahi hai. Latest verified slot choose kijiye.'
-                : (($selectedLocation['outlet_name'] ?? 'Delivery address') . ' select ho gaya. Ab preferred slot choose kijiye.'),
+                : 'Delivery selected outlet ke saved address par jayegi. Ab preferred slot choose kijiye.',
             'products' => [],
             'workflow' => ['stage' => 'delivery_details', 'locations' => $locations,
                 'slots' => $verifiedDelivery['slots'] ?? [], 'selected_location' => $selectedLocation],
@@ -3667,7 +3649,7 @@ private function answerAssistantTemporaryQuestion(string $message, array $flow, 
         $answer = empty($labels) ? 'Ji, available payment methods checkout par dikhaye jayenge.' : 'Ji, available payment methods hain: ' . implode(', ', $labels) . '.';
     } elseif (preg_match('/\b(?:delivery|slot|kab milega)\b/iu', $lower)) {
         $delivery = $this->assistantDeliveryChoices($outlet);
-        $answer = empty($delivery['slots']) ? 'Ji, valid delivery slot location confirm karne ke baad milega.' : 'Ji, available delivery slots location selection ke saath dikhaye jayenge.';
+        $answer = empty($delivery['slots']) ? 'Ji, selected outlet ke address ke liye abhi valid delivery slot nahi mila.' : 'Ji, selected outlet ke address ke available delivery slots checkout par dikhaye jayenge.';
     } else {
         $answer = $this->assistantConversationReply($message, $user, $outlet, $recentMessages, $cartItems);
     }
@@ -3688,7 +3670,7 @@ private function assistantResumePrompt(array $flow): string
         'anything_else' => 'Ab order continue karein—aur koi product chahiye?',
         'confirm_order' => 'Ab current order summary confirm kar dijiye.',
         'order_suggestions' => 'Suggested products mein se kuch add karna hai, ya delivery continue karein?',
-        'delivery_details' => 'Ab delivery location aur slot selection continue karein.',
+        'delivery_details' => 'Ab selected outlet address ke liye delivery slot selection continue karein.',
         'payment_method' => 'Ab payment method selection continue karein.',
     ][$stage] ?? 'Ab hum wahi order continue karte hain.';
 }
@@ -4045,7 +4027,7 @@ private function assistantVerifiedProductQuestion(string $message, ?User $user, 
         $reply = 'Verified Live Order subtotal â‚¹' . number_format($subtotal, 2)
             . ', GST â‚¹' . number_format($gst, 2)
             . ', aur current estimated total â‚¹' . number_format($subtotal + $gst, 2)
-            . ' hai. Exact delivery, packing aur final payable total delivery location aur slot select karne ke baad backend confirm karega.';
+            . ' hai. Exact delivery, packing aur final payable total delivery slot select karne ke baad backend confirm karega.';
         return array_merge($base, ['reply' => $reply, 'workflow' => ['stage' => 'account_answer', 'show_cart' => true]]);
     }
 
@@ -4358,7 +4340,7 @@ private function assistantZonikFallbackReply(string $message): string
         return 'Main aapka Zonik cart aur order list check karne mein help kar sakta hoon.';
     }
     if (preg_match('/\b(?:delivery|slot|address)\b|(?:डिलीवरी|स्लॉट|पता)/iu', $lower)) {
-        return 'Delivery location choose karne par Zonik ke available slots dikhaye jayenge.';
+        return 'Delivery selected outlet ke saved address par jayegi; available slots checkout par dikhaye jayenge.';
     }
     if (preg_match('/\b(?:payment|upi|card|cod|cash)\b|(?:पेमेंट|भुगतान|यूपीआई|कार्ड|कैश)/iu', $lower)) {
         return 'Available Zonik payment methods checkout par dikhaye jayenge.';
@@ -4425,6 +4407,32 @@ private function looksLikeAssistantProductRequest(string $message): bool
         && (bool) preg_match('/(?:\b(?:add|buy|order|need|want|show|find|search|give)\b|\b(?:chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|do|dena|dya|karo|karna)\b|(?:जोड़ो|डालो|चाहिए|दिखाओ|द्या|पाहिजे|दाखवा))/iu', $message)
         && !$this->isAssistantCartRequest($message)
         && !$this->isAssistantRecommendationRequest($message);
+}
+
+private function isAssistantQuantityProductUtterance(string $message): bool
+{
+    if ($this->isAssistantGeneralQuestion($message)
+        || $this->isAssistantCartRequest($message)
+        || $this->isAssistantCartQuantityUpdateRequest($message)
+        || $this->isAssistantCustomerCareRequest($message)) {
+        return false;
+    }
+
+    $search = $this->assistantLocalProductSearchQuery($message);
+    $words = array_filter(preg_split('/\s+/u', $search) ?: []);
+    if ($search === '' || count($words) < 2) return false;
+
+    return (bool) preg_match('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\b/iu', $message);
+}
+
+private function assistantLocalProductSearchQuery(string $message): string
+{
+    $query = $this->normalizeAssistantSearchText($message);
+    $query = preg_replace('/^\s*(?:add|buy|order|need|want|show|find|search|give|mujhe|muje|please)\s+/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\s*(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s+/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|dena|please|cart|mein|me)\b/iu', ' ', $query) ?? $query;
+
+    return trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
 }
 
 private function isAssistantZonikCatalogueRequest(string $message): bool
@@ -5140,12 +5148,20 @@ private function callGemini(string $prompt, float $temperature, int $maxOutputTo
         // Keep conversational AI responsive. Deterministic ordering fallbacks
         // already handle provider/network failures, so one bounded attempt is
         // better than making the customer wait through a second long request.
-        $response = Http::withOptions([
+        $caCertPath = config('services.curl.cacert_path');
+        $curlOptions = [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4];
+        $httpOptions = [
                 'connect_timeout' => 4,
                 // Windows/XAMPP can intermittently prefer an unusable IPv6
                 // resolver path and report cURL error 6 for healthy APIs.
-                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-            ])
+                'curl' => $curlOptions,
+            ];
+        if ($caCertPath && is_file($caCertPath)) {
+            $httpOptions['verify'] = $caCertPath;
+            $httpOptions['curl'][CURLOPT_CAINFO] = $caCertPath;
+        }
+
+        $response = Http::withOptions($httpOptions)
             ->timeout(12)
             ->withHeaders(['x-goog-api-key' => $apiKey])
             ->post('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', [
@@ -5311,10 +5327,18 @@ private function buildVoiceReply(string $text): array
         $voiceIds = array_values(array_unique(array_filter([$voiceId, $fallbackVoiceId, $freeFallbackVoiceId])));
         $response = null;
         foreach ($voiceIds as $candidateVoiceId) {
-            $response = Http::withOptions([
+            $caCertPath = config('services.curl.cacert_path');
+            $curlOptions = [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4];
+            $httpOptions = [
                     'connect_timeout' => 4,
-                    'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-                ])
+                    'curl' => $curlOptions,
+                ];
+            if ($caCertPath && is_file($caCertPath)) {
+                $httpOptions['verify'] = $caCertPath;
+                $httpOptions['curl'][CURLOPT_CAINFO] = $caCertPath;
+            }
+
+            $response = Http::withOptions($httpOptions)
                 ->timeout(12)
                 ->withHeaders([
                     'xi-api-key' => $apiKey,

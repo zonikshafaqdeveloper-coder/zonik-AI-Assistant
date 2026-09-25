@@ -67,7 +67,7 @@ return [
     ],
 
     'curl' => [
-        'cacert_path' => 'C:\wamp64\bin\php\php8.0.26\cacert.pem',
+        'cacert_path' => env('CURL_CA_BUNDLE', storage_path('certs/cacert.pem')),
     ],
 
 ];

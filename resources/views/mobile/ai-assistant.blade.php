@@ -2546,8 +2546,13 @@ function appendTyping() {
                 .trim();
         }
 
-        function loadVoiceAsync(text, onEnded, onStart) {
+        function loadVoiceAsync(text, onEnded, onStart, options) {
+            const voiceOptions = options || {};
             lastAssistantSpokenText = speechFriendlyText(text);
+            if (voiceOptions.browserOnly) {
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                return;
+            }
             if (voiceProviderMode === 'browser' && Date.now() < elevenLabsRetryAt) {
                 speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
                 return;
@@ -2556,6 +2561,7 @@ function appendTyping() {
             const requestGeneration = speechRequestGeneration;
             const controller = window.AbortController ? new AbortController() : null;
             let completed = false;
+            const fallbackAfterMs = Number(voiceOptions.fallbackAfterMs || 4500);
             const requestTimeout = window.setTimeout(function () {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
@@ -2563,7 +2569,7 @@ function appendTyping() {
                 useBrowserVoiceTemporarily();
                 console.info('ElevenLabs audio timed out; using browser voice temporarily.');
                 speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
-            }, 18000);
+            }, fallbackAfterMs);
             fetch(speakUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
@@ -2630,7 +2636,7 @@ function appendTyping() {
                     confirm_quantity: 'Quantity pending hai. Jab ready ho, confirm ya change bol dena.',
                     anything_else: 'Aap busy ho toh koi problem nahi. Baad mein yahin se order continue ho jayega.',
                     confirm_order: 'Order summary safe hai. Free hone par confirm karke delivery continue kar lena.',
-                    delivery_details: 'Cart safe hai. Jab free ho, delivery location aur slot select kar lena.',
+                    delivery_details: 'Cart safe hai. Delivery selected outlet ke address par jayegi; jab free ho, slot select kar lena.',
                     payment_method: 'Order details safe hain. Free hone par payment option choose kar lena.',
                     checkout_ready: 'Order abhi submit nahi hua hai. Ready hone par Place Order button dabana.',
                     customer_care_offer: 'Main yahin ruk rahi hoon. Free hone par call ya continue bol dena.'
@@ -2643,8 +2649,8 @@ function appendTyping() {
                 await_quantity: ['Bas quantity bata dijiye, jaise 1, 2 ya 3—phir main add kar dungi.', 'Is product ki kitni quantity rakhni hai? Aap araam se bata dijiye.'],
                 confirm_quantity: ['Quantity confirm kar dijiye, phir main order list update kar dungi.', 'Jo quantity batayi thi, wahi rakhni hai ya change karni hai?'],
                 anything_else: ['Aur kuch chahiye ho toh bata dijiye. Nahi toh order confirm bol dijiye, main summary dikha dungi.', 'Main yahin hoon—kuch add karna hai, ya order summary ke liye confirm bolna hai?'],
-                confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir address aur delivery slot le lungi.', 'Order ready hai. Aapki haan milte hi next delivery details poochungi.'],
-                delivery_details: ['Delivery ke liye address ya location aur convenient slot bata dijiye.', 'Bas delivery details pending hain. Address aur time slot share kar dijiye, phir payment par aate hain.'],
+                confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir delivery slot choose karwaunga.', 'Order ready hai. Aapki haan milte hi selected outlet address par slot options dikh jaayenge.'],
+                delivery_details: ['Delivery selected outlet ke saved address par jayegi. Bas convenient slot choose kar dijiye.', 'Bas delivery slot pending hai. Slot select kar dijiye, phir payment par aate hain.'],
                 payment_method: ['Payment ka option select kar dijiye, phir place order ka final button aa jayega.', 'Ab sirf payment method choose karna hai—online, delivery par, ya jo option dikh raha ho.'],
                 checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar raha hoon—Place Order button dabaiye.'],
                 customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.']
@@ -2739,13 +2745,12 @@ function appendTyping() {
             return welcomePromise;
         }
         function playWelcome() {
-            return loadWelcome().then(function (welcome) {
-                return new Promise(function (resolve) {
-                    loadVoiceAsync(welcome.text || instantWelcomeText, function () {
-                        finishWelcomeAndListen();
-                        resolve();
-                    });
-                });
+            loadWelcome().catch(function () { return null; });
+            return new Promise(function (resolve) {
+                loadVoiceAsync(instantWelcomeText, function () {
+                    finishWelcomeAndListen();
+                    resolve();
+                }, null, {browserOnly: true});
             });
         }
         // Fast boot: restore only the latest conversation. The complete
@@ -2780,6 +2785,7 @@ function appendTyping() {
                     const html = savedMessageHtml(message);
                     if (html.trim()) appendMessage(message.role, html, message.time);
                 });
+                appendMessage('assistant', escapeHtml(instantWelcomeText));
                 renderLiveOrderList();
                 playWelcome().catch(finishWelcomeAndListen);
             })
@@ -2992,7 +2998,7 @@ function appendTyping() {
             }
             if (false && !activeOrderingStage && /\b(checkout|place order)\b/.test(intent)) {
                 input.value = '';
-                appendMessage('assistant', 'Order complete karne ke liye pehle delivery location aur slot confirm kijiye. Main yahin se payment aur order placement complete karunga.');
+                appendMessage('assistant', 'Order complete karne ke liye pehle delivery slot confirm kijiye. Delivery selected outlet ke saved address par jayegi.');
                 return;
             }
             if (false && !activeOrderingStage && /\b(delivery|slot)\b/.test(intent)) {
@@ -3260,17 +3266,12 @@ function appendTyping() {
             // the chat for the customer to tap again.
             clearAssistantDeliveryOptions();
             orderDock?.classList.add('is-delivery-stage');
-            let locationHtml = '';
             let slotHtml = '';
             const locations = Array.isArray(workflow.locations) ? workflow.locations : Object.values(workflow.locations || {});
             const slots = Array.isArray(workflow.slots) ? workflow.slots : Object.values(workflow.slots || {});
-            const selectedLocation = workflow.selected_location || null;
+            const selectedLocation = workflow.selected_location || locations[0] || null;
+            const selectedAddress = selectedLocation ? String(selectedLocation.label || selectedLocation.outlet_name || '') : '';
 
-            locations.forEach(function (location) {
-                const isSelected = selectedLocation && Number(selectedLocation.outlet_id) === Number(location.outlet_id);
-                const command = location.outlet_name || location.label || '';
-                locationHtml += '<button type="button" class="ai-product-btn ' + (isSelected ? 'primary' : '') + '" data-delivery-option="' + escapeHtml(command) + '">&#128205; ' + escapeHtml(location.label || command) + '</button>';
-            });
             slots.forEach(function (slot) {
                 const locationLabel = selectedLocation ? String(selectedLocation.label || '') : '';
                 const command = (locationLabel ? locationLabel + ', ' : '') + String(slot.label || '');
@@ -3278,14 +3279,13 @@ function appendTyping() {
             });
 
             let html = '';
-            // Checkout is intentionally progressive: location first, then
-            // replace it with slots only after the server confirms location.
-            if (!selectedLocation && locationHtml) {
-                html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery location</span><div class="ai-checkout-choice-list">' + locationHtml + '</div></div>';
-            } else if (selectedLocation && slotHtml) {
-                html = '<div class="ai-checkout-choice-group"><span class="ai-checkout-choice-title">Select delivery slot</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
+            if (slotHtml) {
+                const addressInfo = selectedAddress
+                    ? '<span class="ai-checkout-choice-title">Delivery address: ' + escapeHtml(selectedAddress) + '</span>'
+                    : '<span class="ai-checkout-choice-title">Delivery selected outlet ke saved address par jayegi.</span>';
+                html = '<div class="ai-checkout-choice-group">' + addressInfo + '<span class="ai-checkout-choice-title">Select delivery slot</span><div class="ai-checkout-choice-list">' + slotHtml + '</div></div>';
             }
-            if (!html) html = '<div class="ai-product-meta"><strong>Delivery options load nahi hue. Please location ka naam boliye ya dobara confirm kijiye.</strong></div>';
+            if (!html) html = '<div class="ai-product-meta"><strong>Delivery selected outlet ke saved address par jayegi. Slot load nahi hua, please dobara confirm kijiye.</strong></div>';
             replaceOrderCheckout('<div class="ai-product-actions" data-assistant-delivery-options="true">' + html + '</div>');
             orderDock?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         }
@@ -3953,7 +3953,7 @@ function appendTyping() {
             if (cartReview.disabled) return;
             cartPanelRequestVersion++;
             closeAccessiblePanel(cartPanel, input);
-            appendMessage('assistant', 'Order complete karne ke liye voice ya message mein boliye: bas itna hi. Phir main location, slot aur payment yahin confirm karunga.');
+            appendMessage('assistant', 'Order complete karne ke liye voice ya message mein boliye: bas itna hi. Phir main selected outlet address, slot aur payment yahin confirm karunga.');
             input.focus();
         });
         cartClear?.addEventListener('click', function () {
@@ -4008,7 +4008,7 @@ function appendTyping() {
             activeClarificationOptions = [];
             activeCandidateSetId = '';
             renderLiveOrderList();
-            const reply = workflow.reply || 'Saved address aur delivery slot confirm kijiye.';
+            const reply = workflow.reply || 'Delivery selected outlet ke saved address par jayegi. Slot confirm kijiye.';
             appendMessage('assistant', escapeHtml(reply));
             renderAssistantDeliveryOptions(workflow);
             loadVoiceAsync(reply);
@@ -4097,7 +4097,7 @@ function appendTyping() {
                     setAgentUiState('ready');
 
                     if (nextStage === 'delivery_details') {
-                        const reply = next.reply || 'Saved address aur delivery slot confirm kijiye.';
+                        const reply = next.reply || 'Delivery selected outlet ke saved address par jayegi. Slot confirm kijiye.';
                         renderAssistantDeliveryOptions(next);
                         loadVoiceAsync(reply);
                     } else {
@@ -4295,7 +4295,7 @@ function appendTyping() {
                 button.disabled = true;
                 placeOrderInsideAssistant(button.dataset.placeAiOrder);
             }
-            else if (button.dataset.action === 'checkout') appendMessage('assistant', 'Delivery location aur slot confirm karke payment yahin complete karte hain.');
+            else if (button.dataset.action === 'checkout') appendMessage('assistant', 'Delivery selected outlet ke saved address par jayegi. Slot confirm karke payment yahin complete karte hain.');
             else if (button.dataset.conversation) {
                 fetch(historyUrl + '?conversation_id=' + encodeURIComponent(button.dataset.conversation), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
                     .then(response => response.json()).then(function (data) {
