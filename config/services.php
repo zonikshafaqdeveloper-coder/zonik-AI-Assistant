@@ -9,6 +9,7 @@ return [
         // override only as a fallback so a stale override can never shadow a
         // freshly rotated primary key.
         'api_key' => env('ELEVENLABS_API_KEY', env('ELEVENLABS_API_KEY_OVERRIDE')),
+        'api_key_override' => env('ELEVENLABS_API_KEY_OVERRIDE'),
         // Antoni: warm, soft male voice. Production can still override it
         // through ELEVENLABS_VOICE_ID without changing application code.
         'voice_id' => env('ELEVENLABS_VOICE_ID', 'ErXwobaYiN019PkySvjV'),

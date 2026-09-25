@@ -5465,92 +5465,106 @@ private function normalizeAssistantSearchText(string $text): string
 
 private function buildVoiceReply(string $text): array
 {
-    $apiKey = config('services.elevenlabs.api_key');
+    $apiKeys = array_values(array_unique(array_filter(array_map(
+        fn ($key) => trim((string) $key),
+        [config('services.elevenlabs.api_key'), config('services.elevenlabs.api_key_override')]
+    ))));
     $voiceId = config('services.elevenlabs.voice_id', 'ErXwobaYiN019PkySvjV');
     $fallbackVoiceId = trim((string) config('services.elevenlabs.fallback_voice_id', ''));
     $freeFallbackVoiceId = trim((string) config('services.elevenlabs.free_fallback_voice_id', 'pNInz6obpgDQGcFmaJgB'));
     $voiceModel = config('services.elevenlabs.model', 'eleven_multilingual_v2');
 
-    if (empty($apiKey) || empty(trim($text))) {
+    if (empty($apiKeys) || empty(trim($text))) {
         return [];
     }
 
-    // Scope provider failure flags to the configured key. Replacing/renewing
-    // an API key must recover immediately instead of inheriting stale cache
-    // entries created by an old account or subscription.
-    $credentialFingerprint = hash('sha256', (string) $apiKey);
-    $quotaUnavailableKey = 'elevenlabs_tts_quota_unavailable_' . $credentialFingerprint;
-    $authUnavailableKey = 'elevenlabs_tts_auth_unavailable_' . $credentialFingerprint;
-    $planUnavailableKey = 'elevenlabs_tts_plan_unavailable_' . $credentialFingerprint;
     $networkUnavailableKey = 'elevenlabs_tts_network_unavailable';
-    if (Cache::has($quotaUnavailableKey) || Cache::has($authUnavailableKey) || Cache::has($planUnavailableKey) || Cache::has($networkUnavailableKey)) return [];
+    if (Cache::has($networkUnavailableKey)) return [];
 
     try {
         $voiceIds = array_values(array_unique(array_filter([$voiceId, $fallbackVoiceId, $freeFallbackVoiceId])));
-        $response = null;
-        foreach ($voiceIds as $candidateVoiceId) {
-            $caCertPath = config('services.curl.cacert_path');
-            $curlOptions = [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4];
-            $httpOptions = [
-                    'connect_timeout' => 4,
-                    'curl' => $curlOptions,
-                ];
-            if ($caCertPath && is_file($caCertPath)) {
-                $httpOptions['verify'] = $caCertPath;
-                $httpOptions['curl'][CURLOPT_CAINFO] = $caCertPath;
+        foreach ($apiKeys as $apiKey) {
+            // Scope provider failure flags to the configured key. Replacing or
+            // renewing an API key must recover immediately, and an exhausted
+            // primary key must not block the optional override key.
+            $credentialFingerprint = hash('sha256', (string) $apiKey);
+            $quotaUnavailableKey = 'elevenlabs_tts_quota_unavailable_' . $credentialFingerprint;
+            $authUnavailableKey = 'elevenlabs_tts_auth_unavailable_' . $credentialFingerprint;
+            $planUnavailableKey = 'elevenlabs_tts_plan_unavailable_' . $credentialFingerprint;
+            if (Cache::has($quotaUnavailableKey) || Cache::has($authUnavailableKey) || Cache::has($planUnavailableKey)) {
+                continue;
             }
 
-            $response = Http::withOptions($httpOptions)
-                ->timeout(12)
-                ->withHeaders([
-                    'xi-api-key' => $apiKey,
-                    'Accept' => 'audio/mpeg',
-                ])
-                ->post("https://api.elevenlabs.io/v1/text-to-speech/{$candidateVoiceId}?output_format=mp3_44100_128", [
-                'text' => mb_substr(strip_tags($text), 0, 2000),
-                'model_id' => $voiceModel,
-                'voice_settings' => [
-                    // Slightly slower, expressive pacing avoids a rushed or
-                    // robotic delivery while keeping order details clear.
-                    'stability' => 0.76,
-                    'similarity_boost' => 0.78,
-                    'style' => 0.02,
-                    // Keep Hinglish clear, but avoid the noticeably slow
-                    // delivery that makes a normal conversation feel delayed.
-                    'speed' => 0.92,
-                    'use_speaker_boost' => true,
-                ],
-                'apply_text_normalization' => 'on',
-                ]);
+            $response = null;
+            foreach ($voiceIds as $candidateVoiceId) {
+                $caCertPath = config('services.curl.cacert_path');
+                $curlOptions = [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4];
+                $httpOptions = [
+                        'connect_timeout' => 4,
+                        'curl' => $curlOptions,
+                    ];
+                if ($caCertPath && is_file($caCertPath)) {
+                    $httpOptions['verify'] = $caCertPath;
+                    $httpOptions['curl'][CURLOPT_CAINFO] = $caCertPath;
+                }
 
-            if ($response->successful() && $response->body() !== '') {
-                Cache::forget($networkUnavailableKey);
-                Cache::forget($authUnavailableKey);
-                Cache::forget($planUnavailableKey);
-                return ['base64' => base64_encode($response->body()), 'mime' => 'audio/mpeg'];
+                $response = Http::withOptions($httpOptions)
+                    ->timeout(12)
+                    ->withHeaders([
+                        'xi-api-key' => $apiKey,
+                        'Accept' => 'audio/mpeg',
+                    ])
+                    ->post("https://api.elevenlabs.io/v1/text-to-speech/{$candidateVoiceId}?output_format=mp3_44100_128", [
+                    'text' => mb_substr(strip_tags($text), 0, 2000),
+                    'model_id' => $voiceModel,
+                    'voice_settings' => [
+                        // Slightly slower, expressive pacing avoids a rushed or
+                        // robotic delivery while keeping order details clear.
+                        'stability' => 0.76,
+                        'similarity_boost' => 0.78,
+                        'style' => 0.02,
+                        // Keep Hinglish clear, but avoid the noticeably slow
+                        // delivery that makes a normal conversation feel delayed.
+                        'speed' => 0.92,
+                        'use_speaker_boost' => true,
+                    ],
+                    'apply_text_normalization' => 'on',
+                    ]);
+
+                if ($response->successful() && $response->body() !== '') {
+                    Cache::forget($networkUnavailableKey);
+                    Cache::forget($quotaUnavailableKey);
+                    Cache::forget($authUnavailableKey);
+                    Cache::forget($planUnavailableKey);
+                    return ['base64' => base64_encode($response->body()), 'mime' => 'audio/mpeg'];
+                }
+                // Account/auth/quota failures affect every voice for this key,
+                // so move on to the next configured key.
+                if ($response->status() === 401) break;
+                // Library voices require a paid plan. Continue to the configured
+                // free voice before deciding this key cannot synthesize speech.
+                if ($response->status() === 402) continue;
             }
-            // Account/auth/quota failures affect every voice, so do not make
-            // a redundant fallback request in those cases.
-            if ($response->status() === 401) break;
-            // Library voices require a paid plan. Continue to the configured
-            // free voice instead of letting the first 402 abort synthesis.
-            if ($response->status() === 402) continue;
-        }
 
-        \Log::warning('ElevenLabs text-to-speech request failed.', [
-            'status' => $response->status(),
-            'voice_id' => implode(',', $voiceIds),
-            'response' => mb_substr($response->body(), 0, 500),
-        ]);
-        if ($response->status() === 401 && str_contains(strtolower($response->body()), 'quota')) {
-            Cache::put($quotaUnavailableKey, true, now()->addMinutes(30));
-            return [];
-        }
-        if ($response->status() === 401) {
-            Cache::put($authUnavailableKey, true, now()->addMinutes(10));
-        }
-        if ($response->status() === 402) {
-            Cache::put($planUnavailableKey, true, now()->addMinutes(30));
+            if (!$response) continue;
+            \Log::warning('ElevenLabs text-to-speech request failed.', [
+                'status' => $response->status(),
+                'voice_id' => implode(',', $voiceIds),
+                'credential' => substr($credentialFingerprint, 0, 12),
+                'response' => mb_substr($response->body(), 0, 500),
+            ]);
+            if ($response->status() === 401 && str_contains(strtolower($response->body()), 'quota')) {
+                Cache::put($quotaUnavailableKey, true, now()->addMinutes(30));
+                continue;
+            }
+            if ($response->status() === 401) {
+                Cache::put($authUnavailableKey, true, now()->addMinutes(10));
+                continue;
+            }
+            if ($response->status() === 402) {
+                Cache::put($planUnavailableKey, true, now()->addMinutes(30));
+                continue;
+            }
         }
     } catch (\Throwable $e) {
         // Fail fast for subsequent speech requests. Retry ElevenLabs
