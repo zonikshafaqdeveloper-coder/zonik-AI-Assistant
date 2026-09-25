@@ -325,8 +325,7 @@ public function assistantProducts(Request $request)
 
     $q = $this->normalizeAssistantSearchText(trim($request->query('q', '')));
     if ($request->boolean('catalogue')) {
-        $prices = CustomerPrice::where('outlet_id', $outlet->id)
-            ->pluck('product_price', 'product_id');
+        $prices = collect($this->assistantOutletPriceMap($outlet));
         $query = Product::where('status', 'active')->whereIn('id', $prices->keys());
         if ($q !== '') $query->where('product_name', 'like', '%' . $q . '%');
         $products = $query->orderBy('product_name')->get([
@@ -4961,6 +4960,19 @@ private function findAssistantApprovedAlternatives(string $message, ?User $outle
     return array_values($alternatives);
 }
 
+private function assistantOutletPriceMap(?User $outlet): array
+{
+    if (!$outlet) return [];
+
+    return Cache::remember('assistant_outlet_price_map:' . (int) $outlet->id, now()->addMinutes(5), function () use ($outlet) {
+        return CustomerPrice::where('outlet_id', $outlet->id)
+            ->where('product_price', '>', 0)
+            ->pluck('product_price', 'product_id')
+            ->map(fn ($price) => (float) $price)
+            ->toArray();
+    });
+}
+
 private function assistantRequestedProductType(string $message): string
 {
     $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
@@ -5023,9 +5035,7 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
         return [];
     }
 
-    $customerPrices = CustomerPrice::where('outlet_id', $outlet->id)
-        ->pluck('product_price', 'product_id')
-        ->toArray();
+    $customerPrices = $this->assistantOutletPriceMap($outlet);
 
     $assignedProductIds = array_keys($customerPrices);
     if (empty($assignedProductIds) && !$includeGlobalCatalogue) {
@@ -5045,13 +5055,35 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
 
     $terms = array_values(array_unique(array_filter(preg_split('/\s+/', $q), fn ($term) => strlen($term) > 1)));
 
-    // Rank the complete outlet catalogue so a partial exact match does not
-    // prevent typo correction. Example: in "real juce", "real" is exact and
-    // "juce" is a one-letter fuzzy match for the catalogue word "juice".
-    $products = Product::with('brand:id,name')->where('status', 'active')
+    // First pull a small candidate set from the database. If speech-to-text
+    // made every term unsearchable, fall back to the full approved catalogue
+    // so the typo-correction ranker still has a chance to recover it.
+    $candidateQuery = Product::with('brand:id,name')->where('status', 'active')
         ->when(!$includeGlobalCatalogue, fn ($query) => $query->whereIn('id', $assignedProductIds))
-        ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp')
-        ->get()
+        ->when(!empty($terms), function ($query) use ($terms, $q) {
+            $query->where(function ($candidate) use ($terms, $q) {
+                $candidate->where('product_name', 'like', '%' . $q . '%')
+                    ->orWhere('brands', 'like', '%' . $q . '%')
+                    ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', '%' . $q . '%'));
+                foreach ($terms as $term) {
+                    if (strlen($term) < 3) continue;
+                    $candidate->orWhere('product_name', 'like', '%' . $term . '%')
+                        ->orWhere('brands', 'like', '%' . $term . '%')
+                        ->orWhereHas('brand', fn ($brand) => $brand->where('name', 'like', '%' . $term . '%'));
+                }
+            });
+        })
+        ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp');
+
+    $candidateProducts = $candidateQuery->get();
+    if ($candidateProducts->isEmpty() && !empty($terms)) {
+        $candidateProducts = Product::with('brand:id,name')->where('status', 'active')
+            ->when(!$includeGlobalCatalogue, fn ($query) => $query->whereIn('id', $assignedProductIds))
+            ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp')
+            ->get();
+    }
+
+    $products = $candidateProducts
         ->map(function ($product) use ($terms, $q) {
             $brand = optional($product->brand)->name ?: ($product->brands ?: '');
             $name = strtolower(trim($brand . ' ' . $product->product_name));
