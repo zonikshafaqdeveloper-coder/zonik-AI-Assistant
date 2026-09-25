@@ -1993,21 +1993,91 @@ public function assistantChat(Request $request)
 
 private function extractAssistantOrderItems(string $message): array
 {
+    $localItems = $this->extractAssistantOrderItemsLocally($message);
+    if (count($localItems) > 1 && empty(config('services.gemini.api_key'))) return $localItems;
     preg_match_all('/\d+(?:\.\d+)?/', $message, $numberMatches);
     if (count($numberMatches[0] ?? []) >= 2 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) {
         $message = preg_replace('/\s+(?=\d+(?:\.\d+)?\s*(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)?\b)/iu', ', ', $message);
     }
+    if (count($localItems) > 1 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) return $localItems;
     if (!preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b|\sऔर\s)/iu', $message)) return [];
-    if (empty(config('services.gemini.api_key'))) return [];
+    if (empty(config('services.gemini.api_key'))) return $localItems;
     $prompt = "Analyze this complete spoken grocery order in ANY language or mixed language. Extract every separate product, even without commas or conjunctions. Translate generic product terms to English for catalogue search, but preserve brand names, flavours, varieties, quantities, and units exactly. Understand number words in the customer's language. Never merge products. Example: 1 kg dal 2 kg rice 3 box juice means three items. Return structured data only. Customer: {$message}";
     $schema = ['type' => 'OBJECT', 'properties' => ['items' => ['type' => 'ARRAY', 'items' => ['type' => 'OBJECT', 'properties' => [
         'query' => ['type' => 'STRING'], 'quantity' => ['type' => 'NUMBER'], 'unit' => ['type' => 'STRING'],
     ], 'required' => ['query', 'quantity', 'unit']]]], 'required' => ['items']];
     $result = $this->callGemini($prompt, 0.0, 400, $schema);
     $decoded = $this->assistantDecodeJsonObject($result);
-    return collect($decoded['items'] ?? [])->filter(fn ($item) => trim((string) ($item['query'] ?? '')) !== '')
+    $semanticItems = collect($decoded['items'] ?? [])->filter(fn ($item) => trim((string) ($item['query'] ?? '')) !== '')
         ->map(fn ($item) => ['query' => trim((string) $item['query']), 'quantity' => max(0, (float) ($item['quantity'] ?? 0)), 'unit' => trim((string) ($item['unit'] ?? ''))])
         ->take(10)->values()->all();
+    return count($semanticItems) > 1 ? $semanticItems : $localItems;
+}
+
+private function extractAssistantOrderItemsLocally(string $message): array
+{
+    $text = $this->normalizeAssistantQuantityText($message);
+    $spokenNumbers = [
+        'one' => 1, 'won' => 1, 'ek' => 1,
+        'two' => 2, 'too' => 2, 'do' => 2,
+        'three' => 3, 'tree' => 3, 'teen' => 3,
+        'four' => 4, 'char' => 4, 'chaar' => 4,
+        'five' => 5, 'panch' => 5, 'paanch' => 5,
+        'six' => 6, 'seven' => 7, 'saat' => 7,
+        'eight' => 8, 'aath' => 8, 'nine' => 9, 'nau' => 9,
+        'ten' => 10, 'das' => 10,
+    ];
+    foreach ($spokenNumbers as $word => $number) {
+        $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s+[a-z0-9][a-z0-9.-]{1,})/iu', (string) $number, $text) ?? $text;
+    }
+    $unitPattern = '(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box(?:es)?|carton|pack|packet|pcs?|pieces?|dozen|unit)';
+    $separatorPattern = '/\s*(?:,|;|&|\band\b|\baur\b|\bplus\b|\bwith\b)\s*/iu';
+    $chunks = preg_split($separatorPattern, $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+    if (count($chunks) <= 1) {
+        $split = preg_replace(
+            '/\s+(?=\d+(?:\.\d+)?\s*(?:' . $unitPattern . ')?\s+[a-z0-9][a-z0-9\s.-]{2,})/iu',
+            ', ',
+            $text
+        );
+        $chunks = preg_split($separatorPattern, (string) $split, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    $items = [];
+    foreach ($chunks as $chunk) {
+        $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
+        if ($chunk === '') continue;
+        $chunk = preg_replace('/^\b(?:mujhe|muje|mala|please|plz|add|give|order|buy|want|need|aur|also)\b\s*/iu', '', $chunk) ?? $chunk;
+        $chunk = preg_replace('/\b(?:add|added|cart|mein|me|do|dena|de|karo|karna|kar\s*do|chahiye|chaiye|please|plz)\b\s*$/iu', '', $chunk) ?? $chunk;
+        $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
+        if ($chunk === '') continue;
+
+        $quantity = 0.0;
+        $unit = '';
+        $query = $chunk;
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')?\s+(.+)$/iu', $chunk, $match)) {
+            $quantity = (float) $match[1];
+            $unit = trim((string) ($match[2] ?? ''));
+            $query = trim((string) $match[3]);
+        } elseif (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')?$/iu', $chunk, $match)) {
+            $quantity = (float) $match[2];
+            $unit = trim((string) ($match[3] ?? ''));
+            $query = trim((string) $match[1]);
+        }
+
+        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do)\b/iu', ' ', $query) ?? $query;
+        $query = trim(preg_replace('/\s+/', ' ', $query) ?? $query);
+        if ($query === '' || strlen($query) < 2) continue;
+        $items[] = ['query' => $query, 'quantity' => max(0, $quantity), 'unit' => $unit];
+        if (count($items) >= 10) break;
+    }
+
+    $unique = [];
+    foreach ($items as $item) {
+        $key = mb_strtolower($item['query']) . '|' . $item['quantity'] . '|' . mb_strtolower($item['unit']);
+        $unique[$key] = $item;
+    }
+    return count($unique) > 1 ? array_values($unique) : [];
 }
 
 private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?User $outlet): ?array
