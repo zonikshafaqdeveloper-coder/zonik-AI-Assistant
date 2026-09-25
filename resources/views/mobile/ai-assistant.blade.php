@@ -154,7 +154,7 @@
 .ai-reorder-name { min-width: 0; overflow-wrap: anywhere; font-weight: 750; color: #111827; }
 .ai-reorder-total { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; background: #f8fafc; font-size: 13px; font-weight: 800; }
 .ai-reorder-card .ai-product-actions { padding: 0 12px 12px; }
-.ai-confirm-overlay { position: absolute; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, .48); backdrop-filter: blur(2px); }
+.ai-confirm-overlay { position: fixed; inset: 0; z-index: 1400; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, .48); backdrop-filter: blur(2px); }
 .ai-confirm-overlay.open { display: flex; }
 .ai-confirm-box { width: min(100%, 330px); padding: 20px; border-radius: 18px; background: #fff; box-shadow: 0 22px 55px rgba(15, 23, 42, .25); text-align: center; }
 .ai-confirm-icon { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center; background: #fff1f2; color: #e11d48; }
@@ -2422,7 +2422,6 @@ function appendTyping() {
         let lastVoiceRequestAt = 0;
         let lastSubmittedCommandKey = '';
         let lastSubmittedCommandAt = 0;
-        let lastVoiceUnavailableNoticeAt = 0;
         let voiceProviderMode = 'auto';
         let elevenLabsRetryAt = 0;
         function useBrowserVoiceTemporarily() {
@@ -2434,12 +2433,6 @@ function appendTyping() {
             setAgentUiState('idle');
             resumeListeningAfterReply();
             if (typeof onEnded === 'function') onEnded();
-        }
-        function showVoiceUnavailableNotice() {
-            const now = Date.now();
-            if (now - lastVoiceUnavailableNoticeAt < 60000) return;
-            lastVoiceUnavailableNoticeAt = now;
-            appendMessage('assistant', '<div class="ai-product-meta"><strong>ElevenLabs voice credit/API unavailable hai.</strong><br>Text reply continue rahega aur mic active rahega.</div>');
         }
         function resumeListeningAfterReply() {
             if (!continuousTalkMode || speechRecognition) return;
@@ -2619,7 +2612,6 @@ function appendTyping() {
                 completed = true;
                 if (controller) controller.abort();
                 console.info('ElevenLabs audio timed out; browser TTS disabled.');
-                showVoiceUnavailableNotice();
                 finishSpeechWithoutBrowser(onEnded);
             }, fallbackAfterMs);
             fetch(speakUrl, {
@@ -2646,7 +2638,6 @@ function appendTyping() {
                 }
                 else {
                     console.info('ElevenLabs unavailable; browser TTS disabled.');
-                    showVoiceUnavailableNotice();
                     finishSpeechWithoutBrowser(onEnded);
                 }
             }).catch(function () {
@@ -2654,7 +2645,6 @@ function appendTyping() {
                 completed = true;
                 window.clearTimeout(requestTimeout);
                 console.info('ElevenLabs request failed; browser TTS disabled.');
-                showVoiceUnavailableNotice();
                 finishSpeechWithoutBrowser(onEnded);
             });
         }
