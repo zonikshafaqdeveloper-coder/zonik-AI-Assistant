@@ -2388,6 +2388,10 @@ function appendTyping() {
         let speechRequestGeneration = 0;
         let assistantSpeechEndedAt = 0;
         let lastAssistantSpokenText = '';
+        let lastVoiceRequestKey = '';
+        let lastVoiceRequestAt = 0;
+        let lastSubmittedCommandKey = '';
+        let lastSubmittedCommandAt = 0;
         let voiceProviderMode = 'auto';
         let elevenLabsRetryAt = 0;
         function useBrowserVoiceTemporarily() {
@@ -2559,6 +2563,15 @@ function appendTyping() {
         function loadVoiceAsync(text, onEnded, onStart, options) {
             const voiceOptions = options || {};
             lastAssistantSpokenText = speechFriendlyText(text);
+            const voiceKey = lastAssistantSpokenText.toLowerCase().replace(/\s+/g, ' ').trim();
+            const voiceNow = Date.now();
+            if (!voiceOptions.allowRepeat && voiceKey && voiceKey === lastVoiceRequestKey && voiceNow - lastVoiceRequestAt < 8000) {
+                aiDebug('Duplicate voice ignored', {text: lastAssistantSpokenText});
+                finishSpeechWithoutBrowser(onEnded);
+                return;
+            }
+            lastVoiceRequestKey = voiceKey;
+            lastVoiceRequestAt = voiceNow;
             if (voiceProviderMode === 'browser') voiceProviderMode = 'auto';
             const requestGeneration = speechRequestGeneration;
             const controller = window.AbortController ? new AbortController() : null;
@@ -2822,8 +2835,23 @@ function appendTyping() {
             }
             if (/^\s*(?:repeat|dobara|phir se|wapas bolo|kya kaha)\s*[.!?]*$/iu.test(text) && lastAssistantSpokenText) {
                 stopAssistantAudio(true);
-                loadVoiceAsync(lastAssistantSpokenText);
+                loadVoiceAsync(lastAssistantSpokenText, null, null, {allowRepeat: true});
                 return;
+            }
+            const commandKey = [
+                conversationId || '',
+                activeOrderingStage || '',
+                String(selectedProductId || activeOrderingProductId || ''),
+                text.toLowerCase().replace(/\s+/g, ' ').trim()
+            ].join('|');
+            const commandNow = Date.now();
+            if (!alreadyRenderedUserMessage && !sendOptions.allowDuplicate && commandKey === lastSubmittedCommandKey && commandNow - lastSubmittedCommandAt < 8000) {
+                aiDebug('Duplicate command ignored', {text: text, activeStage: activeOrderingStage});
+                return;
+            }
+            if (!alreadyRenderedUserMessage) {
+                lastSubmittedCommandKey = commandKey;
+                lastSubmittedCommandAt = commandNow;
             }
             if (!alreadyRenderedUserMessage) {
                 resetResponseReminders();

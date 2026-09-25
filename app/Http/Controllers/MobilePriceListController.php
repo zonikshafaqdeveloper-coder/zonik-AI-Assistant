@@ -2809,7 +2809,7 @@ private function isAssistantFinishShoppingMessage(string $message): bool
 private function assistantSanitizeFinishShoppingReply(string $message, string $reply): string
 {
     if (!$this->isAssistantFinishShoppingMessage($message)) return $reply;
-    if (!preg_match('/\b(?:cancel|cancelled|canceled|cancle|radd|rad|remove|delete|clear)\b/iu', $reply)) return $reply;
+    if (!preg_match('/(?:\b(?:cancel|cancelled|canceled|cancle|kancel|order\s*cancel|oder\s*cancel|ordar\s*cancel|radd|rad|remove|delete|clear|khatam)\b|(?:रद्द|कैंसल|कॅन्सल|हटा|मिटा|डिलीट|खत्म))/iu', $reply)) return $reply;
     return 'Theek hai, aur product nahi. Ye aapke order ki final summary hai. Product aur quantity check kar lijiye. Sab sahi hai to confirm kijiye.';
 }
 
