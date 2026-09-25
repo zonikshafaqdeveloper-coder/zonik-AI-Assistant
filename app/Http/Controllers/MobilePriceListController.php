@@ -3424,6 +3424,8 @@ private function normalizeAssistantSpeechText(string $text): string
     $spoken = preg_replace('/\s*[×x]\s*/u', ' times ', $spoken) ?? $spoken;
     $spoken = str_replace('&', ' and ', $spoken);
     $spoken = preg_replace('/\bZonik\b/iu', 'Zo-nik', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\blive\s+order\b/iu', 'live ऑर्डर', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bon\s+order\b/iu', 'ऑन ऑर्डर', $spoken) ?? $spoken;
     $spoken = preg_replace('/\bAI\b/u', 'A I', $spoken) ?? $spoken;
     $spoken = preg_replace('/\bMRP\b/u', 'M R P', $spoken) ?? $spoken;
     $spoken = preg_replace('/\bGST\b/u', 'G S T', $spoken) ?? $spoken;
@@ -3486,6 +3488,8 @@ private function normalizeAssistantHindiSpeechWords(string $speech): string
     // Multilingual voices occasionally read leftover Roman Hindi as English.
     // Convert only the assistant's common conversational vocabulary; verified
     // product and brand names remain untouched in their original script.
+    $speech = preg_replace('/\blive\s+order\b/iu', 'लाइव ऑर्डर', $speech) ?? $speech;
+    $speech = preg_replace('/\bon\s+order\b/iu', 'ऑन ऑर्डर', $speech) ?? $speech;
     $words = [
         'namaste' => 'नमस्ते', 'aap' => 'आप', 'aapka' => 'आपका', 'aapke' => 'आपके', 'aapki' => 'आपकी',
         'main' => 'मैं', 'mujhe' => 'मुझे', 'yeh' => 'ये', 'ye' => 'ये', 'kya' => 'क्या',

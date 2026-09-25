@@ -2540,6 +2540,10 @@ function appendTyping() {
                 .replace(/\bUPI\b/gu, 'U P I')
                 .replace(/\bCOD\b/gu, 'C O D')
                 .replace(/\bSKU\b/gu, 'S K U')
+                .replace(/\blive\s+order\b/giu, 'live ऑर्डर')
+                .replace(/\bon\s+order\b/giu, 'ऑन ऑर्डर')
+                .replace(/\border\b/giu, 'ऑर्डर')
+                .replace(/\borders\b/giu, 'ऑर्डर्स')
                 .replace(/\bN\/?A\b/gu, 'not available')
                 .replace(/([.!?])(?=[^\s])/g, '$1 ')
                 .replace(/\s+/g, ' ')
@@ -2741,18 +2745,24 @@ function appendTyping() {
                 .then(function (welcome) {
                     customerHasPreviousOrder = !!welcome.has_previous_order;
                     return welcome;
-                });
+            });
             return welcomePromise;
         }
+        let welcomePlaybackPromise = null;
         function playWelcome() {
+            if (welcomePlaybackPromise) return welcomePlaybackPromise;
             loadWelcome().catch(function () { return null; });
-            return new Promise(function (resolve) {
+            welcomePlaybackPromise = new Promise(function (resolve) {
                 loadVoiceAsync(instantWelcomeText, function () {
                     finishWelcomeAndListen();
                     resolve();
                 }, null, {browserOnly: true});
             });
+            return welcomePlaybackPromise;
         }
+        window.setTimeout(function () {
+            playWelcome().catch(finishWelcomeAndListen);
+        }, 0);
         // Fast boot: restore only the latest conversation. The complete
         // conversation list is loaded lazily when the History panel opens.
         fetch(historyUrl + '?bootstrap=1', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
