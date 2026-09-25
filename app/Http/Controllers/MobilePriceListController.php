@@ -2151,6 +2151,14 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
     if ($stage === 'clarify_product') {
         $options = array_slice(array_values($flow['products'] ?? []), 0, 3);
         $flow['products'] = $options;
+        if ($this->isAssistantFinishShoppingMessage($message)) {
+            return [
+                'reply' => 'Theek hai, aur product nahi. Ye aapke order ki final summary hai. Product aur quantity check kar lijiye. Sab sahi hai to confirm kijiye.',
+                'products' => [],
+                'workflow' => ['stage' => 'confirm_order', 'show_cart' => true],
+                'state' => ['stage' => 'confirm_order'],
+            ];
+        }
         if ($this->assistantAllEnquiriesRequested($message) && !empty($options)) {
             $sentNames = [];
             $failedOptions = [];
@@ -2409,6 +2417,10 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         return ['reply' => $this->assistantNaturalFlowReply($understanding, 'Aur products batate jaiye; poora ho jaaye to “bas itna hi” bol dijiye.'), 'products' => [], 'workflow' => ['stage' => 'anything_else'], 'state' => $flow];
     }
     if ($stage === 'confirm_order') {
+        if ($this->isAssistantFinishShoppingMessage($message)) {
+            $delivery = $this->assistantDeliveryChoices($outlet);
+            return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
+        }
         if ($no) return ['reply' => 'Theek hai ji. Jo item badalna ya add karna hai bataiye.', 'products' => [], 'workflow' => ['stage' => 'anything_else', 'show_cart' => true], 'state' => ['stage' => 'anything_else']];
         if ($yes) {
             $suggestions = empty($flow['skip_suggestions'])
@@ -2760,6 +2772,9 @@ private function isAssistantExplicitOrderConfirmation(string $message): bool
 
 private function isAssistantFinishShoppingMessage(string $message): bool
 {
+    if (preg_match('/(?:\b(?:nothing|no\s+more|nothing\s+else|that(?:\'s|\s+is)\s+all|done)\b|\b(?:aur|or)\s+(?:(?:mujhe|muje|mereko|humko|hame)\s+)?(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai|na)\b|\b(?:nahi|nahin|nhi|nai|na)\s+(?:(?:mujhe|muje|mereko|humko|hame)\s+)?(?:aur|or)\s+(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai|na)?\b|\bbas\s+(?:itna|itni|etna|etni|yahi|yehi)\s*(?:hi|hai)?\b|(?:बस|और)\s*(?:कुछ|कोई)?\s*(?:नहीं|नहि|नही)|(?:आणखी\s+काही\s+नाही|बस\s+झाले|एवढेच|इतकेच))/iu', $message)) {
+        return true;
+    }
     return (bool) preg_match('/(?:\b(?:nothing|no\s+more|nothing\s+else|that(?:\'s|\s+is)\s+all|done)\b|\b(?:aur|or)\s+(?:(?:mujhe|muje|humko|hame)\s+)?(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai)\b|\b(?:nahi|nahin|nhi|nai)\s+(?:(?:mujhe|muje|humko|hame)\s+)?(?:aur|or)\s+(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai)\b|\bbas\s+(?:itna|itni|yahi)\s+(?:hi|hai)\b|(?:बस|और)\s*(?:कुछ|कोई)?\s*(?:नहीं|नहि|नही)|(?:आणखी\s+काही\s+नाही|बस\s+झाले|एवढेच|इतकेच))/iu', $message);
 }
 
@@ -2808,6 +2823,7 @@ private function isAssistantDirectCustomerCareCallRequest(string $message): bool
 
 private function isAssistantCustomerCareDecline(string $message): bool
 {
+    if ($this->isAssistantFinishShoppingMessage($message)) return false;
     return (bool) preg_match('/(?<![\p{L}\p{N}\p{M}])(?:no|nahi|nahin|nai|nako|cancel|rehne\s+do|mat|nahi\s+chahiye|नहीं|नही|ना|मत|रहने\s*दो)(?![\p{L}\p{N}\p{M}])/iu', trim($message));
 }
 
@@ -3201,8 +3217,10 @@ private function assistantPaymentOptions(?User $user, ?User $outlet): array
 private function understandAssistantFlowReply(string $message, string $stage, array $flow = []): array
 {
     $fallbackAction = 'unknown';
+    if ($this->isAssistantFinishShoppingMessage($message)) $fallbackAction = 'finish';
     if (preg_match('/\b(?:yes|yeah|haan|han|haa|ok|okay|confirm|confirmed|yahi|yehi|wahi|correct|right|bilkul|sahi|theek)\b/iu', $message)) $fallbackAction = 'confirm';
-    if (preg_match('/\b(?:no|nope|nahi|nahin|nai|nako|wrong|galat|change)\b/iu', $message)) $fallbackAction = $stage === 'anything_else' ? 'finish' : 'reject';
+    if (!$this->isAssistantFinishShoppingMessage($message)
+        && preg_match('/\b(?:no|nope|nahi|nahin|nai|nako|wrong|galat|change)\b/iu', $message)) $fallbackAction = $stage === 'anything_else' ? 'finish' : 'reject';
     $fallbackQuantity = preg_match('/\d+(?:\.\d+)?/', $message, $quantityMatch) ? (float) $quantityMatch[0] : 0;
 
     if (empty(config('services.gemini.api_key'))) {
@@ -3221,7 +3239,7 @@ private function understandAssistantFlowReply(string $message, string $stage, ar
         'checkout_ready' => 'The order has NOT been placed yet. Any requested product, cart, or quantity change must be handled before order placement.',
     ][$stage] ?? 'Understand the customer response.';
     $flowContext = json_encode(['product' => $flow['product'] ?? null, 'quantity' => $flow['quantity'] ?? null], JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite male Indian delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Always use masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; never use feminine forms such as 'kar rahi hoon', 'karungi', or 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
+    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite male Indian delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Never treat finish-shopping phrases like 'bas itna hi', 'aur kuch nahi chahiye', or 'no more' as order cancellation, product removal, or customer-care cancellation. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer; at confirm_order 'aur kuch nahi chahiye' => confirm + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Always use masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; never use feminine forms such as 'kar rahi hoon', 'karungi', or 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -4920,7 +4938,7 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
     // quantity/unit words before searching the real customer price list.
     $q = $this->normalizeAssistantSearchText(strtolower($message));
     $q = preg_replace('/\d+(?:\.\d+)?/', ' ', $q);
-    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|dena|dya|karo|karna|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
+    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|dena|dya|karo|karna|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
     $q = preg_replace('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो|दिखाओ|करो|कर\s*दो|को|मुझे)/u', ' ', $q);
     $q = trim(preg_replace('/\s+/', ' ', $q));
     if ($q === '') {
@@ -5023,6 +5041,20 @@ private function assistantSearchWordScore(string $term, string $word): int
         return 95;
     }
 
+    // Speech-to-text often writes the right sound with a different spelling:
+    // "epal" for apple, "juce" for juice, "mazza" for maza. Metaphone keeps
+    // this forgiving without relaxing tiny tokens where wrong matches are risky.
+    if ($termLength >= 4 && $wordLength >= 4) {
+        $termSound = metaphone($term);
+        $wordSound = metaphone($word);
+        if ($termSound !== '' && $wordSound !== '') {
+            if ($termSound === $wordSound) return 78;
+            if (strlen($termSound) >= 3 && strlen($wordSound) >= 3 && levenshtein($termSound, $wordSound) <= 1) {
+                return 68;
+            }
+        }
+    }
+
     $distance = levenshtein($term, $word);
     if ($termLength === $wordLength && $termLength >= 5) {
         for ($i = 0; $i < $termLength - 1; $i++) {
@@ -5032,7 +5064,7 @@ private function assistantSearchWordScore(string $term, string $word): int
             if ($swapped === $word) return 70;
         }
     }
-    $allowed = $termLength >= 8 && $wordLength >= 8 ? 2 : 1;
+    $allowed = ($termLength >= 6 && $wordLength >= 6) ? 2 : 1;
 
     return $distance <= $allowed ? 85 - ($distance * 15) : 0;
 }
