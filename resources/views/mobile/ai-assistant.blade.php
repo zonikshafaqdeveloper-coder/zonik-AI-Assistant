@@ -2387,13 +2387,17 @@ function appendTyping() {
         let speechRequestGeneration = 0;
         let assistantSpeechEndedAt = 0;
         let lastAssistantSpokenText = '';
-        // Once ElevenLabs fails, use one stable browser voice for the rest of
-        // a short recovery window instead of alternating every reply.
         let voiceProviderMode = 'auto';
         let elevenLabsRetryAt = 0;
         function useBrowserVoiceTemporarily() {
-            voiceProviderMode = 'browser';
-            elevenLabsRetryAt = Date.now() + 15000;
+            voiceProviderMode = 'auto';
+            elevenLabsRetryAt = 0;
+        }
+        function finishSpeechWithoutBrowser(onEnded) {
+            assistantSpeechEndedAt = Date.now();
+            setAgentUiState('idle');
+            resumeListeningAfterReply();
+            if (typeof onEnded === 'function') onEnded();
         }
         function resumeListeningAfterReply() {
             if (!continuousTalkMode || speechRecognition) return;
@@ -2553,26 +2557,17 @@ function appendTyping() {
         function loadVoiceAsync(text, onEnded, onStart, options) {
             const voiceOptions = options || {};
             lastAssistantSpokenText = speechFriendlyText(text);
-            if (voiceOptions.browserOnly) {
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
-                return;
-            }
-            if (voiceProviderMode === 'browser' && Date.now() < elevenLabsRetryAt) {
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
-                return;
-            }
             if (voiceProviderMode === 'browser') voiceProviderMode = 'auto';
             const requestGeneration = speechRequestGeneration;
             const controller = window.AbortController ? new AbortController() : null;
             let completed = false;
-            const fallbackAfterMs = Number(voiceOptions.fallbackAfterMs || 4500);
+            const fallbackAfterMs = Number(voiceOptions.fallbackAfterMs || 12000);
             const requestTimeout = window.setTimeout(function () {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 if (controller) controller.abort();
-                useBrowserVoiceTemporarily();
-                console.info('ElevenLabs audio timed out; using browser voice temporarily.');
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                console.info('ElevenLabs audio timed out; browser TTS disabled.');
+                finishSpeechWithoutBrowser(onEnded);
             }, fallbackAfterMs);
             fetch(speakUrl, {
                 method: 'POST',
@@ -2597,17 +2592,15 @@ function appendTyping() {
                     playVoice(data.voice_base64, data.voice_mime, onEnded, onStart);
                 }
                 else {
-                    useBrowserVoiceTemporarily();
-                    console.info('ElevenLabs unavailable; using browser voice temporarily.');
-                    speakWithBrowser(localizedText, onEnded, onStart);
+                    console.info('ElevenLabs unavailable; browser TTS disabled.');
+                    finishSpeechWithoutBrowser(onEnded);
                 }
             }).catch(function () {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 window.clearTimeout(requestTimeout);
-                useBrowserVoiceTemporarily();
-                console.info('ElevenLabs request failed; using browser voice temporarily.');
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                console.info('ElevenLabs request failed; browser TTS disabled.');
+                finishSpeechWithoutBrowser(onEnded);
             });
         }
 
@@ -2689,14 +2682,10 @@ function appendTyping() {
                     speechRecognition = null;
                 }
                 if (data.voice_base64 && voiceProviderMode !== 'browser') playVoice(data.voice_base64, data.voice_mime, scheduleResponseReminder);
-                else {
-                    useBrowserVoiceTemporarily();
-                    speakWithBrowser(localizedText, scheduleResponseReminder);
-                }
+                else scheduleResponseReminder();
             }).catch(function () {
                 if (requestGeneration === speechRequestGeneration) {
-                    useBrowserVoiceTemporarily();
-                    speakWithBrowser(reminder, scheduleResponseReminder);
+                    scheduleResponseReminder();
                 }
             });
         }
@@ -2756,7 +2745,7 @@ function appendTyping() {
                 loadVoiceAsync(instantWelcomeText, function () {
                     finishWelcomeAndListen();
                     resolve();
-                }, null, {browserOnly: true});
+                }, null, {fallbackAfterMs: 12000});
             });
             return welcomePlaybackPromise;
         }
