@@ -832,6 +832,9 @@ public function assistantOnboardingIntent(Request $request)
         // A reply such as "main naya order karunga" is an affirmative
         // answer to the readiness question, even when it does not say
         // the literal word "ready".
+        if ($this->isAssistantFinishShoppingMessage($message)) {
+            return response()->json($this->assistantOnboardingChatHandoff($message, $stage));
+        }
         if (preg_match('/\b(?:no|nope|nahi|nahin|nai|not\s*ready|abhi\s*nahi|cancel|later)\b/iu', $message)) {
             return response()->json(['choice' => 'no']);
         }
@@ -1951,6 +1954,7 @@ public function assistantChat(Request $request)
     }
 
     $reply = $this->localizeAssistantReply($reply, $rawMessage, $intent['language'] ?? null);
+    $reply = $this->assistantSanitizeFinishShoppingReply($rawMessage, $reply);
 
     AiAssistantMessage::create([
         'user_id' => $user->id,
@@ -2802,6 +2806,13 @@ private function isAssistantFinishShoppingMessage(string $message): bool
     return (bool) preg_match('/(?:\b(?:nothing|no\s+more|nothing\s+else|that(?:\'s|\s+is)\s+all|done)\b|\b(?:aur|or)\s+(?:(?:mujhe|muje|humko|hame)\s+)?(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai)\b|\b(?:nahi|nahin|nhi|nai)\s+(?:(?:mujhe|muje|humko|hame)\s+)?(?:aur|or)\s+(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai)\b|\bbas\s+(?:itna|itni|yahi)\s+(?:hi|hai)\b|(?:बस|और)\s*(?:कुछ|कोई)?\s*(?:नहीं|नहि|नही)|(?:आणखी\s+काही\s+नाही|बस\s+झाले|एवढेच|इतकेच))/iu', $message);
 }
 
+private function assistantSanitizeFinishShoppingReply(string $message, string $reply): string
+{
+    if (!$this->isAssistantFinishShoppingMessage($message)) return $reply;
+    if (!preg_match('/\b(?:cancel|cancelled|canceled|cancle|radd|rad|remove|delete|clear)\b/iu', $reply)) return $reply;
+    return 'Theek hai, aur product nahi. Ye aapke order ki final summary hai. Product aur quantity check kar lijiye. Sab sahi hai to confirm kijiye.';
+}
+
 private function isAssistantGenericConfirmation(string $message): bool
 {
     return (bool) preg_match('/^\s*(?:(?:yes|yeah|yep|haan|han|haa|ok|okay|ji)\s+)*(?:(?:order|delivery|delevery|checkout)\s+)?(?:confirm|final|complete)(?:\s+(?:karo|kar\s+do|kijiye|it|please))?\s*[.!?]*\s*$/iu', $message)
@@ -3327,6 +3338,7 @@ private function assistantFlowJsonResponse(?User $user, ?User $outlet, ?string $
     $replyLanguage = $this->assistantReplyLanguage($message);
     if ($flowResponse['reply'] !== '') {
         $flowResponse['reply'] = $this->localizeAssistantReply($flowResponse['reply'], $message, $replyLanguage);
+        $flowResponse['reply'] = $this->assistantSanitizeFinishShoppingReply($message, $flowResponse['reply']);
     }
     AiAssistantMessage::create(['user_id' => $user?->id, 'outlet_id' => $outlet?->id, 'conversation_id' => $conversationId, 'role' => 'user', 'message' => $this->assistantDatabaseSafeText($message)]);
     AiAssistantMessage::create(['user_id' => $user?->id, 'outlet_id' => $outlet?->id, 'conversation_id' => $conversationId, 'role' => 'assistant', 'message' => $this->assistantDatabaseSafeText($flowResponse['reply']), 'product_data' => $flowResponse['products'] ?? []]);
@@ -3445,6 +3457,7 @@ private function normalizeAssistantSpeechText(string $text): string
 
     $spoken = preg_replace('/₹\s*([\d,]+(?:\.\d+)?)/u', '$1 rupees', $spoken) ?? $spoken;
     $spoken = preg_replace('/\b([\d.]+)\s*%/u', '$1 percent', $spoken) ?? $spoken;
+    $spoken = preg_replace('/\bexact\b/iu', 'एक्ज़ैक्ट', $spoken) ?? $spoken;
     $spoken = preg_replace('/\s*[×x]\s*/u', ' times ', $spoken) ?? $spoken;
     $spoken = str_replace('&', ' and ', $spoken);
     $spoken = preg_replace('/\bZonik\b/iu', 'Zo-nik', $spoken) ?? $spoken;
@@ -3514,6 +3527,7 @@ private function normalizeAssistantHindiSpeechWords(string $speech): string
     // product and brand names remain untouched in their original script.
     $speech = preg_replace('/\blive\s+order\b/iu', 'लाइव ऑर्डर', $speech) ?? $speech;
     $speech = preg_replace('/\bon\s+order\b/iu', 'ऑन ऑर्डर', $speech) ?? $speech;
+    $speech = preg_replace('/\bexact\b/iu', 'एक्ज़ैक्ट', $speech) ?? $speech;
     $words = [
         'namaste' => 'नमस्ते', 'aap' => 'आप', 'aapka' => 'आपका', 'aapke' => 'आपके', 'aapki' => 'आपकी',
         'main' => 'मैं', 'mujhe' => 'मुझे', 'yeh' => 'ये', 'ye' => 'ये', 'kya' => 'क्या',
@@ -4612,11 +4626,11 @@ private function assistantCartMutationReply(array $result, string $productName):
     $quantity = max(1, (int) ($result['quantity'] ?? 1));
     $action = (string) ($result['action'] ?? 'added');
     if ($action === 'unchanged') {
-        return "{$productName} pehle se cart mein {$quantity} quantity ke saath hai; koi duplicate add nahi kiya.";
+        return "{$productName} ki quantity {$quantity} set kar di hai.";
     }
     if ($action === 'updated') {
         $previous = max(1, (int) ($result['previous_quantity'] ?? 1));
-        return "{$productName} pehle se cart mein tha; quantity {$previous} se {$quantity} update kar di hai.";
+        return "{$productName} ki quantity {$previous} se {$quantity} update kar di hai.";
     }
     return "{$productName} cart mein add kar diya hai.";
 }

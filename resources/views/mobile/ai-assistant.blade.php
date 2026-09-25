@@ -1809,6 +1809,7 @@ body:has(.ai-page){background:#edf2f5}
 
         function isCustomerCareDecline(value) {
             const message = String(value || '');
+            if (/(?:\b(?:nothing|no\s+more|nothing\s+else|that(?:'s|\s+is)\s+all|done)\b|\b(?:aur|or)\s+(?:(?:mujhe|muje|mereko|humko|hame)\s+)?(?:kuch|koi)\s+(?:bhi\s+)?(?:nahi|nahin|nhi|nai|na)\b|\bbas\s+(?:itna|itni|etna|etni|yahi|yehi)\s*(?:hi|hai)?\b)/iu.test(message)) return false;
             return /\b(?:no|nahi|nahin|nai|nako|cancel|rehne\s+do|mat|nahi\s+chahiye)\b/iu.test(message)
                 || /(?:\u0928\u0939\u0940\u0902|\u0928\u0939\u093f|\u0928\u0939\u0940|\u092e\u0924|\u0930\u0939\u0928\u0947\s*\u0926\u094b|\u0928\u0915\u094b)/u.test(message);
         }
@@ -2544,6 +2545,7 @@ function appendTyping() {
                 .replace(/\bUPI\b/gu, 'U P I')
                 .replace(/\bCOD\b/gu, 'C O D')
                 .replace(/\bSKU\b/gu, 'S K U')
+                .replace(/\bexact\b/giu, 'एक्ज़ैक्ट')
                 .replace(/\blive\s+order\b/giu, 'live ऑर्डर')
                 .replace(/\bon\s+order\b/giu, 'ऑन ऑर्डर')
                 .replace(/\border\b/giu, 'ऑर्डर')
