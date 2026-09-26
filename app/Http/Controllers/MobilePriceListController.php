@@ -1722,8 +1722,12 @@ public function assistantChat(Request $request)
             }
             $singleQuantity = 1;
         }
+        if ($singleQuantity <= 0 && $this->isAssistantDirectAddRequest($message)) {
+            $singleQuantity = 1;
+        }
         if ($singleQuantity > 0) {
             $singleMatches = $this->findAssistantProducts($singleQuery, $outlet);
+            $singleMatches = $this->assistantCollapseStrongProductMatches($singleMatches, $singleQuery ?: $rawMessage);
             if (count($singleMatches) === 1) {
                 $cartResult = $this->addAssistantProductToCart($user, $outlet, $singleMatches[0], $singleQuantity);
                 if ($cartResult) {
@@ -1931,6 +1935,10 @@ public function assistantChat(Request $request)
             $approvedAlternatives = false;
             $catalogSuggestions = false;
         }
+        $collapsedHints = $this->assistantCollapseStrongProductMatches($productHints, $intent['search_query'] ?: $rawMessage);
+        if (!empty($collapsedHints)) {
+            $productHints = $collapsedHints;
+        }
     }
     if ($selectedProductId) {
         $selected = collect($pendingProducts)->first(fn ($product) => (int) ($product['id'] ?? 0) === $selectedProductId);
@@ -1965,6 +1973,17 @@ public function assistantChat(Request $request)
             $product['requested_unit'] = $intent['unit'];
             return $product;
         })->values()->all();
+    }
+    if (($intent['intent'] ?? '') === 'product_search'
+        && empty($intent['quantity'])
+        && count($productHints) === 1
+        && !$catalogSuggestions
+        && !$approvedAlternatives
+        && $this->isAssistantDirectAddRequest($message)) {
+        $intent['quantity'] = 1;
+        $intent['unit'] = null;
+        $productHints[0]['requested_quantity'] = 1;
+        $productHints[0]['requested_unit'] = null;
     }
 
     $brandCount = count(array_unique(array_filter(array_map(
@@ -4844,6 +4863,19 @@ private function hasAssistantExplicitProductAction(string $message): bool
     return (bool) preg_match('/\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana)\b/iu', $message);
 }
 
+private function isAssistantDirectAddRequest(string $message): bool
+{
+    if ($this->isAssistantGeneralQuestion($message)
+        || $this->isAssistantCartRequest($message)
+        || $this->isAssistantRecommendationRequest($message)
+        || $this->isAssistantCustomerCareRequest($message)) {
+        return false;
+    }
+
+    return (bool) preg_match('/\b(?:add|buy|order|give|need|want|chahiye|chaiye|pahije|hava|havi|cart\s+mein|cart\s+me|daal|dal|dalo|daalo|laga|lagao|rakh|rakho)\b/iu', $message)
+        || (bool) preg_match('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो)/u', $message);
+}
+
 private function looksLikeAssistantProductRequest(string $message): bool
 {
     // This is only a local shortcut for clear product requests.  A bare
@@ -5535,6 +5567,46 @@ private function assistantFilterProductsByRequestedType(array $products, string 
         }
         return false;
     }));
+}
+
+private function assistantComparableProductText(string $text): string
+{
+    $text = mb_strtolower($this->normalizeAssistantSearchText($text));
+    $text = preg_replace('/\b\d+(?:\.\d+)?\s*(?:ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|litre|liter|ltr|pcs?|pieces?|packet|pack|box|carton|unit)\b/iu', ' ', $text) ?? $text;
+    $text = preg_replace('/\b(?:add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|product|item|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|do|teen|char|chaar|panch|paanch|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|pahije|dikhao|dikhana|batao|bataiye|wala|wali|wale|de|dena|dya|karo|karna|karke|hai|hain)\b/iu', ' ', $text) ?? $text;
+    $text = preg_replace('/[^a-z0-9]+/iu', ' ', $text) ?? $text;
+
+    return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+}
+
+private function assistantCollapseStrongProductMatches(array $products, string $requestText): array
+{
+    if (count($products) <= 1) return $products;
+
+    $request = $this->assistantComparableProductText($requestText);
+    if ($request === '') return $products;
+
+    $exact = array_values(array_filter($products, function ($product) use ($request) {
+        $brand = trim((string) ($product['brand'] ?? ''));
+        $name = trim((string) ($product['name'] ?? ''));
+        $brandName = $this->assistantComparableProductText(trim($brand . ' ' . $name));
+        $nameOnly = $this->assistantComparableProductText($name);
+
+        return $brandName === $request || $nameOnly === $request;
+    }));
+    if (count($exact) === 1) return $exact;
+
+    $starts = array_values(array_filter($products, function ($product) use ($request) {
+        $brand = trim((string) ($product['brand'] ?? ''));
+        $name = trim((string) ($product['name'] ?? ''));
+        $brandName = $this->assistantComparableProductText(trim($brand . ' ' . $name));
+        $nameOnly = $this->assistantComparableProductText($name);
+
+        return str_starts_with($brandName . ' ', $request . ' ')
+            || str_starts_with($nameOnly . ' ', $request . ' ');
+    }));
+
+    return count($starts) === 1 ? $starts : $products;
 }
 
 private function findAssistantProducts(string $message, ?User $outlet, bool $includeGlobalCatalogue = false): array
