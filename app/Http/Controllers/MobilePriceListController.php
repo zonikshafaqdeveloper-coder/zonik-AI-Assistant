@@ -4283,11 +4283,12 @@ private function assistantAddPreviouslySuggestedRequest(string $message): bool
     $lower = mb_strtolower(trim($message));
     if ($lower === '') return false;
 
-    $refersBack = (bool) preg_match('/\b(?:jo\s+jo|jo\s+bhi|jo|jaisa|jitna|woh|wo|wahi|unko|unhe|those|these|suggest(?:ed)?|bole\s+the|bataya\s+tha|dikhaya\s+tha|pehle\s+(?:bole|bataya|dikhaya))\b/iu', $lower);
-    $wantsAdd = (bool) preg_match('/\b(?:add|cart|order|daal|dal|dalo|laga|lagao|kar\s*do|kardo|de\s*do)\b/iu', $lower);
-    $all = (bool) preg_match('/\b(?:sab|sub|saare|sare|all|everything|jo\s+jo|jo\s+bhi)\b/iu', $lower);
+    $refersBack = (bool) preg_match('/\b(?:ye|yeh|is|in|inka|inke|isko|inko|jo\s+jo|jo\s+bhi|jo|jaisa|jitna|tumne|tum\s+ne|aapne|aap\s+ne|woh|wo|wahi|unko|unhe|those|these|this|that|suggest(?:ed)?|suggestions?|bole\s+the|bola\s+tha|bataya\s+tha|dikhaya\s+tha|pehle\s+(?:bole|bola|bataya|dikhaya))\b/iu', $lower);
+    $wantsAdd = (bool) preg_match('/\b(?:add|cart|order|daal|dal|dalo|daalo|laga|lagao|kar\s*do|kardo|de\s*do|rakh\s*do|include)\b/iu', $lower);
+    $all = (bool) preg_match('/\b(?:sab|sub|saare|sare|sara|all|everything|all\s+these|ye\s+sab|yeh\s+sab|in\s+sab|inko\s+sab|jo\s+jo|jo\s+bhi)\b/iu', $lower);
+    $affirmativeAll = (bool) preg_match('/^\s*(?:haan|han|haa|ha|yes|yeah|ok|okay|theek|thik|ji)\b.*\b(?:sab|sub|saare|sare|all|ye\s+sab|yeh\s+sab|in\s+sab)\b/iu', $lower);
 
-    return $refersBack && $wantsAdd && $all;
+    return $wantsAdd && ($all || $affirmativeAll) && $refersBack;
 }
 
 private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?User $user, ?User $outlet, ?string $conversationId): array
@@ -4694,6 +4695,8 @@ private function shouldAssistantForwardOnboardingMessage(string $message): bool
     if ($this->isAssistantCustomerCareRequest($message)
         || $this->isAssistantZonikCatalogueRequest($message)
         || $this->isAssistantRecommendationRequest($message)
+        || $this->isAssistantWeatherShoppingRequest($message)
+        || $this->isAssistantGuestShoppingRequest($message)
         || $this->isAssistantCartRequest($message)
         || $this->isAssistantCartQuantityUpdateRequest($message)
         || $this->isAssistantCartRemoveRequest($message)
