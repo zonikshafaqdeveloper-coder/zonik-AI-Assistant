@@ -784,12 +784,16 @@ public function assistantWelcome(Request $request)
     $hasPreviousOrder = $outlet && Order::where('user_id', $user->id)
         ->where('outlet_id', $outlet->id)->exists();
     $text = "Namaste, {$name} ji! Zonik AI mein aapka swagat hai. ";
+    $text .= $outlet
+        ? 'Abhi ' . $this->assistantOutletWelcomeName($outlet) . ' outlet selected hai. Isi outlet ki price list se order lunga. '
+        : 'Abhi koi outlet selected nahi mila. Pehle outlet select kar lijiye, phir main order le paunga. ';
     $text .= $hasPreviousOrder
         ? 'Aap naya order shuru kar sakte hain ya apna purana order repeat kar sakte hain. Bataiye, aaj kya karna chahenge?'
         : 'Aap voice ya text se aasani se order de sakte hain. Shuru karne ke liye product ka naam aur quantity boliye.';
     return response()->json([
         'text' => $text,
         'customer_name' => $name,
+        'selected_outlet_name' => $outlet ? $this->assistantOutletWelcomeName($outlet) : '',
         'has_previous_order' => (bool) $hasPreviousOrder,
         // Text must render immediately; the browser requests speech in parallel.
         'voice_base64' => null,
@@ -3529,6 +3533,18 @@ private function assistantWelcomeName(string $name): string
     $name = trim($name, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
 
     return $name !== '' ? mb_substr($name, 0, 80) : 'Customer';
+}
+
+private function assistantOutletWelcomeName(?User $outlet): string
+{
+    if (!$outlet) return 'selected';
+    $name = (string) ($outlet->outlet_name ?? $outlet->name ?? 'selected');
+    $name = html_entity_decode(strip_tags($name), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $name = preg_replace('/[\p{C}\r\n\t]+/u', ' ', $name) ?? $name;
+    $name = preg_replace('/\s+/u', ' ', trim($name)) ?? trim($name);
+    $name = trim($name, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
+
+    return $name !== '' ? mb_substr($name, 0, 100) : 'selected';
 }
 
 private function normalizeAssistantSpeechText(string $text): string

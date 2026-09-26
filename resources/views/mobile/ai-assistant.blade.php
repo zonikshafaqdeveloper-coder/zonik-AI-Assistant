@@ -2766,8 +2766,29 @@ function appendTyping() {
             $instantCustomerName = preg_replace('/(?:\s+ji)+[.!]*$/iu', '', trim($instantCustomerName)) ?? trim($instantCustomerName);
             $instantCustomerName = trim($instantCustomerName, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
             $instantCustomerName = $instantCustomerName !== '' ? mb_substr($instantCustomerName, 0, 80) : 'Customer';
+            $instantOutletName = '';
+            $instantUser = auth()->user();
+            if ($instantUser) {
+                $instantOutlets = \App\Models\User::where('priority', $instantUser->id)
+                    ->where('type', 'outlet')
+                    ->where('verified_status', 'verified')
+                    ->get();
+                $instantOutlet = $instantUser->selected_outlet_id
+                    ? ($instantOutlets->firstWhere('id', $instantUser->selected_outlet_id) ?? $instantOutlets->first())
+                    : $instantOutlets->first();
+                if ($instantOutlet) {
+                    $instantOutletName = html_entity_decode(strip_tags((string) ($instantOutlet->outlet_name ?? $instantOutlet->name ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $instantOutletName = preg_replace('/[\p{C}\r\n\t]+/u', ' ', $instantOutletName) ?? $instantOutletName;
+                    $instantOutletName = preg_replace('/\s+/u', ' ', trim($instantOutletName)) ?? trim($instantOutletName);
+                    $instantOutletName = trim($instantOutletName, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
+                    $instantOutletName = $instantOutletName !== '' ? mb_substr($instantOutletName, 0, 100) : '';
+                }
+            }
+            $instantOutletLine = $instantOutletName !== ''
+                ? ' Abhi ' . $instantOutletName . ' outlet selected hai. Isi outlet ki price list se order lunga.'
+                : ' Abhi koi outlet selected nahi mila. Pehle outlet select kar lijiye, phir main order le paunga.';
         @endphp
-        const instantWelcomeText = @json('Namaste, ' . $instantCustomerName . ' ji! Zonik AI mein aapka swagat hai.');
+        const instantWelcomeText = @json('Namaste, ' . $instantCustomerName . ' ji! Zonik AI mein aapka swagat hai.' . $instantOutletLine);
         appendMessage('assistant', escapeHtml(instantWelcomeText));
         // Load the greeting after bootstrap so every visit welcomes the user
         // before hands-free listening starts, including restored conversations.
