@@ -2534,7 +2534,15 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
                 'state' => ['stage' => 'confirm_order']];
         }
         if ($action === 'finish' || $no || $this->isAssistantFinishShoppingMessage($message)) {
-            return ['reply' => 'Ye aapke order ki final summary hai. Product aur quantity check kar lijiye; kam ya zyada karna ho to minus ya plus use kijiye. Sab sahi hai to confirm kijiye.', 'products' => [], 'workflow' => ['stage' => 'confirm_order', 'show_cart' => true], 'state' => ['stage' => 'confirm_order']];
+            $suggestions = $this->assistantPreviousOrderSuggestions($user, $outlet);
+            if ($suggestions) {
+                return ['reply' => 'Bas itna hi samajh gaya. Aapke previous orders ke basis par ye items bhi chahiye? Product ka naam bolkar add karein, ya no bolkar delivery continue karein.',
+                    'products' => $suggestions,
+                    'workflow' => ['stage' => 'order_suggestions', 'show_cart' => true],
+                    'state' => ['stage' => 'order_suggestions', 'suggestions' => $suggestions]];
+            }
+            $delivery = $this->assistantDeliveryChoices($outlet);
+            return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
         if ($action === 'add_more' || $yes) {
             $onlyConfirmation = (bool) preg_match('/^\s*(?:yes|yeah|haan|han|haa|ok|okay|aur|add\s+more)\s*[.!?]*\s*$/iu', $message);
@@ -2545,6 +2553,15 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
     }
     if ($stage === 'confirm_order') {
         if ($this->isAssistantFinishShoppingMessage($message)) {
+            $suggestions = empty($flow['skip_suggestions'])
+                ? $this->assistantPreviousOrderSuggestions($user, $outlet)
+                : [];
+            if ($suggestions) {
+                return ['reply' => 'Aapke previous orders ke basis par ye items bhi chahiye? Product ka naam bolkar add karein, ya no bolkar delivery continue karein.',
+                    'products' => $suggestions,
+                    'workflow' => ['stage' => 'order_suggestions', 'show_cart' => true],
+                    'state' => ['stage' => 'order_suggestions', 'suggestions' => $suggestions]];
+            }
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
