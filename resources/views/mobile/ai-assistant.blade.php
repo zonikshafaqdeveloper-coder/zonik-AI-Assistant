@@ -3234,25 +3234,33 @@ function appendTyping() {
                 if (data.auto_added || ['added', 'cart_updated'].includes(workflow.stage)) cartShortcut.hidden = false;
                 const cartMutationConfirmed = Boolean(data.auto_added)
                     || ['added', 'cart_updated', 'cart_removed'].includes(workflow.stage);
-                if (cartMutationConfirmed) dismissProductChoiceMessages();
-                if (workflow.show_cart || cartMutationConfirmed) window.setTimeout(renderLiveOrderList, 100);
-                if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
-                if (data.auto_added && workflow.stage === 'anything_else') {
+                const cartSettledStage = cartMutationConfirmed
+                    || workflow.stage === 'anything_else'
+                    || (workflow.show_cart && workflow.stage !== 'order_suggestions');
+                if (cartSettledStage) {
+                    activeClarificationOptions = [];
+                    activeCandidateSetId = null;
                     clarificationMessage?.remove();
                     clarificationMessage = null;
+                    dismissProductChoiceMessages();
+                }
+                if (workflow.show_cart || cartMutationConfirmed) window.setTimeout(renderLiveOrderList, 100);
+                if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
+                if (cartSettledStage && workflow.stage === 'anything_else') {
                     loadVoiceAsync(reply);
                     return;
                 }
-                if (products.length) {
+                if (products.length && !cartSettledStage) {
                     if (workflow.stage === 'clarify_product' && clarificationMessage) {
                         clarificationMessage.remove();
                         clarificationMessage = null;
                     }
+                    const productCardStages = ['clarify_product', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
                         html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 3).map(suggestionCard).join('') + '</div>'
                             + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
-                    } else if (!['added', 'cart_updated', 'cart_removed', 'await_quantity'].includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
+                    } else if (productCardStages.includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
                         const productQuantity = Number(product.requested_quantity || quantity || 1);
                         const label = workflow.stage === 'choose_cart_item' ? ('Set ' + productQuantity) : (workflow.stage === 'choose_cart_remove' ? 'Remove' : 'Add to Cart');
                         const needsSpokenQuantity = ['choose_product', 'choose_brand', 'confirm_product'].includes(workflow.stage) && !Number(product.requested_quantity);
@@ -4200,6 +4208,7 @@ function appendTyping() {
                     // workflow persistence succeeded. This avoids a tap that
                     // looks accepted but leaves the customer with no retry UI.
                     sourceMessage?.remove();
+                    dismissProductChoiceMessages();
                     if (isOrderSuggestion) {
                         chat?.querySelectorAll('[data-order-suggestions]').forEach(function (suggestions) {
                             suggestions.closest('.ai-message-row')?.remove();
@@ -4234,6 +4243,7 @@ function appendTyping() {
                         cartShortcut.hidden = false;
                         activeOrderingStage = isOrderSuggestion ? 'confirm_order' : 'anything_else';
                         liveOrderEditable = isOrderSuggestion;
+                        dismissProductChoiceMessages();
                         renderLiveOrderList();
                         if (keepCartOpen) openCartPanel();
                         appendMessage('assistant', '<strong>✓ Product added to your order.</strong><div class="ai-product-meta">Order screen refresh nahi hui; please continue from the updated list.</div>');
