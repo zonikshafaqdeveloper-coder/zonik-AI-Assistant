@@ -6002,6 +6002,11 @@ private function translateAssistantSearchTerms(string $message): array
 
 private function normalizeAssistantSearchText(string $text): string
 {
+    // Browser speech-to-text can hear "Real Apple Juice" as a grocery-like
+    // phrase such as "Abbies Arborio roce/rice". Correct only this narrow
+    // pattern so genuine rice searches remain available.
+    $text = preg_replace('/\b(?:abbie\'?s|abbies|abies|arby\'?s|arbies)\s+arborio\s+(?:roce|rose|rice|juice)\b/iu', ' real apple juice ', $text) ?? $text;
+
     // Common Hindi and Marathi grocery words. These run locally, so a customer
     // can order in any common regional wording even when the optional Gemini
     // translation is unavailable. Aliases describe a generic product only;
