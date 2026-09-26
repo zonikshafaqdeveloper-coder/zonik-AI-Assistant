@@ -418,6 +418,33 @@ private function assistantResolvedCartQuantity(Cart $item): int
     return max(1, (int) ($item->quantity ?? 0), (int) ($item->count_value ?? 0), (int) ($item->total_qty ?? 0));
 }
 
+private function assistantCartItemsForResponse(?User $user, ?User $outlet): array
+{
+    if (!$user || !$outlet) return [];
+
+    return Cart::with('product')
+        ->where('user_id', $user->id)
+        ->where('outlet_id', $outlet->id)
+        ->orderBy('id')
+        ->get()
+        ->map(function ($item) {
+            return [
+                'product_id' => (int) $item->product_id,
+                'name' => optional($item->product)->product_name ?: 'Unknown product',
+                'qty' => $this->assistantResolvedCartQuantity($item),
+                'total' => (float) $item->total_amt_basic,
+                'price' => (float) $item->offer_price,
+                'unit' => optional($item->product)->unit ?: 'unit',
+                'carton_size' => optional($item->product)->carton_size ?: '-',
+                'image' => optional($item->product)->image ? asset('uploads/' . $item->product->image) : null,
+            ];
+        })
+        ->filter(fn ($item) => (float) ($item['qty'] ?? 0) > 0)
+        ->take(50)
+        ->values()
+        ->all();
+}
+
 public function assistantCartRemove(Request $request, int $cartId)
 {
     $outlet = $this->getCurrentOutlet($request->user());
@@ -1178,6 +1205,34 @@ public function assistantChat(Request $request)
     // Product facts and price protection come from the selected outlet's
     // verified price list. A model may understand wording, but it never
     // decides prices or executes an unsafe "add everything" command.
+    if ($this->assistantAddPreviouslySuggestedRequest($message)) {
+        $suggestedProducts = $this->assistantProductsFromCurrentOrRecentSuggestions($orderFlow, $user, $outlet, $conversationId);
+        if (!empty($suggestedProducts)) {
+            $added = [];
+            $failed = [];
+            foreach (array_slice($suggestedProducts, 0, 8) as $product) {
+                if (($product['available_in_outlet'] ?? true) === false) {
+                    $failed[] = (string) ($product['name'] ?? 'Product');
+                    continue;
+                }
+                $result = $this->addAssistantProductToCart($user, $outlet, $product, 1);
+                $result ? $added[] = (string) ($product['name'] ?? 'Product') : $failed[] = (string) ($product['name'] ?? 'Product');
+            }
+            $reply = empty($added)
+                ? 'Jo suggestions dikhaye the unme se koi product abhi cart mein add nahi ho paya. Product ka naam bolkar add kar sakte hain.'
+                : count($added) . ' suggested products cart mein add kar diye: ' . implode(', ', array_slice($added, 0, 6)) . '. Aur kuch chahiye?';
+            if (!empty($failed)) $reply .= ' Kuch items add nahi ho paye: ' . implode(', ', array_slice($failed, 0, 4)) . '.';
+            $nextState = ['stage' => 'anything_else'];
+            $request->session()->put($flowKey, $nextState);
+            return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, [
+                'reply' => $reply,
+                'products' => [],
+                'workflow' => ['stage' => 'anything_else', 'show_cart' => true],
+                'state' => $nextState,
+            ], $this->assistantCartItemsForResponse($user, $outlet));
+        }
+    }
+
     $verifiedProductAnswer = $this->assistantVerifiedProductQuestion($message, $user, $outlet, $cartItems);
     if ($verifiedProductAnswer) {
         if (!empty($orderFlow)) {
@@ -1223,6 +1278,20 @@ public function assistantChat(Request $request)
             }
             $recipePlan['state'] = $recipeState;
             return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $recipePlan, $cartItems);
+        }
+    }
+
+    if ($this->isAssistantWeatherShoppingRequest($message)) {
+        $weatherPlan = $this->assistantWeatherProductPlan($rawMessage, $user, $outlet);
+        if ($weatherPlan) {
+            $weatherProducts = array_values($weatherPlan['products'] ?? []);
+            $weatherState = !empty($weatherProducts)
+                ? ['stage' => 'clarify_product', 'products' => $weatherProducts]
+                : ['stage' => 'anything_else'];
+            $request->session()->put($flowKey, $weatherState);
+            $weatherPlan['workflow'] = ['stage' => $weatherState['stage'], 'weather_suggestions' => true];
+            $weatherPlan['state'] = $weatherState;
+            return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $weatherPlan, $cartItems);
         }
     }
 
@@ -4102,6 +4171,92 @@ private function isAssistantRecipePlanningRequest(string $message): bool
         '/\b(?:recipe|ingredients?|cook|cooking|make|prepare|bana|banana|banani|banane|banaunga|banaungi|banauga|pakana|pakane)\b.*(?:\b(?:kya|what|which|need|chahiye|lena|lagega|lagenge|use|hoga|items?|products?)\b|\?)|\b(?:kya\s+kya|what)\s+(?:lena|chahiye|need|use).*(?:bana|banana|banani|cook|make)\b/iu',
         $message
     );
+}
+
+private function isAssistantWeatherShoppingRequest(string $message): bool
+{
+    $mentionsWeather = (bool) preg_match('/\b(?:barish|baarish|rain|rainy|monsoon|mausam|mosam|weather)\b/iu', $message);
+    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|what|which|suggest|recommend|lena|chahiye|chaiye|need|items?|products?|order|mangau|mangwaun)\b/iu', $message);
+
+    return $mentionsWeather && $asksShopping;
+}
+
+private function assistantWeatherProductPlan(string $message, ?User $user, ?User $outlet): ?array
+{
+    if (!$outlet) return null;
+
+    $terms = ['tea', 'coffee', 'maggi noodle', 'soup', 'biscuits', 'ginger', 'besan', 'green chilli'];
+    if (preg_match('/\b(?:cold|thand|khansi|cough|sardi)\b/iu', $message)) {
+        array_unshift($terms, 'honey');
+    }
+
+    $matched = collect();
+    $missing = [];
+    foreach ($terms as $term) {
+        $matches = array_values(array_filter(
+            $this->findAssistantProducts($term, $outlet),
+            fn ($product) => ($product['available_in_outlet'] ?? true) === true
+        ));
+        if (empty($matches)) {
+            $missing[] = $term;
+            continue;
+        }
+        $product = $matches[0];
+        $product['recipe_ingredient'] = 'rainy weather';
+        if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
+            $matched->push($product);
+        }
+        if ($matched->count() >= 6) break;
+    }
+
+    if ($matched->isEmpty()) return null;
+
+    $reply = 'Barish ke mausam mein chai/coffee, soup ya Maggi, biscuits aur pakoda ke liye besan-chilli jaise items useful rahenge. Selected outlet se matching products neeche dikhaye hain. Jo jo chahiye unka naam boliye, ya "jo jo bole the add kardo" bolenge to ye suggestions cart mein add kar dunga.';
+    if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice($missing, 0, 3)) . '.';
+
+    return ['reply' => $reply, 'products' => $matched->values()->all()];
+}
+
+private function assistantAddPreviouslySuggestedRequest(string $message): bool
+{
+    $lower = mb_strtolower(trim($message));
+    if ($lower === '') return false;
+
+    $refersBack = (bool) preg_match('/\b(?:jo\s+jo|jo\s+bhi|jo|jaisa|jitna|woh|wo|wahi|unko|unhe|those|these|suggest(?:ed)?|bole\s+the|bataya\s+tha|dikhaya\s+tha|pehle\s+(?:bole|bataya|dikhaya))\b/iu', $lower);
+    $wantsAdd = (bool) preg_match('/\b(?:add|cart|order|daal|dal|dalo|laga|lagao|kar\s*do|kardo|de\s*do)\b/iu', $lower);
+    $all = (bool) preg_match('/\b(?:sab|sub|saare|sare|all|everything|jo\s+jo|jo\s+bhi)\b/iu', $lower);
+
+    return $refersBack && $wantsAdd && $all;
+}
+
+private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?User $user, ?User $outlet, ?string $conversationId): array
+{
+    $products = collect($flow['products'] ?? $flow['suggestions'] ?? [])
+        ->filter(fn ($product) => is_array($product) && empty($product['order_snapshot']))
+        ->values();
+
+    if ($products->isEmpty() && $user && $conversationId) {
+        $message = AiAssistantMessage::where('user_id', $user->id)
+            ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
+            ->where('conversation_id', $conversationId)
+            ->where('role', 'assistant')
+            ->whereNotNull('product_data')
+            ->latest('id')
+            ->limit(10)
+            ->get(['product_data'])
+            ->first(function ($row) {
+                return collect(is_array($row->product_data) ? $row->product_data : [])
+                    ->contains(fn ($product) => is_array($product) && empty($product['order_snapshot']));
+            });
+        $products = collect(is_array($message?->product_data) ? $message->product_data : []);
+    }
+
+    return $products
+        ->filter(fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot']))
+        ->unique(fn ($product) => (int) ($product['id'] ?? 0))
+        ->take(8)
+        ->values()
+        ->all();
 }
 
 private function assistantRecipeProductPlan(string $message, ?User $user, ?User $outlet): ?array
