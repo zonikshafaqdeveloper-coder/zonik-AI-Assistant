@@ -1633,7 +1633,7 @@ public function assistantChat(Request $request)
     $pendingProducts = $pendingMessage?->product_data ?: [];
     $isAddConfirmation = $this->isAssistantAddConfirmation($message);
 
-    $isQuantityReply = (bool) preg_match('/^\s*\d+(?:\.\d+)?\s*(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s*$/iu', $message);
+    $isQuantityReply = (bool) preg_match('/^\s*\d+(?:\.\d+)?\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s*$/iu', $message);
     $isZonikCatalogue = $this->isAssistantZonikCatalogueRequest($message);
     $isRecommendation = $isZonikCatalogue || $this->isAssistantRecommendationRequest($message);
     $isCartRequest = $this->isAssistantCartRequest($message);
@@ -1691,6 +1691,19 @@ public function assistantChat(Request $request)
             && trim((string) ($semanticIntent['search_query'] ?? '')) !== '') {
             $intent = array_merge($intent, $semanticIntent);
             $intent['intent'] = 'product_search';
+        }
+    }
+    if (($intent['intent'] ?? '') === 'product_search') {
+        $packSize = $this->assistantRequestedPackSize($rawMessage);
+        if ($packSize !== '') {
+            $searchQuery = trim((string) ($intent['search_query'] ?? ''));
+            if ($searchQuery !== '' && !preg_match('/(?<![a-z0-9])' . preg_quote($packSize, '/') . '(?![a-z0-9])/iu', $searchQuery)) {
+                $intent['search_query'] = trim($searchQuery . ' ' . $packSize);
+            }
+            if ($this->assistantQuantityLooksLikePackSize($rawMessage, $intent)) {
+                $intent['quantity'] = 1;
+                $intent['unit'] = null;
+            }
         }
     }
     // The main semantic analysis returns all requested products. This covers
@@ -1771,6 +1784,14 @@ public function assistantChat(Request $request)
         $approvedAlternatives = !empty($productHints);
     }
     if (!$isRecommendation && ($intent['intent'] ?? '') === 'product_search' && !empty($productHints)) {
+        $packGuardedHints = $this->assistantFilterProductsByRequestedPackSize($productHints, $rawMessage);
+        if (!empty($packGuardedHints)) {
+            $productHints = $packGuardedHints;
+        } elseif ($this->assistantRequestedPackSize($rawMessage) !== '') {
+            $productHints = [];
+            $approvedAlternatives = false;
+            $catalogSuggestions = false;
+        }
         $guardedHints = $this->assistantFilterProductsByRequestedType($productHints, $rawMessage);
         if (!empty($guardedHints)) {
             $productHints = $guardedHints;
@@ -2006,7 +2027,7 @@ private function extractAssistantOrderItems(string $message): array
     if (count($localItems) > 1 && empty(config('services.gemini.api_key'))) return $localItems;
     preg_match_all('/\d+(?:\.\d+)?/', $message, $numberMatches);
     if (count($numberMatches[0] ?? []) >= 2 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) {
-        $message = preg_replace('/\s+(?=\d+(?:\.\d+)?\s*(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)?\b)/iu', ', ', $message);
+        $message = preg_replace('/\s+(?=\d+(?:\.\d+)?\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)?\b)/iu', ', ', $message);
     }
     if (count($localItems) > 1 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) return $localItems;
     if (!preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b|\sऔर\s)/iu', $message)) return [];
@@ -3980,7 +4001,7 @@ private function localAssistantIntent(string $message): array
     return [
         'intent' => 'product_search', 'search_query' => '',
         'quantity' => preg_match('/\d+(?:\.\d+)?/', $message, $match) ? (float) $match[0] : null,
-        'unit' => preg_match('/\b(kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)\b/i', $message, $unit) ? $unit[1] : null,
+        'unit' => preg_match('/\b(ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)\b/i', $message, $unit) ? $unit[1] : null,
         'language' => $this->detectAssistantLanguage($message),
         'items' => [],
         'found_reply' => '', 'not_found_reply' => '', 'general_reply' => '',
@@ -4567,7 +4588,7 @@ private function assistantLocalProductSearchQuery(string $message): string
 {
     $query = $this->normalizeAssistantSearchText($message);
     $query = preg_replace('/^\s*(?:add|buy|order|need|want|show|find|search|give|mujhe|muje|please)\s+/iu', ' ', $query) ?? $query;
-    $query = preg_replace('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\s*(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s+/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s+/iu', ' ', $query) ?? $query;
     $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|dena|please|cart|mein|me)\b/iu', ' ', $query) ?? $query;
 
     return trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
@@ -4791,7 +4812,7 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
         'intent' => $isGeneralConversation ? 'greeting' : ($isClearLocalProductRequest && !$isQuestion ? 'product_search' : 'other'),
         'search_query' => $isClearLocalProductRequest && !$isQuestion ? $message : '',
         'quantity' => preg_match('/\d+(?:\.\d+)?/', $message, $quantityMatch) ? (float) $quantityMatch[0] : null,
-        'unit' => preg_match('/\b(kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)\b/i', $message, $unitMatch) ? $unitMatch[1] : null,
+        'unit' => preg_match('/\b(ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)\b/i', $message, $unitMatch) ? $unitMatch[1] : null,
         'language' => $this->detectAssistantLanguage($message),
         'items' => [],
         'found_reply' => '',
@@ -5079,7 +5100,7 @@ private function assistantRequestedProductFlavour(string $message): string
     $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
     $flavours = [
         'apple' => ['apple', 'epal', 'appel', 'seb'],
-        'orange' => ['orange', 'orenj', 'santra', 'narangi'],
+        'orange' => ['orange', 'oranges', 'orenj', 'santra', 'narangi'],
         'mango' => ['mango', 'aam', 'mangoo'],
         'pineapple' => ['pineapple', 'ananas'],
         'guava' => ['guava', 'amrud'],
@@ -5098,6 +5119,61 @@ private function assistantRequestedProductFlavour(string $message): string
     return '';
 }
 
+private function assistantRequestedPackSize(string $message): string
+{
+    if (!preg_match('/\b(\d+(?:\.\d+)?)\s*(ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|litre|liter|ltr)\b/iu', $message, $match)) {
+        return '';
+    }
+    $quantity = (string) $match[1];
+    if (str_contains($quantity, '.')) {
+        $quantity = rtrim(rtrim($quantity, '0'), '.');
+    }
+    $unit = mb_strtolower((string) $match[2]);
+    $unit = match ($unit) {
+        'millilitre', 'millilitres' => 'ml',
+        'gm', 'gms', 'gram', 'grams' => 'g',
+        'kgs', 'kilo' => 'kg',
+        'litre', 'liter', 'ltr' => 'ltr',
+        default => $unit,
+    };
+    return trim($quantity . $unit);
+}
+
+private function assistantQuantityLooksLikePackSize(string $message, array $intent): bool
+{
+    $packSize = $this->assistantRequestedPackSize($message);
+    if ($packSize === '' || !preg_match('/^(\d+(?:\.\d+)?)([a-z]+)$/iu', $packSize, $packMatch)) {
+        return false;
+    }
+
+    $quantity = (float) ($intent['quantity'] ?? 0);
+    $unit = mb_strtolower(trim((string) ($intent['unit'] ?? '')));
+    if ($quantity <= 0) return false;
+    if (abs($quantity - (float) $packMatch[1]) > 0.001) return false;
+    if ($unit !== '' && !in_array($unit, ['ml', 'millilitre', 'millilitres', 'g', 'gm', 'gms', 'gram', 'grams'], true)) return false;
+
+    return (bool) preg_match('/\b' . preg_quote((string) $packMatch[1], '/') . '\s*' . preg_quote((string) $packMatch[2], '/') . '\b\s*(?:wala|wali|wale|pack|bottle|pcs?|piece|item)?/iu', $message)
+        && !preg_match('/^\s*(?:' . preg_quote((string) (int) $quantity, '/') . ')\s*(?:pcs?|pieces?|packet|pack|carton|box|unit)\b/iu', $message);
+}
+
+private function assistantFilterProductsByRequestedPackSize(array $products, string $requestText): array
+{
+    $packSize = $this->assistantRequestedPackSize($requestText);
+    if ($packSize === '') return $products;
+
+    $compactPackSize = preg_replace('/\s+/', '', mb_strtolower($packSize));
+    return array_values(array_filter($products, function ($product) use ($compactPackSize) {
+        $text = mb_strtolower(trim(implode(' ', [
+            (string) ($product['name'] ?? ''),
+            (string) ($product['unit'] ?? ''),
+            (string) ($product['carton_size'] ?? ''),
+        ])));
+        $compactText = preg_replace('/\s+/', '', $text);
+
+        return str_contains($compactText, $compactPackSize);
+    }));
+}
+
 private function assistantFilterProductsByRequestedFlavour(array $products, string $requestText): array
 {
     $flavour = $this->assistantRequestedProductFlavour($requestText);
@@ -5105,7 +5181,7 @@ private function assistantFilterProductsByRequestedFlavour(array $products, stri
 
     $aliases = [
         'apple' => ['apple', 'epal', 'appel', 'seb'],
-        'orange' => ['orange', 'orenj', 'santra', 'narangi'],
+        'orange' => ['orange', 'oranges', 'orenj', 'santra', 'narangi'],
         'mango' => ['mango', 'aam', 'mangoo'],
         'pineapple' => ['pineapple', 'ananas'],
         'guava' => ['guava', 'amrud'],
@@ -5178,7 +5254,7 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
     // quantity/unit words before searching the real customer price list.
     $q = $this->normalizeAssistantSearchText(strtolower($message));
     $q = preg_replace('/\d+(?:\.\d+)?/', ' ', $q);
-    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|dena|dya|karo|karna|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
+    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|dena|dya|karo|karna|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|gm|gms|ml|millilitre|millilitres|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
     $q = preg_replace('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो|दिखाओ|करो|कर\s*दो|को|मुझे)/u', ' ', $q);
     $q = trim(preg_replace('/\s+/', ' ', $q));
     if ($q === '') {
