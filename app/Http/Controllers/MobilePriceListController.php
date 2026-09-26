@@ -1779,6 +1779,14 @@ public function assistantChat(Request $request)
             $approvedAlternatives = false;
             $catalogSuggestions = false;
         }
+        $flavourGuardedHints = $this->assistantFilterProductsByRequestedFlavour($productHints, $rawMessage);
+        if (!empty($flavourGuardedHints)) {
+            $productHints = $flavourGuardedHints;
+        } elseif ($this->assistantRequestedProductFlavour($rawMessage) !== '') {
+            $productHints = [];
+            $approvedAlternatives = false;
+            $catalogSuggestions = false;
+        }
     }
     if ($selectedProductId) {
         $selected = collect($pendingProducts)->first(fn ($product) => (int) ($product['id'] ?? 0) === $selectedProductId);
@@ -5065,6 +5073,59 @@ private function assistantRequestedProductType(string $message): string
     return '';
 }
 
+private function assistantRequestedProductFlavour(string $message): string
+{
+    $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
+    $flavours = [
+        'apple' => ['apple', 'epal', 'appel', 'seb'],
+        'orange' => ['orange', 'orenj', 'santra', 'narangi'],
+        'mango' => ['mango', 'aam', 'mangoo'],
+        'pineapple' => ['pineapple', 'ananas'],
+        'guava' => ['guava', 'amrud'],
+        'litchi' => ['litchi', 'lychee', 'lichi'],
+        'mixed fruit' => ['mixed fruit', 'mix fruit', 'mixedfruit'],
+        'cranberry' => ['cranberry'],
+        'grape' => ['grape', 'grapes', 'angoor'],
+        'pomegranate' => ['pomegranate', 'anar'],
+        'tomato' => ['tomato'],
+    ];
+    foreach ($flavours as $flavour => $needles) {
+        foreach ($needles as $needle) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($needle, '/') . '(?![a-z0-9])/iu', $q)) return $flavour;
+        }
+    }
+    return '';
+}
+
+private function assistantFilterProductsByRequestedFlavour(array $products, string $requestText): array
+{
+    $flavour = $this->assistantRequestedProductFlavour($requestText);
+    if ($flavour === '') return $products;
+
+    $aliases = [
+        'apple' => ['apple', 'epal', 'appel', 'seb'],
+        'orange' => ['orange', 'orenj', 'santra', 'narangi'],
+        'mango' => ['mango', 'aam', 'mangoo'],
+        'pineapple' => ['pineapple', 'ananas'],
+        'guava' => ['guava', 'amrud'],
+        'litchi' => ['litchi', 'lychee', 'lichi'],
+        'mixed fruit' => ['mixed fruit', 'mix fruit', 'mixedfruit'],
+        'cranberry' => ['cranberry'],
+        'grape' => ['grape', 'grapes', 'angoor'],
+        'pomegranate' => ['pomegranate', 'anar'],
+        'tomato' => ['tomato'],
+    ];
+    $allow = $aliases[$flavour] ?? [$flavour];
+
+    return array_values(array_filter($products, function ($product) use ($allow) {
+        $text = mb_strtolower(trim((string) ($product['brand'] ?? '') . ' ' . (string) ($product['name'] ?? '') . ' ' . (string) ($product['unit'] ?? '')));
+        foreach ($allow as $word) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($word, '/') . '(?![a-z0-9])/iu', $text)) return true;
+        }
+        return false;
+    }));
+}
+
 private function assistantFilterProductsByRequestedType(array $products, string $requestText): array
 {
     $type = $this->assistantRequestedProductType($requestText);
@@ -5505,6 +5566,7 @@ private function normalizeAssistantSearchText(string $text): string
         'batata' => ' potato ', 'kanda' => ' onion ', 'pyaz' => ' onion ',
         'tomato' => ' tomato ', 'dahi' => ' curd ', 'chaaha' => ' tea ', 'chaha' => ' tea ',
         'coffee' => ' coffee ', 'biscuit' => ' biscuit ', 'bread' => ' bread ',
+        'jusice' => ' juice ', 'juce' => ' juice ', 'jus' => ' juice ',
         'tur dal' => ' toor dal ', 'toor dal' => ' toor dal ', 'moong dal' => ' moong dal ',
         // Telugu and Bengali grocery names.
         'బియ్యం' => ' rice ', 'పంచదార' => ' sugar ', 'పాలు' => ' milk ', 'ఉప్పు' => ' salt ', 'నూనె' => ' oil ', 'పప్పు' => ' dal ',
@@ -5593,9 +5655,9 @@ private function buildVoiceReply(string $text): array
                         'stability' => 0.76,
                         'similarity_boost' => 0.78,
                         'style' => 0.02,
-                        // Keep Hinglish clear, but avoid the noticeably slow
-                        // delivery that makes a normal conversation feel delayed.
-                        'speed' => 0.92,
+                        // Keep Hinglish clear while avoiding slow, dragged-out
+                        // delivery in short order confirmations.
+                        'speed' => 1.04,
                         'use_speaker_boost' => true,
                     ],
                     'apply_text_normalization' => 'on',
