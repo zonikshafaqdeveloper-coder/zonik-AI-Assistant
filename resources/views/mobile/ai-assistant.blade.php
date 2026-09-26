@@ -2146,6 +2146,13 @@ body:has(.ai-page){background:#edf2f5}
             return latinPhrase.test(message) || devanagariPhrase.test(message);
         }
 
+        function isAssistantQuestionOrAdvice(value) {
+            const message = String(value || '');
+            if (/[?？]/.test(message)) return true;
+            return /\b(?:what|why|how|when|where|who|which|can|could|would|do\s+you|kya|kyu|kyon|kaise|kab|kahan|kaun|kaunsa|kitna|kitne|batao|bataiye|suggest|recommend|lena|chahiye|chaiye|mehmaan|mehman|guest|barish|baarish|mausam|mosam|weather)\b/i.test(message)
+                || /(?:\u0915\u094d\u092f\u093e|\u0915\u094d\u092f\u094b\u0902|\u0915\u0948\u0938\u0947|\u0915\u092c|\u0915\u0939\u093e\u0901|\u0915\u094c\u0928|\u092c\u0924\u093e\u0913|\u092c\u0924\u093e\u0907\u090f)/u.test(message);
+        }
+
         function renderOnboardingHandledReply(data) {
             const response = data || {};
             const workflow = response.workflow || {};
@@ -2930,6 +2937,13 @@ function appendTyping() {
                 // Do not put a direct call behind the onboarding classifier:
                 // mobile browsers allow the tel: launch only in the original
                 // tap/Enter event.
+                onboardingIntentRequestVersion++;
+                onboardingStage = null;
+            }
+            if (!sendOptions.skipOrderChoice
+                && (onboardingStage === 'choose_order' || onboardingStage === 'resolving_order')
+                && isAssistantQuestionOrAdvice(text)
+                && !isNewOrderIntent(intent)) {
                 onboardingIntentRequestVersion++;
                 onboardingStage = null;
             }

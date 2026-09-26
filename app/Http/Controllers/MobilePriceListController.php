@@ -1295,6 +1295,20 @@ public function assistantChat(Request $request)
         }
     }
 
+    if ($this->isAssistantGuestShoppingRequest($message)) {
+        $guestPlan = $this->assistantGuestProductPlan($rawMessage, $user, $outlet);
+        if ($guestPlan) {
+            $guestProducts = array_values($guestPlan['products'] ?? []);
+            $guestState = !empty($guestProducts)
+                ? ['stage' => 'clarify_product', 'products' => $guestProducts]
+                : ['stage' => 'anything_else'];
+            $request->session()->put($flowKey, $guestState);
+            $guestPlan['workflow'] = ['stage' => $guestState['stage'], 'guest_suggestions' => true];
+            $guestPlan['state'] = $guestState;
+            return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $guestPlan, $cartItems);
+        }
+    }
+
     // A real assistant must be interruptible. Answer a temporary question,
     // then explicitly return to the exact ordering step instead of losing it.
     if (!empty($orderFlow) && $this->isAssistantTemporaryQuestion($message, $orderFlow)) {
@@ -4212,6 +4226,53 @@ private function assistantWeatherProductPlan(string $message, ?User $user, ?User
     if ($matched->isEmpty()) return null;
 
     $reply = 'Barish ke mausam mein chai/coffee, soup ya Maggi, biscuits aur pakoda ke liye besan-chilli jaise items useful rahenge. Selected outlet se matching products neeche dikhaye hain. Jo jo chahiye unka naam boliye, ya "jo jo bole the add kardo" bolenge to ye suggestions cart mein add kar dunga.';
+    if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice($missing, 0, 3)) . '.';
+
+    return ['reply' => $reply, 'products' => $matched->values()->all()];
+}
+
+private function isAssistantGuestShoppingRequest(string $message): bool
+{
+    $mentionsGuest = (bool) preg_match('/\b(?:mehmaan|mehman|guest|guests|relative|relatives|friends?|dost|party|visit|aa\s+rahe|aane\s+wale|ghar\s+aa)\b/iu', $message);
+    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|what|which|suggest|recommend|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|serve|khilana|pilana)\b/iu', $message);
+
+    return $mentionsGuest && $asksShopping;
+}
+
+private function assistantGuestProductPlan(string $message, ?User $user, ?User $outlet): ?array
+{
+    if (!$outlet) return null;
+
+    $terms = ['tea', 'coffee', 'biscuits', 'namkeen', 'chips', 'juice', 'soft drink', 'water', 'sugar'];
+    if (preg_match('/\b(?:kids?|bachche|children)\b/iu', $message)) {
+        array_unshift($terms, 'chocolate', 'cookies');
+    }
+    if (preg_match('/\b(?:dinner|lunch|khana|meal)\b/iu', $message)) {
+        $terms = array_values(array_unique(array_merge(['rice', 'atta', 'oil', 'paneer'], $terms)));
+    }
+
+    $matched = collect();
+    $missing = [];
+    foreach ($terms as $term) {
+        $matches = array_values(array_filter(
+            $this->findAssistantProducts($term, $outlet),
+            fn ($product) => ($product['available_in_outlet'] ?? true) === true
+        ));
+        if (empty($matches)) {
+            $missing[] = $term;
+            continue;
+        }
+        $product = $matches[0];
+        $product['recipe_ingredient'] = 'guest visit';
+        if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
+            $matched->push($product);
+        }
+        if ($matched->count() >= 8) break;
+    }
+
+    if ($matched->isEmpty()) return null;
+
+    $reply = 'Mehmaan ke liye tea/coffee, biscuits, namkeen/chips, juice ya soft drink, aur water useful rahenge. Selected outlet se matching products neeche dikhaye hain. Jo chahiye uska naam boliye, ya "jo jo bole the add kardo" bolenge to ye suggestions cart mein add kar dunga.';
     if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice($missing, 0, 3)) . '.';
 
     return ['reply' => $reply, 'products' => $matched->values()->all()];
