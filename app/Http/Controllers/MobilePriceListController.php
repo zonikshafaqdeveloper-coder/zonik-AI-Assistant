@@ -1708,6 +1708,42 @@ public function assistantChat(Request $request)
         }
     }
 
+    $singleSpokenItems = $this->extractAssistantOrderItemsLocally($rawMessage);
+    if (count($singleSpokenItems) === 1
+        && $this->looksLikeAssistantProductRequest($message)
+        && $this->hasAssistantExplicitProductAction($message)) {
+        $singleItem = $singleSpokenItems[0];
+        $singleQuantity = (float) ($singleItem['quantity'] ?? 0);
+        $singleQuery = (string) ($singleItem['query'] ?? '');
+        $packSize = $this->assistantRequestedPackSize($rawMessage);
+        if ($packSize !== '' && $this->assistantQuantityLooksLikePackSize($rawMessage, ['quantity' => $singleQuantity, 'unit' => $singleItem['unit'] ?? null])) {
+            if (!preg_match('/(?<![a-z0-9])' . preg_quote($packSize, '/') . '(?![a-z0-9])/iu', $singleQuery)) {
+                $singleQuery = trim($singleQuery . ' ' . $packSize);
+            }
+            $singleQuantity = 1;
+        }
+        if ($singleQuantity > 0) {
+            $singleMatches = $this->findAssistantProducts($singleQuery, $outlet);
+            if (count($singleMatches) === 1) {
+                $cartResult = $this->addAssistantProductToCart($user, $outlet, $singleMatches[0], $singleQuantity);
+                if ($cartResult) {
+                    $reply = $this->assistantCartMutationReply($cartResult, $singleMatches[0]['name'])
+                        . ' Aur items batate jaiye; complete ho to bas itna hi boliye.';
+                    $nextState = ['stage' => 'anything_else'];
+                    $request->session()->put($flowKey, $nextState);
+                    $fastResponse = [
+                        'reply' => $reply,
+                        'products' => [],
+                        'workflow' => ['stage' => 'anything_else', 'show_cart' => true],
+                        'state' => $nextState,
+                        'auto_added' => true,
+                    ];
+                    return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $fastResponse, $cartItems);
+                }
+            }
+        }
+    }
+
     // Reload after any flow response so semantic analysis sees the complete
     // conversation, including the assistant's own earlier decisions/cards.
     $recentMessages = $this->assistantConversationMemory($user, $outlet, $conversationId);
@@ -2145,7 +2181,9 @@ private function extractAssistantOrderItemsLocally(string $message): array
         'ten' => 10, 'das' => 10,
     ];
     foreach ($spokenNumbers as $word => $number) {
+        if ($word === 'do') continue;
         $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s+[a-z0-9][a-z0-9.-]{1,})/iu', (string) $number, $text) ?? $text;
+        $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena)\b)/iu', (string) $number, $text) ?? $text;
     }
     $unitPattern = '(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box(?:es)?|carton|pack|packet|pcs?|pieces?|dozen|unit)';
     $separatorPattern = '/\s*(?:,|;|&|\band\b|\baur\b|\bplus\b|\bwith\b)\s*/iu';
@@ -2165,7 +2203,7 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
         if ($chunk === '') continue;
         $chunk = preg_replace('/^\b(?:mujhe|muje|mala|please|plz|add|give|order|buy|want|need|aur|also)\b\s*/iu', '', $chunk) ?? $chunk;
-        $chunk = preg_replace('/\b(?:add|added|cart|mein|me|do|dena|de|karo|karna|kar\s*do|chahiye|chaiye|please|plz)\b\s*$/iu', '', $chunk) ?? $chunk;
+        $chunk = preg_replace('/\b(?:add|added|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do|chahiye|chaiye|please|plz)\b\s*$/iu', '', $chunk) ?? $chunk;
         $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
         if ($chunk === '') continue;
 
@@ -2182,7 +2220,7 @@ private function extractAssistantOrderItemsLocally(string $message): array
             $query = trim((string) $match[1]);
         }
 
-        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do)\b/iu', ' ', $query) ?? $query;
         $query = trim(preg_replace('/\s+/', ' ', $query) ?? $query);
         if ($query === '' || strlen($query) < 2) continue;
         $items[] = ['query' => $query, 'quantity' => max(0, $quantity), 'unit' => $unit];
@@ -2194,7 +2232,7 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $key = mb_strtolower($item['query']) . '|' . $item['quantity'] . '|' . mb_strtolower($item['unit']);
         $unique[$key] = $item;
     }
-    return count($unique) > 1 ? array_values($unique) : [];
+    return array_values($unique);
 }
 
 private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?User $outlet): ?array
