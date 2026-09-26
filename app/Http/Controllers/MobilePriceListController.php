@@ -2586,7 +2586,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         return ['reply' => $this->assistantNaturalFlowReply($understanding, 'Kya current order list confirm karun?'), 'products' => [], 'workflow' => ['stage' => 'confirm_order', 'show_cart' => true], 'state' => $flow];
     }
     if ($stage === 'order_suggestions') {
-        if ($no || $action === 'finish') {
+        if ($no || $action === 'finish' || $this->assistantRejectsSuggestionsForDelivery($message, (string) $action)) {
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
@@ -2931,6 +2931,16 @@ private function assistantSanitizeFinishShoppingReply(string $message, string $r
     if (!$this->isAssistantFinishShoppingMessage($message)) return $reply;
     if (!preg_match('/(?:\b(?:cancel|cancelled|canceled|cancle|kancel|order\s*cancel|oder\s*cancel|ordar\s*cancel|radd|rad|remove|delete|clear|khatam)\b|(?:रद्द|कैंसल|कॅन्सल|हटा|मिटा|डिलीट|खत्म))/iu', $reply)) return $reply;
     return 'Theek hai, aur product nahi. Ye aapke order ki final summary hai. Product aur quantity check kar lijiye. Sab sahi hai to confirm kijiye.';
+}
+
+private function assistantRejectsSuggestionsForDelivery(string $message, string $action): bool
+{
+    if (in_array($action, ['delivery_details', 'payment'], true)) return true;
+
+    $hasDecline = (bool) preg_match('/\b(?:no|nope|nahi|nahin|nhi|nai|na|skip|thanks?|thank\s*you|inme\s+se\s+(?:kuch|koi)\s+nahi|kuch\s+nahi|koi\s+nahi)\b/iu', $message);
+    $wantsDelivery = (bool) preg_match('/\b(?:continue|proceed|next|aage|age|delivery|delevery|slot|checkout|address)\b/iu', $message);
+
+    return $hasDecline && $wantsDelivery;
 }
 
 private function isAssistantGenericConfirmation(string $message): bool
