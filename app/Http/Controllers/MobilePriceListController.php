@@ -1962,6 +1962,7 @@ public function assistantChat(Request $request)
 
     $reply = $this->localizeAssistantReply($reply, $rawMessage, $intent['language'] ?? null);
     $reply = $this->assistantSanitizeFinishShoppingReply($rawMessage, $reply);
+    $responseProducts = $autoAdded ? [] : $productHints;
 
     AiAssistantMessage::create([
         'user_id' => $user->id,
@@ -1976,7 +1977,7 @@ public function assistantChat(Request $request)
         'conversation_id' => $conversationId,
         'role' => 'assistant',
         'message' => $this->assistantDatabaseSafeText($reply),
-        'product_data' => $productHints,
+        'product_data' => $responseProducts,
     ]);
 
     if ($conversationId) {
@@ -1989,7 +1990,7 @@ public function assistantChat(Request $request)
 
     return response()->json([
         'reply' => $reply,
-        'products' => $productHints,
+        'products' => $responseProducts,
         'cart' => $cartItems,
         'intent' => $intent,
         'workflow' => $workflow,

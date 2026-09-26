@@ -3199,6 +3199,7 @@ function appendTyping() {
                 if (data.auto_added || ['added', 'cart_updated'].includes(workflow.stage)) cartShortcut.hidden = false;
                 const cartMutationConfirmed = Boolean(data.auto_added)
                     || ['added', 'cart_updated', 'cart_removed'].includes(workflow.stage);
+                if (cartMutationConfirmed) dismissProductChoiceMessages();
                 if (workflow.show_cart || cartMutationConfirmed) window.setTimeout(renderLiveOrderList, 100);
                 if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
                 if (data.auto_added && workflow.stage === 'anything_else') {
@@ -3301,6 +3302,16 @@ function appendTyping() {
                 message.classList.add('ai-stage-dismiss');
                 window.setTimeout(function () { message.remove(); syncChatClearance(); }, 220);
             });
+        }
+
+        function dismissProductChoiceMessages() {
+            chat?.querySelectorAll('.ai-message-row.assistant').forEach(function (message) {
+                if (!message.querySelector('.ai-product-card')) return;
+                if (message.classList.contains('ai-stage-dismiss')) return;
+                message.classList.add('ai-stage-dismiss');
+                window.setTimeout(function () { message.remove(); syncChatClearance(); }, 220);
+            });
+            clarificationMessage = null;
         }
 
         let checkoutStageVersion = 0;
