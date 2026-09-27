@@ -2499,7 +2499,7 @@ function appendTyping() {
                 return;
             }
             window.speechSynthesis.cancel();
-            const cleanText = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            const cleanText = speechFriendlyText(text);
             const utterance = new SpeechSynthesisUtterance(cleanText);
             // A server/transcriber detected locale is more accurate than a
             // broad Unicode-script guess for mixed text or Kanji-only text.
@@ -2580,6 +2580,13 @@ function appendTyping() {
                 .replace(/\s*[×x]\s*/gu, ' times ')
                 .replace(/&/g, ' and ')
                 .replace(/\bZonik\b/giu, 'Zo-nik')
+                .replace(/\bReal\b/giu, 'Ree-al')
+                .replace(/\bSofit\b/giu, 'So-fit')
+                .replace(/\bAmul\b/giu, 'Aa-mul')
+                .replace(/\bJuice\b/giu, 'Joos')
+                .replace(/\bApple\b/giu, 'A-pul')
+                .replace(/\bOrange\b/giu, 'Or-inj')
+                .replace(/\bMilk\b/giu, 'Milk')
                 .replace(/\bAI\b/gu, 'A I')
                 .replace(/\bMRP\b/gu, 'M R P')
                 .replace(/\bGST\b/gu, 'G S T')
@@ -2618,8 +2625,9 @@ function appendTyping() {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 if (controller) controller.abort();
-                console.info('ElevenLabs audio timed out; browser TTS disabled.');
-                finishSpeechWithoutBrowser(onEnded);
+                voiceProviderMode = 'browser';
+                console.info('ElevenLabs audio timed out; using browser TTS.');
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
             }, fallbackAfterMs);
             fetch(speakUrl, {
                 method: 'POST',
@@ -2644,15 +2652,17 @@ function appendTyping() {
                     playVoice(data.voice_base64, data.voice_mime, onEnded, onStart);
                 }
                 else {
-                    console.info('ElevenLabs unavailable; browser TTS disabled.');
-                    finishSpeechWithoutBrowser(onEnded);
+                    voiceProviderMode = 'browser';
+                    console.info('ElevenLabs unavailable; using browser TTS.');
+                    speakWithBrowser(lastAssistantSpokenText || localizedText || text, onEnded, onStart);
                 }
             }).catch(function () {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 window.clearTimeout(requestTimeout);
-                console.info('ElevenLabs request failed; browser TTS disabled.');
-                finishSpeechWithoutBrowser(onEnded);
+                voiceProviderMode = 'browser';
+                console.info('ElevenLabs request failed; using browser TTS.');
+                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
             });
         }
 
