@@ -30,6 +30,7 @@ class OrderableProductValidator
         if (!$product) return $this->rejected($productId, 'PRODUCT_INACTIVE_OR_MISSING');
 
         $approvedPrice = CustomerPrice::where('outlet_id', $outlet->id)
+            ->where('customer_id', $customer->id)
             ->where('product_id', $product->id)
             ->value('product_price');
         if (!$this->isApprovedPrice($approvedPrice)) {

@@ -170,6 +170,7 @@ public function pricelist(Request $request)
 
     $customerPrices = $currentOutlet
         ? CustomerPrice::where('outlet_id', $currentOutlet->id)
+            ->where('customer_id', $user->id)
             ->pluck('product_price', 'product_id')
             ->toArray()
         : [];
@@ -326,7 +327,7 @@ public function assistantProducts(Request $request)
 
     $q = $this->normalizeAssistantSearchText(trim($request->query('q', '')));
     if ($request->boolean('catalogue')) {
-        $prices = collect($this->assistantOutletPriceMap($outlet));
+        $prices = collect($this->assistantOutletPriceMap($outlet, $user));
         $query = Product::where('status', 'active')->whereIn('id', $prices->keys());
         if ($q !== '') $query->where('product_name', 'like', '%' . $q . '%');
         $products = $query->orderBy('product_name')->get([
@@ -680,7 +681,7 @@ public function assistantSelection(Request $request)
         'id' => $product->id, 'name' => $product->product_name,
         'unit' => $product->unit ?: '-', 'carton_size' => $product->carton_size ?: '-',
         'price' => $price, 'image' => $product->image ? asset('uploads/' . $product->image) : null,
-        'available_in_outlet' => CustomerPrice::where('outlet_id', $outlet?->id)->where('product_id', $product->id)->exists(),
+        'available_in_outlet' => CustomerPrice::where('outlet_id', $outlet?->id)->where('customer_id', $user->id)->where('product_id', $product->id)->exists(),
         'selected' => (bool) $data['success'], 'selected_quantity' => (float) $data['quantity'],
     ]];
     AiAssistantMessage::create([
@@ -960,7 +961,7 @@ public function assistantCatalogueEnquiry(Request $request)
 
 private function createAssistantCatalogueEnquiry(User $user, User $outlet, Product $product): array
 {
-    if (CustomerPrice::where('outlet_id', $outlet->id)->where('product_id', $product->id)->exists()) {
+    if (CustomerPrice::where('outlet_id', $outlet->id)->where('customer_id', $user->id)->where('product_id', $product->id)->exists()) {
         return ['success' => true, 'already_available' => true, 'message' => 'Ye product ab aapki price list mein available hai.'];
     }
     // Adminnew "New Enquiry" reads only from enquiries, so this write is
@@ -1429,7 +1430,7 @@ public function assistantChat(Request $request)
     if (empty($orderFlow) && $clientWorkflowStage === 'confirm_product' && $selectedProductId) {
         $recoveredProduct = Product::with('brand:id,name')->find($selectedProductId);
         if ($recoveredProduct) {
-            $price = CustomerPrice::where('outlet_id', $outlet?->id)->where('product_id', $recoveredProduct->id)->value('product_price');
+            $price = CustomerPrice::where('outlet_id', $outlet?->id)->where('customer_id', $user->id)->where('product_id', $recoveredProduct->id)->value('product_price');
             $orderFlow = ['stage' => 'confirm_product', 'product' => [
                 'id' => $recoveredProduct->id,
                 'name' => $recoveredProduct->product_name,
@@ -1449,10 +1450,11 @@ public function assistantChat(Request $request)
             ->keyBy(fn ($option) => (int) ($option['id'] ?? 0));
         $optionIds = $optionContext->keys()->filter()->take(30)->values()->all();
         $allowedIds = $outlet
-            ? CustomerPrice::where('outlet_id', $outlet->id)->whereIn('product_id', $optionIds)->pluck('product_id')->all()
+            ? CustomerPrice::where('outlet_id', $outlet->id)->where('customer_id', $user->id)->whereIn('product_id', $optionIds)->pluck('product_id')->all()
             : [];
+        $recoveredPrices = $outlet ? $this->assistantOutletPriceMap($outlet, $user) : [];
         $recoveredOptions = Product::with('brand:id,name')->where('status', 'active')
-            ->whereIn('id', $allowedIds)->get()->map(function ($product) use ($optionContext, $outlet) {
+            ->whereIn('id', $allowedIds)->get()->map(function ($product) use ($optionContext, $recoveredPrices) {
                 $context = $optionContext->get((int) $product->id, []);
                 return [
                     'id' => $product->id,
@@ -1460,7 +1462,7 @@ public function assistantChat(Request $request)
                     'brand' => optional($product->brand)->name ?: ($product->brands ?: ''),
                     'unit' => $product->unit ?: '-',
                     'carton_size' => $product->carton_size ?: '-',
-                    'price' => CustomerPrice::where('outlet_id', $outlet->id)->where('product_id', $product->id)->value('product_price'),
+                    'price' => $recoveredPrices[$product->id] ?? null,
                     'available_in_outlet' => true,
                     'requested_quantity' => (float) ($context['requested_quantity'] ?? 0),
                     'requested_unit' => trim((string) ($context['requested_unit'] ?? '')),
@@ -1511,6 +1513,7 @@ public function assistantChat(Request $request)
         $savedOptions = collect($savedChoiceMessage?->product_data ?: [])->take(30);
         if ($outlet && $savedOptions->isNotEmpty()) {
             $allowedIds = CustomerPrice::where('outlet_id', $outlet->id)
+                ->where('customer_id', $user->id)
                 ->whereIn('product_id', $savedOptions->pluck('id')->filter()->all())
                 ->pluck('product_id')->map(fn ($id) => (int) $id)->all();
             $savedOptions = $savedOptions->filter(fn ($option) => in_array((int) ($option['id'] ?? 0), $allowedIds, true))->values();
@@ -1690,6 +1693,7 @@ public function assistantChat(Request $request)
         $spokenChoice = $this->resolveAssistantClarificationChoiceSemantically($message, $lastShownOptions);
         if ($spokenChoice && $outlet) {
             $isAssigned = CustomerPrice::where('outlet_id', $outlet->id)
+                ->where('customer_id', $user->id)
                 ->where('product_id', (int) ($spokenChoice['id'] ?? 0))->exists();
             if (!$isAssigned && $this->assistantExplicitEnquiryRequested($message)) {
                 $catalogueProduct = Product::where('status', 'active')->find((int) ($spokenChoice['id'] ?? 0));
@@ -2744,6 +2748,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
             foreach ($options as $option) {
                 $productId = (int) ($option['id'] ?? 0);
                 $isAvailable = $user && $outlet && CustomerPrice::where('outlet_id', $outlet->id)
+                    ->where('customer_id', $user->id)
                     ->where('product_id', $productId)->exists();
                 if ($isAvailable) continue;
                 $catalogueCount++;
@@ -2844,6 +2849,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
                 }
             }
             $isAvailable = $user && $outlet && CustomerPrice::where('outlet_id', $outlet->id)
+                ->where('customer_id', $user->id)
                 ->where('product_id', (int) ($product['id'] ?? 0))->exists();
 
             if (!$isAvailable) {
@@ -3238,9 +3244,8 @@ private function assistantSuggestionProductsForIds(array $orderedProductIds, ?Us
         ->filter()->unique()->values();
     if ($orderedProductIds->isEmpty()) return [];
 
-    $prices = CustomerPrice::where('outlet_id', $outlet->id)
-        ->whereIn('product_id', $orderedProductIds->all())
-        ->pluck('product_price', 'product_id');
+    $prices = collect($this->assistantOutletPriceMap($outlet))
+        ->only($orderedProductIds->all());
     if ($prices->isEmpty()) return [];
 
     $productsById = Product::with('brand:id,name')->where('status', 'active')
@@ -3294,7 +3299,7 @@ private function assistantSmartSuggestions(?User $user, ?User $outlet, array $ex
             $excludedProductIds,
             $suggestions->pluck('id')->map(fn ($id) => (int) $id)->all()
         )));
-        $prices = CustomerPrice::where('outlet_id', $outlet->id)->pluck('product_price', 'product_id')->toArray();
+        $prices = $this->assistantOutletPriceMap($outlet, $user);
         $fillIds = array_values(array_diff(array_map('intval', array_keys($prices)), $usedIds));
         $fillProducts = Product::with('brand:id,name')->where('status', 'active')->whereIn('id', $fillIds)
             ->orderBy('product_name')->limit($limit - $suggestions->count())->get()
@@ -5282,7 +5287,7 @@ private function isAssistantZonikCatalogueRequest(string $message): bool
 private function findAssistantFrequentlyOrderedProducts(?User $user, ?User $outlet, int $limit = 3): array
 {
     if (!$user || !$outlet) return [];
-    $prices = CustomerPrice::where('outlet_id', $outlet->id)->pluck('product_price', 'product_id')->toArray();
+    $prices = $this->assistantOutletPriceMap($outlet, $user);
     $availableIds = array_keys($prices);
     if (empty($availableIds)) return [];
     $cartProductIds = Cart::where('user_id', $user->id)->where('outlet_id', $outlet->id)->pluck('product_id')->all();
@@ -5310,7 +5315,7 @@ private function findAssistantFrequentlyOrderedProducts(?User $user, ?User $outl
 private function findAssistantTopSellingProducts(?User $outlet, bool $global = false, int $limit = 5, array $excludedProductIds = []): array
 {
     if (!$outlet) return [];
-    $prices = CustomerPrice::where('outlet_id', $outlet->id)->pluck('product_price', 'product_id')->toArray();
+    $prices = $this->assistantOutletPriceMap($outlet);
     $excludedProductIds = collect($excludedProductIds)->map(fn ($id) => (int) $id)
         ->filter()->unique()->values()->all();
     $availableIds = array_values(array_diff(array_map('intval', array_keys($prices)), $excludedProductIds));
@@ -5598,9 +5603,10 @@ private function assistantAccountContext(?User $user, ?User $outlet): string
             'shipping_pincode' => $kyc?->outlet_pincode, 'billing_address' => $kyc?->billing_address,
             'billing_pincode' => $kyc?->billing_pincode];
     })->values()->all();
-    $prices = $outlet ? CustomerPrice::where('outlet_id', $outlet->id)->with('product:id,product_name,unit')
-        ->limit(100)->get()->map(fn ($row) => ['product' => $row->product?->product_name,
-            'price' => (float) $row->product_price, 'unit' => $row->product?->unit])->filter(fn ($row) => $row['product'])->values()->all() : [];
+    $priceMap = $outlet ? $this->assistantOutletPriceMap($outlet, $user) : [];
+    $prices = $outlet && $priceMap ? Product::whereIn('id', array_keys($priceMap))->orderBy('product_name')->limit(100)
+        ->get(['id', 'product_name', 'unit'])->map(fn ($product) => ['product' => $product->product_name,
+            'price' => (float) ($priceMap[$product->id] ?? 0), 'unit' => $product->unit])->filter(fn ($row) => $row['product'])->values()->all() : [];
 
     $orders = Order::with(['items.product:id,product_name,unit'])->where('user_id', $user->id)
         ->when(!empty($outletIds), fn ($query) => $query->whereIn('outlet_id', $outletIds))
@@ -5654,8 +5660,7 @@ private function assistantAccountDataAnswer(string $message, ?User $user, ?User 
         return ['reply' => $reply, 'products' => [], 'workflow' => ['stage' => 'account_answer'], 'state' => []];
     }
 
-    $customerPrices = $outlet ? CustomerPrice::where('outlet_id', $outlet->id)
-        ->pluck('product_price', 'product_id')->toArray() : [];
+    $customerPrices = $outlet ? $this->assistantOutletPriceMap($outlet, $user) : [];
     $query = Product::with('brand:id,name')->where('status', 'active')
         ->when($asksPriceList, fn ($builder) => $builder->whereIn('id', array_keys($customerPrices)))
         ->orderBy('product_name')->limit(100);
@@ -5737,12 +5742,16 @@ private function findAssistantApprovedAlternatives(string $message, ?User $outle
     return array_values($alternatives);
 }
 
-private function assistantOutletPriceMap(?User $outlet): array
+private function assistantOutletPriceMap(?User $outlet, ?User $customer = null): array
 {
     if (!$outlet) return [];
+    $customer = $customer ?: auth()->user();
+    $customerId = $customer ? (int) $customer->id : 0;
+    if ($customerId <= 0) return [];
 
-    return Cache::remember('assistant_outlet_price_map:' . (int) $outlet->id, now()->addMinutes(5), function () use ($outlet) {
+    return Cache::remember('assistant_outlet_price_map:' . $customerId . ':' . (int) $outlet->id, now()->addMinutes(5), function () use ($outlet, $customerId) {
         return CustomerPrice::where('outlet_id', $outlet->id)
+            ->where('customer_id', $customerId)
             ->where('product_price', '>', 0)
             ->pluck('product_price', 'product_id')
             ->map(fn ($price) => (float) $price)
