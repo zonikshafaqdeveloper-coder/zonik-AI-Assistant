@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class MobilePriceListController extends Controller
@@ -1049,6 +1050,62 @@ private function createAssistantCatalogueEnquiry(User $user, User $outlet, Produ
             : $product->product_name . ' ki price enquiry admin ko bhej di hai. Price list mein add hone ke baad order kar sakte hain; ab doosra product bataiye.'];
 }
 
+private function assistantRequestedMissingProductName(array $intent, string $message): string
+{
+    $name = trim((string) ($intent['search_query'] ?? ''));
+    if ($name === '') $name = $this->assistantLocalProductSearchQuery($message);
+    if ($name === '') $name = $message;
+    $name = $this->normalizeAssistantSearchText($name);
+    $name = preg_replace('/\b(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)|price\s*request|request\s*price|quotation|quote|send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo|puchho|poochho|mangao|mangwao|add|cart|order|buy|want|need|chahiye|chaiye|please|plz|mujhe|muje)\b/iu', ' ', $name) ?? $name;
+    $name = trim(preg_replace('/\s+/', ' ', $name) ?? $name);
+
+    return mb_substr($name, 0, 150);
+}
+
+private function createAssistantMissingProductRequest(User $user, ?User $outlet, string $productName): array
+{
+    $productName = trim($productName);
+    if ($productName === '') {
+        return ['success' => false, 'message' => 'Product ka naam clear nahi mila. Product name dobara boliye.'];
+    }
+
+    $query = ProductRequest::where('product_name', $productName);
+    if (Schema::hasColumn('product_requests', 'user_id')) {
+        $query->where('user_id', $user->id);
+    }
+    if (Schema::hasColumn('product_requests', 'status')) {
+        $query->where(fn ($builder) => $builder->whereNull('status')->orWhere('status', '!=', 'decline'));
+    }
+    $existingRequest = $query->latest('id')->first();
+    if (!$existingRequest) {
+        try {
+            $data = [
+                'product_name' => $productName,
+                'product_details' => 'AI Assistant missing-product enquiry'
+                    . ($outlet ? ' | Outlet ID: ' . $outlet->id : ''),
+            ];
+            if (Schema::hasColumn('product_requests', 'user_id')) $data['user_id'] = $user->id;
+            ProductRequest::create($data);
+        } catch (\Throwable $e) {
+            Log::warning('Assistant missing product request could not be saved.', [
+                'product_name' => $productName,
+                'user_id' => $user->id,
+                'outlet_id' => $outlet?->id,
+                'error' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => 'Enquiry abhi send nahi ho paayi. Product ka naam dobara boliye.'];
+        }
+    }
+
+    return [
+        'success' => true,
+        'already_requested' => (bool) $existingRequest,
+        'message' => $existingRequest
+            ? $productName . ' ki product enquiry pehle se pending hai. Aap doosra product bata sakte hain.'
+            : $productName . ' ki product enquiry admin ko bhej di hai. Price list mein add hone ke baad order kar sakte hain; ab doosra product bataiye.',
+    ];
+}
+
 public function assistantCheckoutData(Request $request)
 {
     $data = $request->validate(['delivery_details' => 'required|string|max:1000']);
@@ -1769,6 +1826,8 @@ public function assistantChat(Request $request)
     $isProductDiscovery = $this->isAssistantProductDiscoveryRequest($message);
     $looksLikeProductRequest = $this->looksLikeAssistantProductRequest($message);
     $isQuantityProductUtterance = $this->isAssistantQuantityProductUtterance($message);
+    $isExplicitProductEnquiry = $this->assistantExplicitEnquiryRequested($message)
+        && $this->assistantRequestedMissingProductName(['search_query' => ''], $message) !== '';
     // When a customer interrupts a soft prompt (for example with another
     // product or a Zonik question), give the semantic layer the verified
     // workflow summary. It can then understand the latest message without
@@ -1783,10 +1842,10 @@ public function assistantChat(Request $request)
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_update'])
         : ($isCartRequest
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
-        : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance
+        : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance || $isExplicitProductEnquiry
             || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
             || ($isQuantityReply && !empty($pendingProducts)))
-        ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest) ? $this->assistantLocalProductSearchQuery($message) : ''])
+        ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest || $isExplicitProductEnquiry) ? $this->assistantLocalProductSearchQuery($message) : ''])
         : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)))));
     if ($isCartQuantityUpdate) {
         // In a correction such as "500 nahi, 1 chahiye, 1 kardo", the first
@@ -1957,7 +2016,8 @@ public function assistantChat(Request $request)
         $catalogSuggestions = true;
     }
     $automaticEnquiry = null;
-    $explicitEnquiryRequested = $this->assistantExplicitEnquiryRequested($message);
+    $automaticMissingEnquiry = null;
+    $explicitEnquiryRequested = $isExplicitProductEnquiry || $this->assistantExplicitEnquiryRequested($message);
     if ($catalogSuggestions && count($productHints) === 1 && $explicitEnquiryRequested && $user && $outlet) {
         $catalogueProduct = Product::where('status', 'active')->find((int) ($productHints[0]['id'] ?? 0));
         if ($catalogueProduct) {
@@ -2073,14 +2133,26 @@ public function assistantChat(Request $request)
         $workflow['stage'] = 'anything_else';
         $request->session()->put($flowKey, ['stage' => 'anything_else']);
     }
-    // A missing catalogue product is a real consent step, not merely a text
-    // suggestion. Persist it so a following voice reply such as "haan baat
-    // karao" opens the customer-care dialer through the normal flow handler.
+    // A missing product is a real consent step, not merely a text suggestion.
+    // Persist it so a following voice reply such as "haan enquiry bhejo" sends
+    // a product request without forcing the user into customer care.
     if ($intent['intent'] === 'product_search' && empty($productHints)) {
-        $resumeState = !empty($cartItems) ? ['stage' => 'anything_else'] : [];
-        $supportState = ['stage' => 'customer_care_offer', 'resume_state' => $resumeState];
-        $workflow = $this->assistantCustomerCareOfferWorkflow();
-        $request->session()->put($flowKey, $supportState);
+        $missingProductName = $this->assistantRequestedMissingProductName($intent, $rawMessage);
+        if ($missingProductName !== '') {
+            if ($explicitEnquiryRequested && $user) {
+                $automaticMissingEnquiry = $this->createAssistantMissingProductRequest($user, $outlet, $missingProductName);
+                $workflow = ['stage' => 'anything_else'];
+                $request->session()->put($flowKey, ['stage' => 'anything_else']);
+            } else {
+                $workflow = ['stage' => 'missing_product_enquiry'];
+                $request->session()->put($flowKey, ['stage' => 'missing_product_enquiry', 'product_name' => $missingProductName]);
+            }
+        } else {
+            $resumeState = !empty($cartItems) ? ['stage' => 'anything_else'] : [];
+            $supportState = ['stage' => 'customer_care_offer', 'resume_state' => $resumeState];
+            $workflow = $this->assistantCustomerCareOfferWorkflow();
+            $request->session()->put($flowKey, $supportState);
+        }
     }
     if ($isCartQuantityUpdate && count($productHints) === 1 && $intent['quantity']) {
         $targetQuantity = $this->resolveAssistantCartTargetQuantity($message, $productHints[0], $intent['quantity']);
@@ -2117,6 +2189,11 @@ public function assistantChat(Request $request)
             : 'Ye product catalogue mein nahi mila. Kya aap customer care se baat karna chahenge? Haan bolenge toh phone dialer khol dungi.'))));
         if ($requestedCatalogueProduct && !empty($availableAlternatives)) {
             $productHints = $availableAlternatives;
+        }
+        if (empty($productHints) && ($workflow['stage'] ?? '') === 'missing_product_enquiry') {
+            $reply = ($missingProductName ?? 'Ye product') . ' catalogue aur selected outlet price list mein nahi mila. Iski product enquiry admin ko bhej doon?';
+        } elseif (empty($productHints) && $automaticMissingEnquiry) {
+            $reply = $automaticMissingEnquiry['message'] ?? 'Product enquiry admin ko bhej di hai. Ab doosra product bataiye.';
         }
     } else {
         $reply = $this->assistantConversationReply($rawMessage, $user, $outlet, $recentMessages, $cartItems)
@@ -2379,6 +2456,42 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
 {
     $stage = $flow['stage'] ?? null;
     if (!$stage) return null;
+    if ($stage === 'missing_product_enquiry') {
+        if ($this->isAssistantFinishShoppingMessage($message)) {
+            return [
+                'reply' => 'Theek hai. Aap doosra product bata sakte hain, ya order complete ho gaya ho to bas itna hi boliye.',
+                'products' => [],
+                'workflow' => ['stage' => 'anything_else'],
+                'state' => ['stage' => 'anything_else'],
+            ];
+        }
+        $consent = $this->assistantEnquiryConsentReply($message);
+        if ($consent === 'yes' || $this->assistantExplicitEnquiryRequested($message)) {
+            $productName = trim((string) ($flow['product_name'] ?? ''));
+            $result = $user ? $this->createAssistantMissingProductRequest($user, $outlet, $productName) : ['success' => false, 'message' => 'Login session nahi mila. Dobara login karke enquiry bhejiye.'];
+            return [
+                'reply' => $result['message'] ?? 'Product enquiry admin ko bhej di hai. Ab doosra product bataiye.',
+                'products' => [],
+                'workflow' => ['stage' => 'anything_else'],
+                'state' => ['stage' => 'anything_else'],
+            ];
+        }
+        if ($consent === 'no') {
+            return [
+                'reply' => 'Theek hai, enquiry nahi bhej raha hoon. Aap doosra product bata sakte hain.',
+                'products' => [],
+                'workflow' => ['stage' => 'anything_else'],
+                'state' => ['stage' => 'anything_else'],
+            ];
+        }
+
+        return [
+            'continue_normal' => true,
+            'products' => [],
+            'workflow' => ['stage' => 'anything_else'],
+            'state' => ['stage' => 'anything_else'],
+        ];
+    }
     if ($stage === 'customer_care_offer') {
         // "Mujhe aur kuch nahi chahiye" is an order-finish command, not
         // merely a refusal to call. Resume checkout and show the editable

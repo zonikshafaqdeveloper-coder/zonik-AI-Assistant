@@ -1999,6 +1999,7 @@ body:has(.ai-page){background:#edf2f5}
             if (['delivery_details', 'payment_method', 'checkout_ready', 'confirm_order'].includes(stage)) return setAgentUiState('checkout');
             if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else'].includes(stage)) return setAgentUiState('ready');
             if (stage === 'customer_care_offer') return setAgentUiState('clarifying', 'Would you like me to send this enquiry to customer care?');
+            if (stage === 'missing_product_enquiry') return setAgentUiState('clarifying', 'Should I send this product enquiry?');
             setAgentUiState('matching');
         }
 
@@ -2158,7 +2159,7 @@ body:has(.ai-page){background:#edf2f5}
             const workflow = response.workflow || {};
             const workflowStage = String(workflow.stage || response.workflow_stage || '');
             const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakta hoon.');
-            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer'];
+            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'];
 
             onboardingStage = null;
             activeOrderingStage = supportedStages.includes(workflowStage) ? workflowStage : null;
@@ -2494,6 +2495,8 @@ function appendTyping() {
         }
 
         function speakWithBrowser(text, onEnded, onStart) {
+            finishSpeechWithoutBrowser(onEnded);
+            return;
             if (!window.speechSynthesis || !text) {
                 if (typeof onEnded === 'function') onEnded();
                 return;
@@ -2555,7 +2558,7 @@ function appendTyping() {
                 setAgentUiState('speaking');
                 if (typeof onStart === 'function') onStart();
             };
-            window.speechSynthesis.speak(utterance);
+            // Browser TTS is intentionally disabled; audio must come from ElevenLabs only.
         }
 
         function speechFriendlyText(text) {
@@ -2625,9 +2628,8 @@ function appendTyping() {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 if (controller) controller.abort();
-                voiceProviderMode = 'browser';
-                console.info('ElevenLabs audio timed out; using browser TTS.');
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                console.info('ElevenLabs audio timed out; browser TTS disabled.');
+                finishSpeechWithoutBrowser(onEnded);
             }, fallbackAfterMs);
             fetch(speakUrl, {
                 method: 'POST',
@@ -2652,17 +2654,15 @@ function appendTyping() {
                     playVoice(data.voice_base64, data.voice_mime, onEnded, onStart);
                 }
                 else {
-                    voiceProviderMode = 'browser';
-                    console.info('ElevenLabs unavailable; using browser TTS.');
-                    speakWithBrowser(lastAssistantSpokenText || localizedText || text, onEnded, onStart);
+                    console.info('ElevenLabs unavailable; browser TTS disabled.');
+                    finishSpeechWithoutBrowser(onEnded);
                 }
             }).catch(function () {
                 if (completed || requestGeneration !== speechRequestGeneration) return;
                 completed = true;
                 window.clearTimeout(requestTimeout);
-                voiceProviderMode = 'browser';
-                console.info('ElevenLabs request failed; using browser TTS.');
-                speakWithBrowser(lastAssistantSpokenText || text, onEnded, onStart);
+                console.info('ElevenLabs request failed; browser TTS disabled.');
+                finishSpeechWithoutBrowser(onEnded);
             });
         }
 
@@ -2698,7 +2698,8 @@ function appendTyping() {
                     delivery_details: 'Cart safe hai. Delivery selected outlet ke address par jayegi; jab free ho, slot select kar lena.',
                     payment_method: 'Order details safe hain. Free hone par payment option choose kar lena.',
                     checkout_ready: 'Order abhi submit nahi hua hai. Ready hone par Place Order button dabana.',
-                    customer_care_offer: 'Main yahin ruk rahi hoon. Free hone par call ya continue bol dena.'
+                    customer_care_offer: 'Main yahin ruk rahi hoon. Free hone par call ya continue bol dena.',
+                    missing_product_enquiry: 'Product enquiry bhejni ho to haan bol dijiye.'
                 };
                 return finalReminderByStage[activeOrderingStage] || 'Aap busy ho toh koi problem nahi. Free hone par yahin se continue kar lena.';
             }
@@ -2712,7 +2713,8 @@ function appendTyping() {
                 delivery_details: ['Delivery selected outlet ke saved address par jayegi. Bas convenient slot choose kar dijiye.', 'Bas delivery slot pending hai. Slot select kar dijiye, phir payment par aate hain.'],
                 payment_method: ['Payment ka option select kar dijiye, phir place order ka final button aa jayega.', 'Ab sirf payment method choose karna hai—online, delivery par, ya jo option dikh raha ho.'],
                 checkout_ready: ['Order ready hai. Sab details sahi ho toh neeche Place Order button dabaiye.', 'Main order place karne ke liye aapki confirmation ka wait kar raha hoon—Place Order button dabaiye.'],
-                customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.']
+                customer_care_offer: ['Aap chahen toh customer care se baat kar sakte hain. Haan boliye ya call lagao bol dijiye; warna yahin continue karte hain.', 'Koi doubt ho toh main customer care ko call laga sakti hoon. Aap jo comfortable ho, woh bol dijiye.'],
+                missing_product_enquiry: ['Is product ki enquiry bhejni ho toh haan bol dijiye.', 'Enquiry send karni hai toh haan, enquiry bhejo bol dijiye.']
             };
             const options = remindersByStage[activeOrderingStage] || ['Main yahin hoon. Jab ready ho, bata dijiye aage kya karna hai.'];
             return options[responseReminderCount % options.length];
@@ -3211,7 +3213,7 @@ function appendTyping() {
                     clearAssistantDeliveryOptions();
                 }
                 liveOrderEditable = workflow.stage === 'confirm_order';
-                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer'].includes(workflow.stage)
+                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'].includes(workflow.stage)
                     ? workflow.stage
                     : null;
                 aiDebug('Workflow state updated', {previousStage: requestStage, currentStage: activeOrderingStage, workflow: workflow});
