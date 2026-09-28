@@ -33,6 +33,8 @@ Zonik should feel like a human grocery ordering agent, but Laravel remains the a
 - Brand, flavour, pack size, category, and variant may appear in any word order, such as `Real ka orange juice`, `orange juice Real wala`, or `1 litre Real orange juice ke do`.
 - Context references like `ek aur`, `same wala`, `wahi`, `jo abhi bola tha`, and `haan wohi` should use the current conversation/cart context when it is unique.
 - Corrections override earlier unconfirmed details: `apple nahi orange` means use orange, not both.
+- Broken voice transcripts must never be repeated back in a loop; repeated words are collapsed before chat/TTS output.
+- If an exact requested variant is not approved, the assistant should offer verified alternatives or ask to send an enquiry instead of pretending another variant is the same product.
 - Finish phrases like `bas itna hi`, `aur kuch nahi`, `ho gaya`, and `done` mean shopping is complete; they must never cancel or clear the order.
 - Suggestion bulk-add phrases like `jo jo bole the add kardo`, `haan sab add karo`, and `jo suggest kiya tha sab daal do` can add only the most recently shown verified suggestion cards, never the whole catalogue.
 - Catalogue-only or unavailable outlet products must go through the enquiry/request flow instead of being silently added.

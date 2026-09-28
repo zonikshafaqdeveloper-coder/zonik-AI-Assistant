@@ -1057,6 +1057,7 @@ private function assistantRequestedMissingProductName(array $intent, string $mes
     if ($name === '') $name = $message;
     $name = $this->normalizeAssistantSearchText($name);
     $name = preg_replace('/\b(?:enquir(?:y|e)|enq(?:u)?ry|enquery|inquir(?:y|e)|price\s*request|request\s*price|quotation|quote|send|raise|create|make|submit|bhejo|bhej\s*do|kar\s*do|karo|kardo|krdo|daalo|dalo|puchho|poochho|mangao|mangwao|add|cart|order|buy|want|need|chahiye|chaiye|please|plz|mujhe|muje)\b/iu', ' ', $name) ?? $name;
+    $name = $this->assistantCollapseRepetitiveText($name);
     $name = trim(preg_replace('/\s+/', ' ', $name) ?? $name);
 
     return mb_substr($name, 0, 150);
@@ -4040,7 +4041,7 @@ private function normalizeAssistantSpeechText(string $text): string
 
 private function prepareAssistantTtsText(string $text, string $customerText = '', ?string $languageHint = null): string
 {
-    $normalized = $this->normalizeAssistantSpeechText($text);
+    $normalized = $this->normalizeAssistantSpeechText($this->assistantCollapseRepetitiveText($text));
     $instruction = $this->assistantTtsLanguageInstruction($customerText, $languageHint);
     $isHindiSpeech = str_contains($instruction, 'Hinglish');
     // Do not ask a generative model to rewrite Hinglish before speech. Even
@@ -4048,20 +4049,20 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
     // word. Deterministic transliteration preserves the complete verified
     // reply while giving the multilingual voice an Indian pronunciation.
     if ($isHindiSpeech) {
-        return $this->normalizeAssistantHindiSpeechWords(
+        return $this->assistantCollapseRepetitiveText($this->normalizeAssistantHindiSpeechWords(
             $this->normalizeAssistantVoiceInstructions($normalized)
-        );
+        ));
     }
     if ($normalized === '' || empty(config('services.gemini.api_key'))) {
         $fallbackSpeech = $this->normalizeAssistantVoiceInstructions($normalized);
-        return $fallbackSpeech;
+        return $this->assistantCollapseRepetitiveText($fallbackSpeech);
     }
 
     if (Cache::has('gemini_assistant_rate_limited')
         || Cache::has('gemini_assistant_auth_unavailable')
         || Cache::has('gemini_assistant_model_unavailable')
         || Cache::has('gemini_assistant_network_unavailable')) {
-        return $this->normalizeAssistantVoiceInstructions($normalized);
+        return $this->assistantCollapseRepetitiveText($this->normalizeAssistantVoiceInstructions($normalized));
     }
 
     $cacheKey = 'ai-assistant:tts-pronunciation:' . hash('sha256', 'v2|' . $instruction . '|' . $normalized);
@@ -4077,7 +4078,7 @@ private function prepareAssistantTtsText(string $text, string $customerText = ''
     } else {
         $speech = $this->normalizeAssistantVoiceInstructions($this->normalizeAssistantSpeechText($speech));
     }
-    return $speech;
+    return $this->assistantCollapseRepetitiveText($speech);
 }
 
 private function normalizeAssistantHindiSpeechWords(string $speech): string
@@ -4297,24 +4298,26 @@ private function assistantResumePrompt(array $flow): string
 
 private function localizeAssistantReply(string $reply, string $customerMessage, ?string $languageHint = null): string
 {
-    $reply = trim($reply);
+    $reply = $this->assistantCollapseRepetitiveText(trim($reply));
     if ($reply === '' || empty(config('services.gemini.api_key'))) return $this->enforceAssistantMaleVoice($reply);
 
     $hint = $this->assistantReplyLanguage($customerMessage, $languageHint);
-    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-male-v2|' . $hint . '|' . $reply);
+    $cacheKey = 'ai-assistant:reply-localization:' . hash('sha256', 'spoken-hinglish-male-v3|' . $hint . '|' . $reply);
     $localized = trim((string) Cache::get($cacheKey, ''));
     if ($localized === '') {
-        $prompt = "Rewrite the assistant reply in {$hint}, using a polite, warm, natural male Indian shop-assistant tone. Preserve the customer's original writing script. For Hindi or Hinglish, ALWAYS use easy Roman-script Hinglish like a customer speaking naturally. The assistant is male: always use masculine self-reference such as 'kar raha hoon', 'karunga', 'dunga', and 'lunga', never feminine forms such as 'kar rahi hoon', 'karungi', 'dungi', or 'lungi'. Never use 'arre', 'beta', 'boss', 'dear', Devanagari, formal/pure Hindi, stiff words such as 'kripya', 'avashya', 'kijiye', or textbook translations. Keep Hindi and English naturally mixed, as the customer does. Match the customer's language balance without copying their wording. Respond to the customer's meaning; never quote, repeat, paraphrase, affirm, or mirror the customer's sentence. Do not tell the customer to contact or talk to the Zonik team unless the customer explicitly asked for customer care. Keep simple answers short, but preserve a complete explanation when needed (up to 90 words). Preserve every product name, brand, flavour, quantity, price, address, slot, and payment term exactly; do not add or remove facts. Return only the rewritten reply, with no quotes or explanation.\nCustomer message (context only; do not reuse its wording): {$customerMessage}\nAssistant reply to translate: {$reply}";
+        $prompt = "Rewrite the assistant reply in {$hint}, using a polite, warm, natural male Indian shop-assistant tone. Preserve the customer's original writing script. For Hindi or Hinglish, ALWAYS use easy Roman-script Hinglish like a customer speaking naturally. The assistant is male: always use masculine self-reference such as 'kar raha hoon', 'karunga', 'dunga', and 'lunga', never feminine forms such as 'kar rahi hoon', 'karungi', 'dungi', or 'lungi'. Never use 'arre', 'beta', 'boss', 'dear', Devanagari, formal/pure Hindi, stiff words such as 'kripya', 'avashya', 'kijiye', or textbook translations. Keep Hindi and English naturally mixed, as the customer does. Match the customer's language balance without copying their wording. Respond to the customer's meaning; never quote, repeat, paraphrase, affirm, mirror, or stutter the customer's sentence. Do not repeat the same word or phrase more than once. Do not tell the customer to contact or talk to the Zonik team unless the customer explicitly asked for customer care. Keep simple answers short, but preserve a complete explanation when needed (up to 90 words). Preserve every product name, brand, flavour, quantity, price, address, slot, and payment term exactly; do not add or remove facts. Return only the rewritten reply, with no quotes or explanation.\nCustomer message (context only; do not reuse its wording): {$customerMessage}\nAssistant reply to translate: {$reply}";
         $localized = trim((string) ($this->callGemini($prompt, 0.1, 120) ?? ''));
+        $localized = $this->assistantCollapseRepetitiveText($localized);
         if ($localized !== '') Cache::put($cacheKey, $localized, now()->addHours(12));
     }
 
-    if ($localized === '' || $this->assistantReplyRepeatsCustomer($localized, $customerMessage)) return $this->enforceAssistantMaleVoice($reply);
+    if ($localized === '' || $this->assistantReplyRepeatsCustomer($localized, $customerMessage) || $this->assistantHasRepetitionLoop($localized)) return $this->enforceAssistantMaleVoice($reply);
     return $this->enforceAssistantMaleVoice($localized);
 }
 
 private function enforceAssistantMaleVoice(string $reply): string
 {
+    $reply = $this->assistantCollapseRepetitiveText($reply);
     $reply = preg_replace('/\ba+r+(?:e+y?)?\b[,.!?\s]*/iu', '', $reply) ?? $reply;
     $patterns = [
         '/\bkar\s+rahi\s+(?:hu|hun|hoon)\b/iu' => 'kar raha hoon',
@@ -4330,7 +4333,40 @@ private function enforceAssistantMaleVoice(string $reply): string
         '/\bhelp\s+karti\s+(?:hu|hun|hoon)\b/iu' => 'help karta hoon',
     ];
     $reply = preg_replace(array_keys($patterns), array_values($patterns), $reply) ?? $reply;
-    return trim(preg_replace('/\s{2,}/u', ' ', $reply) ?? $reply);
+    return $this->assistantCollapseRepetitiveText(trim(preg_replace('/\s{2,}/u', ' ', $reply) ?? $reply));
+}
+
+private function assistantCollapseRepetitiveText(string $text): string
+{
+    $text = trim($text);
+    if ($text === '') return '';
+
+    for ($i = 0; $i < 3; $i++) {
+        $before = $text;
+        $text = preg_replace('/\b([\p{L}\p{N}][\p{L}\p{N}.-]{1,})\b(?:[\s,;:-]+\1\b){1,}/iu', '$1', $text) ?? $text;
+        $text = preg_replace('/\b((?:[\p{L}\p{N}][\p{L}\p{N}.-]{1,}\s+){1,3}[\p{L}\p{N}][\p{L}\p{N}.-]{1,})\b(?:[\s,;:-]+\1\b){1,}/iu', '$1', $text) ?? $text;
+        $text = preg_replace('/\b(?:nahi|nahin|nhi|nai|no)\b(?:[\s,;:-]+\b(?:nahi|nahin|nhi|nai|no)\b){1,}/iu', 'nahi', $text) ?? $text;
+        $text = preg_replace('/\s+([,.!?])/u', '$1', $text) ?? $text;
+        $text = trim(preg_replace('/\s{2,}/u', ' ', $text) ?? $text);
+        if ($text === $before) break;
+    }
+
+    return $text;
+}
+
+private function assistantHasRepetitionLoop(string $text): bool
+{
+    $normalized = mb_strtolower($this->assistantCollapseRepetitiveText($text));
+    $raw = mb_strtolower(trim($text));
+    if ($raw !== '' && mb_strlen($raw) - mb_strlen($normalized) >= 12) return true;
+
+    preg_match_all('/\b[\p{L}\p{N}][\p{L}\p{N}.-]{1,}\b/u', $raw, $matches);
+    $words = $matches[0] ?? [];
+    if (count($words) < 6) return false;
+    $counts = array_count_values($words);
+    $max = max($counts ?: [0]);
+
+    return $max >= 4;
 }
 
 private function assistantReplyLanguage(string $customerMessage, ?string $languageHint = null): string
@@ -5440,7 +5476,7 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
     $history = empty($recentMessages) ? 'None' : implode("\n", $recentMessages);
     $cartContext = empty($cartItems) ? 'Cart is empty' : json_encode($cartItems, JSON_UNESCAPED_UNICODE);
     $workflowSummary = json_encode($this->assistantSemanticWorkflowContext($workflowContext), JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Understand ANY language, writing system, dialect, mixed language, word order, grammar, spelling, and speech-to-text error. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent) and unit. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
+    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Understand ANY language, writing system, dialect, mixed language, word order, grammar, spelling, and speech-to-text error. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent) and unit. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
