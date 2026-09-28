@@ -1779,6 +1779,9 @@ public function assistantChat(Request $request)
             }
             $singleQuantity = 1;
         }
+        if ($singleQuantity <= 0) {
+            $singleQuantity = (float) ($this->assistantSpokenOrderQuantity($rawMessage) ?? 0);
+        }
         if ($singleQuantity <= 0 && $this->isAssistantDirectAddRequest($message)) {
             $singleQuantity = 1;
         }
@@ -1826,6 +1829,9 @@ public function assistantChat(Request $request)
     $isProductDiscovery = $this->isAssistantProductDiscoveryRequest($message);
     $looksLikeProductRequest = $this->looksLikeAssistantProductRequest($message);
     $isQuantityProductUtterance = $this->isAssistantQuantityProductUtterance($message);
+    $hasFastLocalProductParse = count($singleSpokenItems) === 1
+        && trim((string) ($singleSpokenItems[0]['query'] ?? '')) !== ''
+        && ($looksLikeProductRequest || $isQuantityProductUtterance);
     $isExplicitProductEnquiry = $this->assistantExplicitEnquiryRequested($message)
         && $this->assistantRequestedMissingProductName(['search_query' => ''], $message) !== '';
     // When a customer interrupts a soft prompt (for example with another
@@ -1867,6 +1873,7 @@ public function assistantChat(Request $request)
     }
     if (!$isRecommendation
         && ($looksLikeProductRequest || $isQuantityProductUtterance || $isProductDiscovery)
+        && !$hasFastLocalProductParse
         && !empty(config('services.gemini.api_key'))
         && !Cache::has('gemini_assistant_rate_limited')
         && !Cache::has('gemini_assistant_auth_unavailable')
@@ -2243,7 +2250,7 @@ public function assistantChat(Request $request)
 private function extractAssistantOrderItems(string $message): array
 {
     $localItems = $this->extractAssistantOrderItemsLocally($message);
-    if (count($localItems) > 1 && empty(config('services.gemini.api_key'))) return $localItems;
+    if (count($localItems) > 1) return $localItems;
     preg_match_all('/\d+(?:\.\d+)?/', $message, $numberMatches);
     if (count($numberMatches[0] ?? []) >= 2 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) {
         $message = preg_replace('/\s+(?=\d+(?:\.\d+)?\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)?\b)/iu', ', ', $message);
@@ -2266,6 +2273,10 @@ private function extractAssistantOrderItems(string $message): array
 private function extractAssistantOrderItemsLocally(string $message): array
 {
     $text = $this->normalizeAssistantQuantityText($message);
+    if (preg_match('/\b(?:actually|actual|nahi\s+nahi|nahin\s+nahin|nai\s+nai)\b(.+)$/iu', $text, $correctionMatch)) {
+        $text = trim((string) $correctionMatch[1]);
+    }
+    $text = preg_replace('/^\s*do\s+(?=[a-z0-9][a-z0-9.-]{1,})/iu', '2 ', $text) ?? $text;
     $spokenNumbers = [
         'one' => 1, 'won' => 1, 'ek' => 1,
         'two' => 2, 'too' => 2, 'do' => 2,
@@ -2282,7 +2293,7 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena)\b)/iu', (string) $number, $text) ?? $text;
     }
     $unitPattern = '(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box(?:es)?|carton|pack|packet|pcs?|pieces?|dozen|unit)';
-    $separatorPattern = '/\s*(?:,|;|&|\band\b|\baur\b|\bplus\b|\bwith\b)\s*/iu';
+    $separatorPattern = '/\s*(?:,|;|&|\band\b|\baur\b|\bplus\b|\bwith\b|\bbhi\b)\s*/iu';
     $chunks = preg_split($separatorPattern, $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
     if (count($chunks) <= 1) {
@@ -2298,15 +2309,60 @@ private function extractAssistantOrderItemsLocally(string $message): array
     foreach ($chunks as $chunk) {
         $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
         if ($chunk === '') continue;
-        $chunk = preg_replace('/^\b(?:mujhe|muje|mala|please|plz|add|give|order|buy|want|need|aur|also)\b\s*/iu', '', $chunk) ?? $chunk;
-        $chunk = preg_replace('/\b(?:add|added|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do|chahiye|chaiye|please|plz)\b\s*$/iu', '', $chunk) ?? $chunk;
+        $rawChunkForQuantity = $chunk;
+        $chunk = trim(preg_replace('/[.!?]+$/u', '', $chunk) ?? $chunk);
+        $chunk = preg_replace('/^\s*do\s+(?=[a-z0-9][a-z0-9.-]{1,})/iu', '2 ', $chunk) ?? $chunk;
+        $chunk = preg_replace('/\bdo\b(?=\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena|rakh|rakho|daal|dal|dalo|daalo)\b)/iu', '2', $chunk) ?? $chunk;
+        foreach ($spokenNumbers as $word => $number) {
+            $chunk = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena|rakh|rakho|daal|dal|dalo|daalo)\b)/iu', (string) $number, $chunk) ?? $chunk;
+        }
+        $chunk = preg_replace('/^\b(?:mujhe|muje|mala|please|plz|add|give|order|buy|want|need|aur|also|accha|achha|bhai|ek\s+kaam\s+karo)\b\s*/iu', '', $chunk) ?? $chunk;
+        $earlyQuantity = 0.0;
+        $earlyUnit = '';
+        $earlyQuery = '';
+        $commandPattern = '(?:add|added|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo)';
+        $numberWordPattern = '(?:one|won|two|too|do|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|saat|aath|nau|das)';
+        $wordToQuantity = fn ($value) => (float) ([
+            'one' => 1, 'won' => 1, 'ek' => 1,
+            'two' => 2, 'too' => 2, 'do' => 2,
+            'three' => 3, 'tree' => 3, 'teen' => 3,
+            'four' => 4, 'char' => 4, 'chaar' => 4,
+            'five' => 5, 'panch' => 5, 'paanch' => 5,
+            'six' => 6, 'seven' => 7, 'saat' => 7,
+            'eight' => 8, 'aath' => 8, 'nine' => 9, 'nau' => 9,
+            'ten' => 10, 'das' => 10,
+        ][mb_strtolower((string) $value)] ?? $value);
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s+(?:ka|ke|ki)?\s*(?:wala|wali|wale)?\s+(.+?)\s+(?:ka|ke|ki)?\s*(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
+            $earlyQuantity = $wordToQuantity($earlyMatch[4]);
+            $earlyUnit = trim((string) $earlyMatch[2]);
+            $earlyQuery = trim((string) $earlyMatch[3] . ' ' . $earlyMatch[1] . ' ' . $earlyUnit);
+        } elseif (preg_match('/^(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s+(.+?)\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
+            $earlyQuantity = $wordToQuantity($earlyMatch[1]);
+            $earlyQuery = trim((string) $earlyMatch[2]);
+        } elseif (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
+            $earlyQuantity = $wordToQuantity($earlyMatch[2]);
+            $earlyQuery = trim((string) $earlyMatch[1]);
+        }
+        $chunk = preg_replace('/\b(?:add|cart|order|buy|give|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo)\s+(?:karo|karna|kar\s*do|karke|de|dena|do)\b\s*$/iu', '', $chunk) ?? $chunk;
+        $chunk = preg_replace('/\b(?:add|added|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do|chahiye|chaiye|please|plz|rakh\s*do|rakho|daal|dal|dalo|daalo)\b\s*$/iu', '', $chunk) ?? $chunk;
+        $chunk = trim(preg_replace('/[.!?]+$/u', '', $chunk) ?? $chunk);
         $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
         if ($chunk === '') continue;
 
-        $quantity = 0.0;
-        $unit = '';
-        $query = $chunk;
-        if (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')?\s+(.+)$/iu', $chunk, $match)) {
+        $quantity = $earlyQuantity;
+        $unit = $earlyUnit;
+        $query = $earlyQuery !== '' ? $earlyQuery : $chunk;
+        if ($earlyQuery !== '') {
+            // Already parsed before trailing command words were stripped.
+        } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s+(?:ka|ke|ki)?\s*(?:wala|wali|wale)?\s+(.+?)\s+(?:ka|ke|ki|wala|wali|wale)?\s*(\d+(?:\.\d+)?)?$/iu', $chunk, $match)) {
+            $quantity = !empty($match[4]) ? (float) $match[4] : 1;
+            $unit = trim((string) ($match[2] ?? ''));
+            $query = trim((string) $match[3] . ' ' . $match[1] . ' ' . $unit);
+        } elseif (preg_match('/^(.+?)\s+(?:ka|ke|ki)?\s*(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s*(?:wala|wali|wale)?\s*(\d+(?:\.\d+)?)?$/iu', $chunk, $match)) {
+            $quantity = !empty($match[4]) ? (float) $match[4] : 1;
+            $unit = trim((string) ($match[3] ?? ''));
+            $query = trim((string) $match[1] . ' ' . $match[2] . ' ' . $unit);
+        } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')?\s+(.+)$/iu', $chunk, $match)) {
             $quantity = (float) $match[1];
             $unit = trim((string) ($match[2] ?? ''));
             $query = trim((string) $match[3]);
@@ -2316,9 +2372,26 @@ private function extractAssistantOrderItemsLocally(string $message): array
             $query = trim((string) $match[1]);
         }
 
-        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|daal|dal|dalo|daalo)\b/iu', ' ', $query) ?? $query;
         $query = trim(preg_replace('/\s+/', ' ', $query) ?? $query);
         if ($query === '' || strlen($query) < 2) continue;
+        if ($quantity <= 0) {
+            $quantityWords = [
+                'one' => 1, 'won' => 1, 'ek' => 1,
+                'two' => 2, 'too' => 2, 'do' => 2,
+                'three' => 3, 'tree' => 3, 'teen' => 3,
+                'four' => 4, 'char' => 4, 'chaar' => 4,
+                'five' => 5, 'panch' => 5, 'paanch' => 5,
+                'six' => 6, 'seven' => 7, 'saat' => 7,
+                'eight' => 8, 'aath' => 8, 'nine' => 9, 'nau' => 9,
+                'ten' => 10, 'das' => 10,
+            ];
+            if (preg_match('/^\s*(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s+(?!' . $unitPattern . '\b)/iu', $rawChunkForQuantity, $quantityMatch)
+                || preg_match('/\b(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s*(?!(?:' . $unitPattern . ')\b)\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena|rakh|rakho|daal|dal|dalo|daalo)\b/iu', $rawChunkForQuantity, $quantityMatch)) {
+                $token = mb_strtolower((string) $quantityMatch[1]);
+                $quantity = (float) ($quantityWords[$token] ?? $token);
+            }
+        }
         $items[] = ['query' => $query, 'quantity' => max(0, $quantity), 'unit' => $unit];
         if (count($items) >= 10) break;
     }
@@ -2343,7 +2416,7 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
         $requestedName = trim((string) ($spokenItem['query'] ?? ''));
         if ($requestedName === '') continue;
         $matches = $this->findAssistantProducts($requestedName, $outlet);
-        $quantity = max(0, (float) ($spokenItem['quantity'] ?? 0));
+        $quantity = max(1, (float) ($spokenItem['quantity'] ?? 0));
         $unit = trim((string) ($spokenItem['unit'] ?? ''));
         if (count($matches) === 1 && $quantity > 0) {
             $cartResult = $this->addAssistantProductToCart($user, $outlet, $matches[0], $quantity);
@@ -2393,6 +2466,28 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
         'state' => $state,
         'auto_added' => !empty($addedNames),
     ];
+}
+
+private function assistantSpokenOrderQuantity(string $message): ?int
+{
+    $words = [
+        'one' => 1, 'won' => 1, 'ek' => 1,
+        'two' => 2, 'too' => 2, 'do' => 2,
+        'three' => 3, 'tree' => 3, 'teen' => 3,
+        'four' => 4, 'char' => 4, 'chaar' => 4,
+        'five' => 5, 'panch' => 5, 'paanch' => 5,
+        'six' => 6, 'seven' => 7, 'saat' => 7,
+        'eight' => 8, 'aath' => 8, 'nine' => 9, 'nau' => 9,
+        'ten' => 10, 'das' => 10,
+    ];
+    $wordPattern = implode('|', array_map(fn ($word) => preg_quote($word, '/'), array_keys($words)));
+    if (preg_match('/^\s*(\d{1,3}|' . $wordPattern . ')\b(?!\s*(?:ml|kg|kgs|g|gm|gms|litre|liter|ltr)\b)/iu', $message, $match)
+        || preg_match('/\b(\d{1,3}|' . $wordPattern . ')\s*(?!(?:ml|kg|kgs|g|gm|gms|litre|liter|ltr)\b)\s*(?:add|cart|order|buy|give|chahiye|chaiye|karo|karna|kar\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu', $message, $match)) {
+        $token = mb_strtolower((string) $match[1]);
+        return (int) ($words[$token] ?? $token);
+    }
+
+    return null;
 }
 
 private function assistantDatabaseSafeText(string $text): string
@@ -5032,9 +5127,12 @@ private function isAssistantQuantityProductUtterance(string $message): bool
 private function assistantLocalProductSearchQuery(string $message): string
 {
     $query = $this->normalizeAssistantSearchText($message);
-    $query = preg_replace('/^\s*(?:add|buy|order|need|want|show|find|search|give|mujhe|muje|please)\s+/iu', ' ', $query) ?? $query;
+    if (preg_match('/\b(?:actually|actual|nahi\s+nahi|nahin\s+nahin|nai\s+nai)\b(.+)$/iu', $query, $correctionMatch)) {
+        $query = trim((string) $correctionMatch[1]);
+    }
+    $query = preg_replace('/^\s*(?:add|buy|order|need|want|show|find|search|give|mujhe|muje|please|plz|bhai|accha|achha|ek\s+kaam\s+karo)\s+/iu', ' ', $query) ?? $query;
     $query = preg_replace('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s+/iu', ' ', $query) ?? $query;
-    $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|dena|please|cart|mein|me)\b/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|dena|please|plz|cart|mein|me|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|rakhna|rakh\s*do|daal|dal|dalo|daalo|bhi|also)\b/iu', ' ', $query) ?? $query;
 
     return trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
 }

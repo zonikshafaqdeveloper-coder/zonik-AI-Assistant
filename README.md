@@ -8,7 +8,7 @@ Zonik AI Assistant is a Laravel-based voice and chat ordering assistant for outl
 - Accepts voice or typed grocery orders.
 - Understands mixed Hinglish/English commands such as `real apple juice add karo`, `bas itna hi`, `jo jo bole the add kardo`, and `no thanks continue delivery`.
 - Uses Gemini for semantic understanding when needed, with deterministic Laravel fallbacks for common order flows.
-- Uses ElevenLabs for speech output when credits/API are available, with browser fallback hidden from the order UI.
+- Uses ElevenLabs for speech output. Browser TTS is intentionally disabled.
 - Checks products against the selected outlet's approved price list before adding anything.
 - Handles exact product names, flavours, brands, pack sizes like `200ml wala`, and multiple products in one sentence.
 - Prevents unsafe bulk actions like adding every catalogue product.
@@ -36,7 +36,7 @@ flowchart TD
     H -->|Yes, no qty| J[Ask quantity]
     H -->|Multiple matches| K[Show product choices]
     H -->|Not approved but in catalogue| L[Offer enquiry]
-    H -->|No match| M[Offer customer care / retry]
+    H -->|No match| M[Ask/send product enquiry]
 
     I --> N[Ask if anything else]
     J --> I
@@ -79,7 +79,7 @@ These are expected targets on a normal production server. Actual time depends on
 | Step | Normal target | Slow case | Notes |
 | --- | ---: | ---: | --- |
 | Page bootstrap and instant welcome text | 0.1-0.5 sec | 1 sec | Text renders before network voice finishes. |
-| Welcome voice request | 1-4 sec | 8-12 sec | ElevenLabs can be slower or unavailable if credits are over. |
+| Welcome voice request | 1-4 sec | 8-12 sec | ElevenLabs can be slower or silent if credits/API are unavailable. |
 | Browser speech capture start | 0.3-1 sec | 2 sec | Depends on mobile browser permission/state. |
 | Speech-to-text / transcript processing | 0.5-2 sec | 4-8 sec | Browser speech is faster; server transcription depends on network. |
 | Local intent detection | 0.05-0.2 sec | 0.5 sec | Handles common product/cart/finish commands without Gemini. |
