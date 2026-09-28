@@ -6143,12 +6143,22 @@ private function assistantSearchWordScore(string $term, string $word): int
 
     $termLength = strlen($term);
     $wordLength = strlen($word);
-    $strictVariantWords = [
-        'taaza', 'taza', 'taaja', 'taja', 'gold', 'slim', 'trim', 'toned',
-        'doubletoned', 'cow', 'buffalo', 'fullcream',
+    $strictVariantGroups = [
+        ['taaza', 'taza', 'taaja', 'taja'],
+        ['gold'],
+        ['slim', 'trim', 'slimtrim'],
+        ['toned'],
+        ['doubletoned'],
+        ['cow'],
+        ['buffalo'],
+        ['fullcream'],
     ];
-    if (in_array($term, $strictVariantWords, true) || in_array($word, $strictVariantWords, true)) {
-        return 0;
+    foreach ($strictVariantGroups as $variantGroup) {
+        $termIsVariant = in_array($term, $variantGroup, true);
+        $wordIsVariant = in_array($word, $variantGroup, true);
+        if ($termIsVariant || $wordIsVariant) {
+            return $termIsVariant && $wordIsVariant ? 115 : 0;
+        }
     }
 
     // Short tokens (SKU fragments, initials, etc.) must be exact. A one-letter
@@ -6433,7 +6443,14 @@ private function normalizeAssistantSearchText(string $text): string
         'batata' => ' potato ', 'kanda' => ' onion ', 'pyaz' => ' onion ',
         'tomato' => ' tomato ', 'dahi' => ' curd ', 'chaaha' => ' tea ', 'chaha' => ' tea ',
         'coffee' => ' coffee ', 'biscuit' => ' biscuit ', 'bread' => ' bread ',
-        'jusice' => ' juice ', 'juce' => ' juice ', 'jus' => ' juice ',
+        'reel' => ' real ', 'riyal' => ' real ', 'rial' => ' real ',
+        'jusice' => ' juice ', 'juce' => ' juice ', 'juse' => ' juice ', 'joos' => ' juice ',
+        'juise' => ' juice ', 'juis' => ' juice ', 'jus' => ' juice ',
+        'orenge' => ' orange ', 'oranj' => ' orange ', 'orang' => ' orange ', 'orage' => ' orange ',
+        'mikl' => ' milk ', 'mik' => ' milk ', 'melk' => ' milk ', 'milke' => ' milk ',
+        'biskit' => ' biscuit ', 'biscut' => ' biscuit ', 'biskut' => ' biscuit ',
+        'bred' => ' bread ', 'buter' => ' butter ', 'shugar' => ' sugar ', 'suger' => ' sugar ',
+        'almod' => ' almond ', 'almond' => ' almond ',
         'tur dal' => ' toor dal ', 'toor dal' => ' toor dal ', 'moong dal' => ' moong dal ',
         // Telugu and Bengali grocery names.
         'బియ్యం' => ' rice ', 'పంచదార' => ' sugar ', 'పాలు' => ' milk ', 'ఉప్పు' => ' salt ', 'నూనె' => ' oil ', 'పప్పు' => ' dal ',
@@ -6459,7 +6476,10 @@ private function normalizeAssistantSearchText(string $text): string
         'चाहिए' => ' ', 'मुझे' => ' ', 'करो' => ' ',
     ];
 
-    return trim(str_ireplace(array_keys($aliases), array_values($aliases), $text));
+    $normalized = str_ireplace(array_keys($aliases), array_values($aliases), $text);
+    $normalized = preg_replace('/\b([a-z0-9]{2,})\b(?:\s+\1\b){1,}/iu', '$1', $normalized) ?? $normalized;
+
+    return trim(preg_replace('/\s+/', ' ', $normalized) ?? $normalized);
 }
 
 private function buildVoiceReply(string $text): array
