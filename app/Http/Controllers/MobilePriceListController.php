@@ -1810,7 +1810,7 @@ public function assistantChat(Request $request)
                 $brands = array_values(array_unique(array_filter(array_map(fn ($item) => trim((string) ($item['brand'] ?? '')), $needsChoice))));
                 $reply .= ($reply ? ' ' : '') . (count($brands) > 1 ? 'Is product ka kaunsa brand chahiye?' : 'Is product ka kaunsa flavour ya variant chahiye?');
             }
-            else $reply .= ' Aur items batate jaiye; complete ho to “bas itna hi” boliye.';
+            else $reply .= ' Aur kuch chahiye?';
             $nextState = $needsChoice ? ['stage' => 'clarify_product', 'products' => $needsChoice] : ['stage' => 'anything_else'];
             $request->session()->put($flowKey, $nextState);
             $batchResponse = ['reply' => $reply, 'products' => $needsChoice, 'workflow' => ['stage' => $stage, 'show_cart' => true], 'state' => $nextState, 'auto_added' => !empty($addedNames)];
@@ -1845,7 +1845,7 @@ public function assistantChat(Request $request)
                 $cartResult = $this->addAssistantProductToCart($user, $outlet, $singleMatches[0], $singleQuantity);
                 if ($cartResult) {
                     $reply = $this->assistantCartMutationReply($cartResult, $singleMatches[0]['name'])
-                        . ' Aur items batate jaiye; complete ho to bas itna hi boliye.';
+                        . ' Aur kuch chahiye?';
                     $nextState = ['stage' => 'anything_else'];
                     $request->session()->put($flowKey, $nextState);
                     $fastResponse = [
@@ -2241,7 +2241,7 @@ public function assistantChat(Request $request)
             : ($automaticEnquiry
             ? ($automaticEnquiry['message'] ?? 'Price-list enquiry automatically bhej di hai.')
             : ($autoAdded
-            ? ($this->assistantCartMutationReply($autoAdded, $productHints[0]['name'] ?? 'Product') . ' Aur items batate jaiye; complete ho to “bas itna hi” boliye.')
+            ? ($this->assistantCartMutationReply($autoAdded, $productHints[0]['name'] ?? 'Product') . ' Aur kuch chahiye?')
             : (!empty($productHints)
             ? ($catalogSuggestions
                 ? 'Ye product selected outlet ki approved price list mein nahi hai. Iski price enquiry bhejni ho toh “enquiry bhejo” boliye.'
@@ -2509,7 +2509,7 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
     if ($notFound) {
         $reply .= ($reply ? ' ' : '') . implode(' aur ', array_values(array_unique($notFound))) . ' ka approved match nahi mila, isliye use add nahi kiya.';
     } else {
-        if (!$needsChoice) $reply .= ' Aur items batate jaiye; complete ho to bas itna hi boliye.';
+        if (!$needsChoice) $reply .= ' Aur kuch chahiye?';
     }
     $state = $needsChoice ? ['stage' => 'clarify_product', 'products' => $needsChoice] : ['stage' => 'anything_else'];
     return [
@@ -5381,13 +5381,13 @@ private function assistantCartMutationReply(array $result, string $productName):
     $quantity = max(1, (int) ($result['quantity'] ?? 1));
     $action = (string) ($result['action'] ?? 'added');
     if ($action === 'unchanged') {
-        return "{$productName} ki quantity {$quantity} set kar di hai.";
+        return "{$productName} already cart mein quantity {$quantity} par hai.";
     }
     if ($action === 'updated') {
-        $previous = max(1, (int) ($result['previous_quantity'] ?? 1));
-        return "{$productName} ki quantity {$previous} se {$quantity} update kar di hai.";
+        return "{$productName} ki quantity {$quantity} kar di.";
     }
-    return "{$productName} cart mein add kar diya hai.";
+    $quantityText = $quantity > 1 ? " {$quantity} quantity" : '';
+    return "{$productName}{$quantityText} cart mein add kar diya.";
 }
 
 private function assistantCandidateSetMatches(array $flow, ?string $candidateSetId): bool
