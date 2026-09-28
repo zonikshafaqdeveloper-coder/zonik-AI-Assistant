@@ -251,7 +251,7 @@ $(document).ready(function () {
 
         order: [],
         pageLength: 50,
-        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100, "All"]],
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
 
         language: {
             search: "",
@@ -310,7 +310,7 @@ $(document).ready(function () {
 
         order: [],
         pageLength: 10, // ⚡ faster load
-        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100, "All"]],
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
 
         scrollX: true, // ✅ important for wide table
 
