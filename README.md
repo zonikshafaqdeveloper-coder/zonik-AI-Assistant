@@ -20,6 +20,24 @@ Zonik AI Assistant is a Laravel-based voice and chat ordering assistant for outl
 - Confirms delivery to the selected outlet's saved address.
 - Collects delivery slot and payment method before final order placement.
 
+## Master Agent Contract
+
+Zonik should feel like a human grocery ordering agent, but Laravel remains the authority for every real action.
+
+- The customer can speak naturally in English, Hindi, Hinglish, Roman Hindi, short phrases, imperfect grammar, or voice-transcription mistakes.
+- The assistant normalizes intent first, then uses existing Laravel product search, outlet checks, cart validation, checkout, delivery, payment, and enquiry flows.
+- The assistant must not invent products, prices, stock, pack sizes, discounts, delivery slots, payment methods, order IDs, or previous purchases.
+- Clear commands should be fast: local deterministic parsing is preferred for obvious product/cart/finish commands; Gemini is used for ambiguous language, general questions, context, and multi-item understanding.
+- High-confidence verified match means fast action. Low-confidence or multiple possible matches means a short clarification.
+- Product attributes and quantity are separate. `200ml wala` is a pack size, not quantity 200. `do 200ml wale` means quantity 2 of the 200ml variant.
+- Brand, flavour, pack size, category, and variant may appear in any word order, such as `Real ka orange juice`, `orange juice Real wala`, or `1 litre Real orange juice ke do`.
+- Context references like `ek aur`, `same wala`, `wahi`, `jo abhi bola tha`, and `haan wohi` should use the current conversation/cart context when it is unique.
+- Corrections override earlier unconfirmed details: `apple nahi orange` means use orange, not both.
+- Finish phrases like `bas itna hi`, `aur kuch nahi`, `ho gaya`, and `done` mean shopping is complete; they must never cancel or clear the order.
+- Suggestion bulk-add phrases like `jo jo bole the add kardo`, `haan sab add karo`, and `jo suggest kiya tha sab daal do` can add only the most recently shown verified suggestion cards, never the whole catalogue.
+- Catalogue-only or unavailable outlet products must go through the enquiry/request flow instead of being silently added.
+- Final order placement must stay on the existing checkout/place-order flow; voice alone must not bypass final validation.
+
 ## Main AI Flow
 
 ```mermaid
@@ -131,6 +149,22 @@ AI: Sirf last shown suggestion cards ko quantity 1 ke saath cart mein add karta 
 ```text
 User: real apple juice ek add karo aur real orange juice ek add karo
 AI behavior: Dono products separately verify karke cart mein add karega.
+```
+
+### Contextual Follow Up
+
+```text
+User: Real orange juice ek add karo
+AI: Real Orange Juice cart mein add kar diya. Aur kuch chahiye?
+User: ek aur
+AI behavior: Last verified cart item, Real Orange Juice, ki quantity one more se update karega.
+```
+
+### Correction
+
+```text
+User: Real apple juice ek... nahi orange juice ek
+AI behavior: Final corrected product, Real Orange Juice, ko verify karega; apple juice add nahi karega.
 ```
 
 ## Important Safety Rules

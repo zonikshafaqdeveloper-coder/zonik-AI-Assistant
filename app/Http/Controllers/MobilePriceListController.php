@@ -1704,6 +1704,39 @@ public function assistantChat(Request $request)
             }
         }
     }
+    $contextualAddQuantity = $this->assistantContextualAddQuantity($message);
+    if ($contextualAddQuantity > 0
+        && !empty($cartItems)
+        && !in_array($currentStage, ['delivery_details', 'payment_method', 'customer_care_offer', 'missing_product_enquiry'], true)
+        && !$this->isAssistantFinishShoppingMessage($message)
+        && !$this->isAssistantCartRemoveRequest($message)
+        && !$this->isAssistantCartQuantityUpdateRequest($message)) {
+        $lastCartItem = end($cartItems);
+        if (is_array($lastCartItem) && !empty($lastCartItem['product_id'])) {
+            $targetQuantity = max(1, (int) ($lastCartItem['qty'] ?? 1)) + $contextualAddQuantity;
+            $cartResult = $this->addAssistantProductToCart($user, $outlet, [
+                'id' => (int) $lastCartItem['product_id'],
+                'name' => $lastCartItem['name'] ?? 'Product',
+                'unit' => $lastCartItem['unit'] ?? 'unit',
+                'carton_size' => $lastCartItem['carton_size'] ?? '-',
+                'price' => $lastCartItem['price'] ?? 0,
+                'available_in_outlet' => true,
+            ], $targetQuantity);
+            if ($cartResult) {
+                $nextState = ['stage' => 'anything_else'];
+                $request->session()->put($flowKey, $nextState);
+                $flowResponse = [
+                    'reply' => $this->assistantCartMutationReply($cartResult, $lastCartItem['name'] ?? 'Product')
+                        . ' Aur kuch chahiye?',
+                    'products' => [],
+                    'auto_added' => true,
+                    'workflow' => ['stage' => 'anything_else', 'show_cart' => true],
+                    'state' => $nextState,
+                ];
+                return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, $flowResponse, $cartItems);
+            }
+        }
+    }
     // Recover an interrupted "anything else" state from the verified cart.
     // A customer saying "nahi mujhe aur kuch nahi chahiye" must receive the
     // summary even if a mobile session cookie was lost between messages.
@@ -2488,6 +2521,31 @@ private function assistantSpokenOrderQuantity(string $message): ?int
     }
 
     return null;
+}
+
+private function assistantContextualAddQuantity(string $message): int
+{
+    if ($this->isAssistantGeneralQuestion($message)
+        || $this->isAssistantRecommendationRequest($message)
+        || $this->isAssistantCartRequest($message)) {
+        return 0;
+    }
+
+    $lower = mb_strtolower(trim($message));
+    $lower = preg_replace('/[.!?]+$/u', '', $lower) ?? $lower;
+    $quantity = $this->assistantSpokenOrderQuantity($lower) ?? 1;
+    if ($quantity < 1) $quantity = 1;
+
+    $referencesPrevious = (bool) preg_match('/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu', $lower);
+    $asksMore = (bool) preg_match('/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)\b|\b(?:aur\s+(?:ek|one|do|two|teen|three|\d+))\b/iu', $lower);
+    $hasAddAction = (bool) preg_match('/\b(?:add|daal|dal|dalo|daalo|rakh|rakho|include|cart\s+mein|cart\s+me|kar\s*do|kardo)\b/iu', $lower);
+
+    if (($referencesPrevious && ($hasAddAction || $asksMore))
+        || preg_match('/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu', $lower)) {
+        return max(1, min(99, (int) $quantity));
+    }
+
+    return 0;
 }
 
 private function assistantDatabaseSafeText(string $text): string
@@ -5068,7 +5126,7 @@ private function hasAssistantExplicitProductAction(string $message): bool
     // Require an actual shopping action. Generic verbs such as "karo",
     // "do", "dena", and "order" are intentionally excluded because they
     // are common in non-product conversation and option-selection replies.
-    return (bool) preg_match('/\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana)\b/iu', $message);
+    return (bool) preg_match('/\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me)\b/iu', $message);
 }
 
 private function isAssistantDirectAddRequest(string $message): bool
@@ -5100,10 +5158,10 @@ private function looksLikeAssistantProductRequest(string $message): bool
     // "karo", "do", and "dena" are deliberately not enough by themselves:
     // users also use them for feedback, questions, and flow instructions.
     // The first branch above retains the non-Latin ordering commands.
-    if (!$isQuestion && !preg_match('/\\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana)\\b/iu', $message)) return false;
+    if (!$isQuestion && !preg_match('/\\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\\s+mein|cart\\s+me)\\b/iu', $message)) return false;
 
     return !$isQuestion
-        && (bool) preg_match('/(?:\b(?:add|buy|order|need|want|show|find|search|give)\b|\b(?:chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|do|dena|dya|karo|karna)\b|(?:जोड़ो|डालो|चाहिए|दिखाओ|द्या|पाहिजे|दाखवा))/iu', $message)
+        && (bool) preg_match('/(?:\b(?:add|buy|order|need|want|show|find|search|give)\b|\b(?:chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|do|dena|dya|karo|karna|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me)\b|(?:जोड़ो|डालो|चाहिए|दिखाओ|द्या|पाहिजे|दाखवा))/iu', $message)
         && !$this->isAssistantCartRequest($message)
         && !$this->isAssistantRecommendationRequest($message);
 }
