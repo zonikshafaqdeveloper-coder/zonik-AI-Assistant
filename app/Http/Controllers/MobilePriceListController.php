@@ -1234,8 +1234,7 @@ public function assistantChat(Request $request)
         $request->session()->put($flowKey, $orderFlow);
     }
     $clientWorkflowStage = (string) $request->input('workflow_stage', '');
-    $clientSentFreshProductCommand = $clientWorkflowStage === 'clarify_product'
-        && $this->looksLikeAssistantProductRequest($message)
+    $clientSentFreshProductCommand = $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)
         && !$this->isAssistantAddConfirmation($message);
 
@@ -1661,6 +1660,14 @@ public function assistantChat(Request $request)
         ], $cartItems);
     }
 
+    if ($clientSentFreshProductCommand
+        && in_array(($orderFlow['stage'] ?? null), ['confirm_product', 'clarify_product', 'await_quantity', 'confirm_quantity'], true)) {
+        $orderFlow = [];
+        $currentStage = null;
+        $request->session()->forget($flowKey);
+        if ($user && $conversationId) Cache::forget($this->assistantStateCacheKey($user->id, $conversationId));
+    }
+
     // Final server-side safety net: if the immediately preceding assistant
     // message displayed multiple product cards and this reply uniquely names
     // one of them, select it regardless of browser/session workflow state.
@@ -1671,7 +1678,7 @@ public function assistantChat(Request $request)
         ->where('role', 'assistant')->whereNotNull('product_data')
         ->latest('id')->first();
     $lastShownOptions = collect($lastAssistantChoice?->product_data ?: [])->values()->all();
-    if (count($lastShownOptions) > 1) {
+    if (count($lastShownOptions) > 1 && !$clientSentFreshProductCommand) {
         $spokenChoice = $this->resolveAssistantClarificationChoiceSemantically($message, $lastShownOptions);
         if ($spokenChoice && $outlet) {
             $isAssigned = CustomerPrice::where('outlet_id', $outlet->id)
@@ -2052,7 +2059,7 @@ public function assistantChat(Request $request)
             $productHints = $collapsedHints;
         }
     }
-    if ($selectedProductId) {
+    if ($selectedProductId && !$clientSentFreshProductCommand) {
         $selected = collect($pendingProducts)->first(fn ($product) => (int) ($product['id'] ?? 0) === $selectedProductId);
         $productHints = $selected ? [$selected] : [];
         $intent['quantity'] = $selected['requested_quantity'] ?? null;
@@ -2418,7 +2425,7 @@ private function extractAssistantOrderItemsLocally(string $message): array
             $query = trim((string) $match[1]);
         }
 
-        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|karo|karna|kar\s*do|karke|karke\s*do|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|daal|dal|dalo|daalo)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|de\s*do|karo|karna|kar\s*do|karke|karke\s*do|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|include)\b/iu', ' ', $query) ?? $query;
         $query = trim(preg_replace('/\s+/', ' ', $query) ?? $query);
         if ($query === '' || strlen($query) < 2) continue;
         if ($quantity <= 0) {
@@ -5174,7 +5181,7 @@ private function hasAssistantExplicitProductAction(string $message): bool
     // Require an actual shopping action. Generic verbs such as "karo",
     // "do", "dena", and "order" are intentionally excluded because they
     // are common in non-product conversation and option-selection replies.
-    return (bool) preg_match('/\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me)\b/iu', $message);
+    return (bool) preg_match('/\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me|de\s*do)\b/iu', $message);
 }
 
 private function isAssistantDirectAddRequest(string $message): bool
@@ -5186,7 +5193,7 @@ private function isAssistantDirectAddRequest(string $message): bool
         return false;
     }
 
-    return (bool) preg_match('/\b(?:add|buy|order|give|need|want|chahiye|chaiye|pahije|hava|havi|cart\s+mein|cart\s+me|daal|dal|dalo|daalo|laga|lagao|rakh|rakho)\b/iu', $message)
+    return (bool) preg_match('/\b(?:add|buy|order|give|need|want|chahiye|chaiye|pahije|hava|havi|cart\s+mein|cart\s+me|daal|dal|dalo|daalo|laga|lagao|rakh|rakho|lena|de\s*do)\b/iu', $message)
         || (bool) preg_match('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो)/u', $message);
 }
 
@@ -5206,10 +5213,10 @@ private function looksLikeAssistantProductRequest(string $message): bool
     // "karo", "do", and "dena" are deliberately not enough by themselves:
     // users also use them for feedback, questions, and flow instructions.
     // The first branch above retains the non-Latin ordering commands.
-    if (!$isQuestion && !preg_match('/\\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\\s+mein|cart\\s+me)\\b/iu', $message)) return false;
+    if (!$isQuestion && !preg_match('/\\b(?:add|buy|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|daal|dal|dalo|daalo|rakh|rakho|lena|cart\\s+mein|cart\\s+me|de\\s*do)\\b/iu', $message)) return false;
 
     return !$isQuestion
-        && (bool) preg_match('/(?:\b(?:add|buy|order|need|want|show|find|search|give)\b|\b(?:chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|do|dena|dya|karo|karna|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me)\b|(?:जोड़ो|डालो|चाहिए|दिखाओ|द्या|पाहिजे|दाखवा))/iu', $message)
+        && (bool) preg_match('/(?:\b(?:add|buy|order|need|want|show|find|search|give)\b|\b(?:chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|do|dena|dya|karo|karna|karke|daal|dal|dalo|daalo|rakh|rakho|lena|cart\s+mein|cart\s+me)\b|\bde\s*do\b|(?:जोड़ो|डालो|चाहिए|दिखाओ|द्या|पाहिजे|दाखवा))/iu', $message)
         && !$this->isAssistantCartRequest($message)
         && !$this->isAssistantRecommendationRequest($message);
 }
@@ -5238,7 +5245,7 @@ private function assistantLocalProductSearchQuery(string $message): string
     }
     $query = preg_replace('/^\s*(?:add|buy|order|need|want|show|find|search|give|mujhe|muje|please|plz|bhai|accha|achha|ek\s+kaam\s+karo)\s+/iu', ' ', $query) ?? $query;
     $query = preg_replace('/^\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\s*(?:ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)?\s+/iu', ' ', $query) ?? $query;
-    $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|dena|please|plz|cart|mein|me|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|rakhna|rakh\s*do|daal|dal|dalo|daalo|bhi|also)\b/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/\b(?:add|buy|order|need|want|show|find|search|give|chahiye|chaiye|pahije|hava|havi|dikhao|dikhana|karo|karna|karke|karke\s*do|de|de\s*do|dena|please|plz|cart|mein|me|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|rakhna|rakh\s*do|daal|dal|dalo|daalo|lena|le\s*lo|include|bhi|also)\b/iu', ' ', $query) ?? $query;
 
     return trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
 }
@@ -5656,7 +5663,7 @@ private function assistantApprovedAlternativeQueries(string $message): array
 {
     $query = $this->normalizeAssistantSearchText(mb_strtolower($message));
     $query = preg_replace('/\d+(?:\.\d+)?/', ' ', $query);
-    $query = preg_replace('/\b(?:add|added|aur|please|show|find|search|give|buy|order|want|need|mujhe|muje|chahiye|chaiye|wala|wali|do|de|karo|karna|hai|kg|kgs|kilo|gram|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|flavour|flavor|brand)\b/iu', ' ', $query);
+    $query = preg_replace('/\b(?:add|added|aur|please|show|find|search|give|buy|order|want|need|mujhe|muje|chahiye|chaiye|wala|wali|do|de|de\s*do|karo|karna|karke|karke\s*do|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|hai|kg|kgs|kilo|gram|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|flavour|flavor|brand)\b/iu', ' ', $query);
     $terms = array_values(array_unique(array_filter(
         preg_split('/\s+/u', trim(preg_replace('/\s+/', ' ', $query))),
         fn ($term) => mb_strlen($term) > 2
@@ -5890,7 +5897,7 @@ private function assistantComparableProductText(string $text): string
 {
     $text = mb_strtolower($this->normalizeAssistantSearchText($text));
     $text = preg_replace('/\b\d+(?:\.\d+)?\s*(?:ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|litre|liter|ltr|pcs?|pieces?|packet|pack|box|carton|unit)\b/iu', ' ', $text) ?? $text;
-    $text = preg_replace('/\b(?:add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|product|item|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|do|teen|char|chaar|panch|paanch|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|pahije|dikhao|dikhana|batao|bataiye|wala|wali|wale|de|dena|dya|karo|karna|karke|hai|hain)\b/iu', ' ', $text) ?? $text;
+    $text = preg_replace('/\b(?:add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|product|item|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|do|teen|char|chaar|panch|paanch|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|pahije|dikhao|dikhana|batao|bataiye|wala|wali|wale|de|de\s*do|dena|dya|karo|karna|karke|karke\s*do|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|le\s*lo|hai|hain)\b/iu', ' ', $text) ?? $text;
     $text = preg_replace('/[^a-z0-9]+/iu', ' ', $text) ?? $text;
 
     return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
@@ -5943,7 +5950,7 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
     // quantity/unit words before searching the real customer price list.
     $q = $this->normalizeAssistantSearchText(strtolower($message));
     $q = preg_replace('/\d+(?:\.\d+)?/', ' ', $q);
-    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|dena|dya|karo|karna|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|gm|gms|ml|millilitre|millilitres|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
+    $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|de\s*do|dena|dya|karo|karna|karke|karke\s*do|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|le\s*lo|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|gm|gms|ml|millilitre|millilitres|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
     $q = preg_replace('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो|दिखाओ|करो|कर\s*दो|को|मुझे)/u', ' ', $q);
     $q = trim(preg_replace('/\s+/', ' ', $q));
     if ($q === '') {
