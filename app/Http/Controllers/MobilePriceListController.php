@@ -1232,18 +1232,29 @@ public function assistantChat(Request $request)
         $orderFlow['checkout_preferences'] = $rememberedCheckoutPreferences;
         $request->session()->put($flowKey, $orderFlow);
     }
+    $clientWorkflowStage = (string) $request->input('workflow_stage', '');
+    $clientSentFreshProductCommand = $clientWorkflowStage === 'clarify_product'
+        && $this->looksLikeAssistantProductRequest($message)
+        && $this->hasAssistantExplicitProductAction($message)
+        && !$this->isAssistantAddConfirmation($message);
 
     // A spoken ordinal or delayed card tap belongs only to the candidate set
     // currently shown for this conversation. Reject stale UI state before it
     // can resolve against or mutate the wrong product.
-    if ($request->input('workflow_stage') === 'clarify_product'
+    if ($clientWorkflowStage === 'clarify_product'
         && !$this->assistantCandidateSetMatches($orderFlow, $request->input('candidate_set_id'))) {
+        if ($clientSentFreshProductCommand) {
+            $orderFlow = [];
+            $request->session()->forget($flowKey);
+            if ($user && $conversationId) Cache::forget($this->assistantStateCacheKey($user->id, $conversationId));
+        } else {
         return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, [
             'reply' => 'Product options update ho gaye hain. Latest options mein se ek choose kijiye.',
             'products' => $orderFlow['products'] ?? [],
             'workflow' => ['stage' => 'clarify_product', 'candidate_set_id' => $orderFlow['candidate_set_id']],
             'state' => $orderFlow,
         ], $cartItems);
+        }
     }
 
     // Checkout-related state is meaningless without a real cart. Clear stale
@@ -1407,7 +1418,7 @@ public function assistantChat(Request $request)
     }
     // The client echoes its visible stage/product so voice confirmation still
     // works if a PHP session is regenerated between AJAX requests.
-    if (empty($orderFlow) && $request->input('workflow_stage') === 'confirm_product' && $selectedProductId) {
+    if (empty($orderFlow) && $clientWorkflowStage === 'confirm_product' && $selectedProductId) {
         $recoveredProduct = Product::with('brand:id,name')->find($selectedProductId);
         if ($recoveredProduct) {
             $price = CustomerPrice::where('outlet_id', $outlet?->id)->where('product_id', $recoveredProduct->id)->value('product_price');
@@ -1425,7 +1436,7 @@ public function assistantChat(Request $request)
     // Some mobile/WebView sessions do not persist the AJAX session cookie
     // reliably. Recover the displayed clarification choices from product IDs
     // sent by the page, while reloading all trusted details from the database.
-    if (empty($orderFlow) && $request->input('workflow_stage') === 'clarify_product') {
+    if (empty($orderFlow) && $clientWorkflowStage === 'clarify_product' && !$clientSentFreshProductCommand) {
         $optionContext = collect($request->input('clarification_options', []))
             ->keyBy(fn ($option) => (int) ($option['id'] ?? 0));
         $optionIds = $optionContext->keys()->filter()->take(30)->values()->all();
@@ -1481,7 +1492,8 @@ public function assistantChat(Request $request)
     // stale PHP session (often left at "anything_else" in mobile WebViews)
     // must not turn "orange wala" into a brand-new catalogue search. Recover
     // the last displayed options from persisted conversation history.
-    if ($request->input('workflow_stage') === 'clarify_product'
+    if ($clientWorkflowStage === 'clarify_product'
+        && !$clientSentFreshProductCommand
         && (($orderFlow['stage'] ?? null) !== 'clarify_product' || empty($orderFlow['products']))) {
         $savedChoiceMessage = AiAssistantMessage::where('user_id', $user->id)
             ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
@@ -1504,7 +1516,7 @@ public function assistantChat(Request $request)
     // As with product clarification, the delivery screen visible in the app
     // wins over a stale server session. Product requests are handled below
     // before any slot can be accepted.
-    if ($request->input('workflow_stage') === 'delivery_details'
+    if ($clientWorkflowStage === 'delivery_details'
         && ($orderFlow['stage'] ?? null) !== 'delivery_details') {
         $orderFlow = ['stage' => 'delivery_details'];
     }
@@ -1513,7 +1525,7 @@ public function assistantChat(Request $request)
     // Without this recovery a stale `anything_else` PHP session treats the
     // customer's second "order confirm" as a first checkout request and
     // repeats the summary instead of opening address and slot choices.
-    if ($request->input('workflow_stage') === 'confirm_order'
+    if ($clientWorkflowStage === 'confirm_order'
         && !in_array(($orderFlow['stage'] ?? null), ['delivery_details', 'payment_method'], true)) {
         $orderFlow = ['stage' => 'confirm_order'];
         $request->session()->put($flowKey, $orderFlow);
