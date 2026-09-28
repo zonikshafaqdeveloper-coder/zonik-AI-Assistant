@@ -2062,6 +2062,14 @@ public function assistantChat(Request $request)
             $approvedAlternatives = false;
             $catalogSuggestions = false;
         }
+        $variantGuardedHints = $this->assistantFilterProductsByRequestedVariant($productHints, $rawMessage);
+        if (!empty($variantGuardedHints)) {
+            $productHints = $variantGuardedHints;
+        } elseif ($this->assistantRequestedProductVariant($rawMessage) !== '') {
+            $productHints = [];
+            $approvedAlternatives = false;
+            $catalogSuggestions = false;
+        }
         $collapsedHints = $this->assistantCollapseStrongProductMatches($productHints, $intent['search_query'] ?: $rawMessage);
         if (!empty($collapsedHints)) {
             $productHints = $collapsedHints;
@@ -5788,6 +5796,58 @@ private function assistantRequestedProductFlavour(string $message): string
     return '';
 }
 
+private function assistantRequestedProductVariant(string $message): string
+{
+    $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
+    $variants = [
+        'taaza' => ['taaza', 'taza', 'taaja', 'taja'],
+        'gold' => ['gold', 'goldd'],
+        'slim trim' => ['slim trim', 'slimtrim', 'slim', 'trim'],
+        'cow' => ['cow'],
+        'buffalo' => ['buffalo'],
+        'toned' => ['toned'],
+        'double toned' => ['double toned', 'doubletoned'],
+        'full cream' => ['full cream', 'fullcream'],
+    ];
+    foreach ($variants as $variant => $needles) {
+        foreach ($needles as $needle) {
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($needle, '/') . '(?![a-z0-9])/iu', $q)) return $variant;
+        }
+    }
+    return '';
+}
+
+private function assistantFilterProductsByRequestedVariant(array $products, string $requestText): array
+{
+    $variant = $this->assistantRequestedProductVariant($requestText);
+    if ($variant === '') return $products;
+
+    $aliases = [
+        'taaza' => ['taaza', 'taza', 'taaja', 'taja'],
+        'gold' => ['gold'],
+        'slim trim' => ['slim trim', 'slimtrim', 'slim', 'trim'],
+        'cow' => ['cow'],
+        'buffalo' => ['buffalo'],
+        'toned' => ['toned'],
+        'double toned' => ['double toned', 'doubletoned'],
+        'full cream' => ['full cream', 'fullcream'],
+    ];
+    $allow = $aliases[$variant] ?? [$variant];
+
+    return array_values(array_filter($products, function ($product) use ($allow) {
+        $text = mb_strtolower(trim((string) ($product['brand'] ?? '') . ' ' . (string) ($product['name'] ?? '') . ' ' . (string) ($product['unit'] ?? '')));
+        $compactText = preg_replace('/\s+/', '', $text) ?? $text;
+        foreach ($allow as $word) {
+            if (str_contains($word, ' ')) {
+                if (str_contains($text, $word) || str_contains($compactText, str_replace(' ', '', $word))) return true;
+            } elseif (preg_match('/(?<![a-z0-9])' . preg_quote($word, '/') . '(?![a-z0-9])/iu', $text)) {
+                return true;
+            }
+        }
+        return false;
+    }));
+}
+
 private function assistantRequestedPackSize(string $message): string
 {
     if (!preg_match('/\b(\d+(?:\.\d+)?)\s*(ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|litre|liter|ltr)\b/iu', $message, $match)) {
@@ -6074,6 +6134,13 @@ private function assistantSearchWordScore(string $term, string $word): int
 
     $termLength = strlen($term);
     $wordLength = strlen($word);
+    $strictVariantWords = [
+        'taaza', 'taza', 'taaja', 'taja', 'gold', 'slim', 'trim', 'toned',
+        'doubletoned', 'cow', 'buffalo', 'fullcream',
+    ];
+    if (in_array($term, $strictVariantWords, true) || in_array($word, $strictVariantWords, true)) {
+        return 0;
+    }
 
     // Short tokens (SKU fragments, initials, etc.) must be exact. A one-letter
     // fuzzy match such as "so" -> "to" is far too likely to show a wrong SKU.
