@@ -5410,6 +5410,7 @@ private function normalizeAssistantCustomerUtterance(string $message): string
     $text = preg_replace('/\b(?:krdo|kr\s*do|kardo|karro|kar\s*do)\b/iu', 'kar do', $text) ?? $text;
     $text = preg_replace('/\b(?:daldo|daaldo|dal\s*do|daal\s*do)\b/iu', 'daal do', $text) ?? $text;
     $text = preg_replace('/\b(?:rakhdo|rakho\s*do|rakh\s*do)\b/iu', 'rakh do', $text) ?? $text;
+    $text = preg_replace('/\b(?:a\s+more|a\s+mole|amol)\s+(?=(?:taaza|taza|taja|tasa|milk|gold|butter|curd|cheese)\b)/iu', 'Amul ', $text) ?? $text;
 
     $aliases = [
         'reel|riyal|rial' => 'Real',
@@ -5420,7 +5421,7 @@ private function normalizeAssistantCustomerUtterance(string $message): string
         'bred' => 'bread',
         'buter' => 'butter',
         'shugar|suger' => 'sugar',
-        'taaja|taja|taza' => 'taaza',
+        'taaja|taja|taza|tasa|taas' => 'taaza',
     ];
     foreach ($aliases as $pattern => $replacement) {
         $text = preg_replace('/(?<![\p{L}\p{N}])(?:' . $pattern . ')(?![\p{L}\p{N}])/iu', $replacement, $text) ?? $text;
@@ -5957,7 +5958,7 @@ private function assistantRequestedProductVariant(string $message): string
 {
     $q = ' ' . $this->normalizeAssistantSearchText(mb_strtolower($message)) . ' ';
     $variants = [
-        'taaza' => ['taaza', 'taza', 'taaja', 'taja'],
+        'taaza' => ['taaza', 'taza', 'taaja', 'taja', 'tasa', 'taas'],
         'gold' => ['gold', 'goldd'],
         'slim trim' => ['slim trim', 'slimtrim', 'slim', 'trim'],
         'cow' => ['cow'],
@@ -5980,7 +5981,7 @@ private function assistantFilterProductsByRequestedVariant(array $products, stri
     if ($variant === '') return $products;
 
     $aliases = [
-        'taaza' => ['taaza', 'taza', 'taaja', 'taja'],
+        'taaza' => ['taaza', 'taza', 'taaja', 'taja', 'tasa', 'taas'],
         'gold' => ['gold'],
         'slim trim' => ['slim trim', 'slimtrim', 'slim', 'trim'],
         'cow' => ['cow'],
@@ -6757,7 +6758,9 @@ private function normalizeAssistantSearchText(string $text): string
         'mikl' => ' milk ', 'mik' => ' milk ', 'melk' => ' milk ', 'milke' => ' milk ',
         'biskit' => ' biscuit ', 'biscut' => ' biscuit ', 'biskut' => ' biscuit ',
         'bred' => ' bread ', 'buter' => ' butter ', 'shugar' => ' sugar ', 'suger' => ' sugar ',
-        'taza' => ' taaza ', 'taaja' => ' taaza ', 'taja' => ' taaza ',
+        'a more taaza' => ' amul taaza ', 'a mole taaza' => ' amul taaza ', 'amol taaza' => ' amul taaza ',
+        'a more milk' => ' amul milk ', 'a mole milk' => ' amul milk ', 'amol milk' => ' amul milk ',
+        'taza' => ' taaza ', 'taaja' => ' taaza ', 'taja' => ' taaza ', 'tasa' => ' taaza ', 'taas' => ' taaza ',
         'almod' => ' almond ', 'almond' => ' almond ',
         'tur dal' => ' toor dal ', 'toor dal' => ' toor dal ', 'moong dal' => ' moong dal ',
         // Telugu and Bengali grocery names.

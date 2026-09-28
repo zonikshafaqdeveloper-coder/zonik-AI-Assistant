@@ -72,6 +72,16 @@ class AssistantProductSearchTest extends TestCase
         $this->assertSame('bhai Real orange juice ek kar do na', $normalized);
     }
 
+    public function test_browser_voice_amul_taaza_misrecognition_is_normalized(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantCustomerUtterance');
+        $method->setAccessible(true);
+
+        $normalized = $method->invoke(new MobilePriceListController(), 'Add a mole Taja milk');
+
+        $this->assertSame('Add Amul taaza milk', $normalized);
+    }
+
     public function test_taaza_variant_understands_taza_pronunciation(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantRequestedProductVariant');
@@ -79,6 +89,7 @@ class AssistantProductSearchTest extends TestCase
 
         $this->assertSame('taaza', $method->invoke(new MobilePriceListController(), 'Amul taza milk ek add karo'));
         $this->assertSame('taaza', $method->invoke(new MobilePriceListController(), 'Amul taja doodh chahiye'));
+        $this->assertSame('taaza', $method->invoke(new MobilePriceListController(), 'Amul tasa milk'));
     }
 
     public function test_pack_size_is_not_confused_with_order_quantity(): void

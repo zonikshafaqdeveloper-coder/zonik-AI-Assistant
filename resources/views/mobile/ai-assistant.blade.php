@@ -2241,6 +2241,9 @@ body:has(.ai-page){background:#edf2f5}
             let result = String(text || '')
                 .replace(/(?:सोनिक|ज़ोनिक|झोनिक)/g, 'zonik')
                 .replace(/\b(?:sonic|zonic|jonik|zone\s*ik|zo\s*nik)\b/gi, 'zonik')
+                .replace(/\b(?:a\s+more|a\s+mole|amol)\s+(?=(?:taaza|taza|taja|tasa|milk|gold|butter|curd|cheese)\b)/gi, 'Amul ')
+                .replace(/\b(?:tasa|taaja|taja|taza)\b/gi, 'taaza')
+                .replace(/\b(?:juce|juse|joos|juise|juis)\b/gi, 'juice')
                 .replace(/\b(?:fire|file|fife)\s*box(?:es)?\b/gi, '5 box')
                 .replace(/\b(?:fire|file|fife)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '5 $1')
                 .replace(/\b(?:search|surge|church|turn|term|then|den|tan|tin)\s*box(?:es)?\b/gi, '10 box')
@@ -2254,6 +2257,40 @@ body:has(.ai-page){background:#edf2f5}
                 if (new RegExp('^\\s*' + word + '\\s*$', 'i').test(result)) result = String(numbers[word]);
             });
             return result.replace(/\s+/g, ' ').trim();
+        }
+
+        function voiceTranscriptScore(text) {
+            const value = normalizeSpokenQuantity(text).toLowerCase();
+            if (!value) return 0;
+            const words = value.split(/\s+/).filter(Boolean);
+            let score = words.length * 8 + value.length;
+            if (/\b(?:add|order|cart|chahiye|daal|dal|rakh|give|need|want|mujhe|muje)\b/i.test(value)) score += 35;
+            if (/\b(?:milk|juice|butter|rice|oil|biscuit|bread|taaza|amul|real)\b/i.test(value)) score += 25;
+            if (/\d+|\b(?:one|two|three|ek|do|teen)\b/i.test(value)) score += 15;
+            if (/^(?:milk|juice|butter|rice|oil|bread)$/i.test(value)) score -= 20;
+            return score;
+        }
+
+        function bestVoiceTranscript() {
+            const candidates = Array.from(arguments)
+                .map(function (value) { return normalizeSpokenQuantity(value); })
+                .filter(Boolean);
+            if (!candidates.length) return '';
+            candidates.sort(function (a, b) {
+                return voiceTranscriptScore(b) - voiceTranscriptScore(a);
+            });
+            return candidates[0];
+        }
+
+        function combinedVoiceTranscript(finalText, interimText) {
+            const finalValue = normalizeSpokenQuantity(finalText);
+            const interimValue = normalizeSpokenQuantity(interimText);
+            if (!finalValue) return interimValue;
+            if (!interimValue) return finalValue;
+            const finalIsShortProduct = /^(?:milk|juice|butter|rice|oil|bread|biscuit|water)(?:\s+\1)?$/i.test(finalValue);
+            const interimHasCommand = /\b(?:add|order|cart|chahiye|daal|dal|rakh|give|need|want|mujhe|muje)\b/i.test(interimValue);
+            if (finalIsShortProduct && interimHasCommand) return interimValue;
+            return normalizeSpokenQuantity((finalValue + ' ' + interimValue).trim());
         }
 
         function productCard(product, quantity, unit, label, requiresQuantity, workflowStage) {
@@ -3573,6 +3610,7 @@ function appendTyping() {
             let speechStartedAt = 0;
             let finalTranscript = '';
             let latestInterimTranscript = '';
+            let bestHeardTranscript = '';
             let finishListeningTimer = null;
             let bestConfidence = 0;
             const finishCurrentUtterance = function (delay) {
@@ -3608,11 +3646,17 @@ function appendTyping() {
                     if (result.isFinal) finalTranscript += (finalTranscript ? ' ' : '') + bestMatch.text;
                     else latestInterimTranscript += (latestInterimTranscript ? ' ' : '') + bestMatch.text;
                 }
-                const heardText = normalizeSpokenQuantity((finalTranscript + ' ' + latestInterimTranscript).trim());
+                const heardText = bestVoiceTranscript(
+                    finalTranscript,
+                    latestInterimTranscript,
+                    combinedVoiceTranscript(finalTranscript, latestInterimTranscript),
+                    bestHeardTranscript
+                );
                 if (!heardText) return;
+                bestHeardTranscript = bestVoiceTranscript(bestHeardTranscript, heardText);
                 receivedSpeech = true;
                 setMicStatus('Listening…', 'listening');
-                aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript});
+                aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript, best: bestHeardTranscript});
                 finishCurrentUtterance(finalTranscript ? 850 : 1400);
             };
             recognition.onerror = function (event) {
@@ -3632,7 +3676,12 @@ function appendTyping() {
                 if (finishListeningTimer) window.clearTimeout(finishListeningTimer);
                 speechRecognition = null;
                 if (accurateVoiceMode) return;
-                const transcript = normalizeSpokenQuantity((finalTranscript || latestInterimTranscript).trim());
+                const transcript = bestVoiceTranscript(
+                    finalTranscript,
+                    latestInterimTranscript,
+                    combinedVoiceTranscript(finalTranscript, latestInterimTranscript),
+                    bestHeardTranscript
+                );
                 const speechDuration = speechStartedAt ? Date.now() - speechStartedAt : 0;
                 if (receivedSpeech && transcript && !isLikelyBackgroundSpeech(transcript, bestConfidence, speechDuration, !!fromContinuousMode)) {
                     micBtn.classList.remove('listening');
