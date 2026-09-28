@@ -3161,7 +3161,8 @@ function appendTyping() {
                     workflow_stage: payloadWorkflowStage,
                     clarification_options: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
                     candidate_set_id: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeCandidateSetId : null,
-                    delivery_details: selectedDeliveryDetails || null
+                    delivery_details: selectedDeliveryDetails || null,
+                    input_source: sendOptions.inputSource || null
                 })
             });
             if (customerCareConsent) {
@@ -3637,7 +3638,7 @@ function appendTyping() {
                     micBtn.classList.remove('listening');
                     setMicStatus('Processing…', 'processing');
                     aiDebug('Complete voice command', {transcript: transcript, speechDuration: speechDuration});
-                    sendMessage(transcript);
+                    sendMessage(transcript, null, {inputSource: 'voice_browser'});
                 } else if (continuousTalkMode && !receivedSpeech) {
                     // Chrome ends a recognition session after silence. Keep
                     // the UI and continuous mode active while one controlled
@@ -3690,7 +3691,7 @@ function appendTyping() {
                     removeTyping(typing);
                     if (!data.transcript) throw new Error('Empty transcript');
                     applyDetectedLanguage(data.language, data.transcript);
-                    sendMessage(data.transcript);
+                    sendMessage(data.transcript, null, {inputSource: 'voice_audio'});
                 })
                 .catch(function () {
                     removeTyping(typing);

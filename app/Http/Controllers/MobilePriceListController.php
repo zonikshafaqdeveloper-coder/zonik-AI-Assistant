@@ -722,6 +722,9 @@ public function assistantTranscribe(Request $request)
     $audio = $request->file('audio');
     $mime = $audio->getMimeType() ?: 'audio/webm';
     $result = $this->transcribeAssistantAudio(file_get_contents($audio->getRealPath()), $mime);
+    if (!empty($result['transcript'])) {
+        $result['transcript'] = $this->normalizeAssistantCustomerUtterance((string) $result['transcript']);
+    }
 
     if (empty($result['transcript'])) {
         return response()->json(['message' => 'Speech could not be understood.'], 422);
@@ -1174,14 +1177,16 @@ public function assistantChat(Request $request)
         'clarification_options.*.requested_unit' => 'nullable|string|max:20',
         'delivery_details' => 'nullable|string|max:1000',
         'candidate_set_id' => 'nullable|string|max:64',
+        'input_source' => 'nullable|string|max:40',
     ]);
 
     $user = $request->user();
     $outlet = $this->getCurrentOutlet($user);
-    $rawMessage = trim($request->input('message'));
-    // Keep the original utterance intact for Gemini. Local number cleanup is
-    // useful for deterministic safety checks, but it must not rewrite words
-    // from another language before semantic analysis sees them.
+    $inputSource = mb_strtolower(trim((string) $request->input('input_source', '')));
+    $isVoiceInput = str_starts_with($inputSource, 'voice');
+    $rawMessage = $this->normalizeAssistantCustomerUtterance(trim($request->input('message')));
+    // Keep semantic cleanup conservative: it fixes obvious STT command noise
+    // before local guards run, while Gemini still sees the complete sentence.
     $message = $this->normalizeAssistantQuantityText($rawMessage);
     $conversationId = $request->input('conversation_id');
     // Request::integer() is unavailable on this project's Laravel version.
@@ -1797,7 +1802,8 @@ public function assistantChat(Request $request)
     }
 
     $spokenItems = $this->extractAssistantOrderItems($rawMessage);
-    if (count($spokenItems) > 1) {
+    if (count($spokenItems) > 1
+        && (!$isVoiceInput || empty(config('services.gemini.api_key')) || $this->assistantGeminiIsTemporarilyUnavailable())) {
         $addedNames = [];
         $needsChoice = [];
         foreach ($spokenItems as $spokenItem) {
@@ -1832,6 +1838,7 @@ public function assistantChat(Request $request)
 
     $singleSpokenItems = $this->extractAssistantOrderItemsLocally($rawMessage);
     if (count($singleSpokenItems) === 1
+        && (!$isVoiceInput || empty(config('services.gemini.api_key')) || $this->assistantGeminiIsTemporarilyUnavailable())
         && $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)) {
         $singleItem = $singleSpokenItems[0];
@@ -1899,6 +1906,10 @@ public function assistantChat(Request $request)
         && ($looksLikeProductRequest || $isQuantityProductUtterance);
     $isExplicitProductEnquiry = $this->assistantExplicitEnquiryRequested($message)
         && $this->assistantRequestedMissingProductName(['search_query' => ''], $message) !== '';
+    $voiceSemanticProductAnalysis = $isVoiceInput
+        && ($isProductDiscovery || $isQuantityProductUtterance || $isExplicitProductEnquiry || $looksLikeProductRequest)
+        && !empty(config('services.gemini.api_key'))
+        && !$this->assistantGeminiIsTemporarilyUnavailable();
     // When a customer interrupts a soft prompt (for example with another
     // product or a Zonik question), give the semantic layer the verified
     // workflow summary. It can then understand the latest message without
@@ -1913,11 +1924,13 @@ public function assistantChat(Request $request)
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_update'])
         : ($isCartRequest
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
+        : ($voiceSemanticProductAnalysis
+        ? $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)
         : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance || $isExplicitProductEnquiry
             || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
             || ($isQuantityReply && !empty($pendingProducts)))
         ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest || $isExplicitProductEnquiry) ? $this->assistantLocalProductSearchQuery($message) : ''])
-        : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)))));
+        : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow))))));
     if ($isCartQuantityUpdate) {
         // In a correction such as "500 nahi, 1 chahiye, 1 kardo", the first
         // number is the rejected old quantity. Always use the final stated
@@ -1938,7 +1951,7 @@ public function assistantChat(Request $request)
     }
     if (!$isRecommendation
         && ($looksLikeProductRequest || $isQuantityProductUtterance || $isProductDiscovery)
-        && !$hasFastLocalProductParse
+        && (!$hasFastLocalProductParse || $isVoiceInput)
         && !empty(config('services.gemini.api_key'))
         && !Cache::has('gemini_assistant_rate_limited')
         && !Cache::has('gemini_assistant_auth_unavailable')
@@ -1952,7 +1965,7 @@ public function assistantChat(Request $request)
         }
     }
     if (($intent['intent'] ?? '') === 'product_search') {
-        $packSize = $this->assistantRequestedPackSize($rawMessage);
+        $packSize = $this->assistantRequestedPackSize(trim($rawMessage . ' ' . (string) ($intent['pack_size'] ?? '')));
         if ($packSize !== '') {
             $searchQuery = trim((string) ($intent['search_query'] ?? ''));
             if ($searchQuery !== '' && !preg_match('/(?<![a-z0-9])' . preg_quote($packSize, '/') . '(?![a-z0-9])/iu', $searchQuery)) {
@@ -2331,14 +2344,14 @@ private function extractAssistantOrderItems(string $message): array
     if (count($localItems) > 1 && !preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b)/iu', $message)) return $localItems;
     if (!preg_match('/(?:,|\band\b|\baur\b|\bplus\b|\bwith\b|\sऔर\s)/iu', $message)) return [];
     if (empty(config('services.gemini.api_key'))) return $localItems;
-    $prompt = "Analyze this complete spoken grocery order in ANY language or mixed language. Extract every separate product, even without commas or conjunctions. Translate generic product terms to English for catalogue search, but preserve brand names, flavours, varieties, quantities, and units exactly. Understand number words in the customer's language. Never merge products. Example: 1 kg dal 2 kg rice 3 box juice means three items. Return structured data only. Customer: {$message}";
+    $prompt = "Analyze this complete spoken grocery order in ANY language or mixed language. Extract every separate product, even without commas or conjunctions. Translate generic product terms to English for catalogue search, but preserve brand names, flavours, varieties, quantities, pack sizes, and units exactly. Understand number words in the customer's language. Keep pack_size separate from quantity: 200ml wala do means quantity 2 and pack_size 200ml. Never merge products. Example: 1 kg dal 2 kg rice 3 box juice means three items. Return structured data only. Customer: {$message}";
     $schema = ['type' => 'OBJECT', 'properties' => ['items' => ['type' => 'ARRAY', 'items' => ['type' => 'OBJECT', 'properties' => [
-        'query' => ['type' => 'STRING'], 'quantity' => ['type' => 'NUMBER'], 'unit' => ['type' => 'STRING'],
-    ], 'required' => ['query', 'quantity', 'unit']]]], 'required' => ['items']];
+        'query' => ['type' => 'STRING'], 'quantity' => ['type' => 'NUMBER'], 'unit' => ['type' => 'STRING'], 'pack_size' => ['type' => 'STRING'],
+    ], 'required' => ['query', 'quantity', 'unit', 'pack_size']]]], 'required' => ['items']];
     $result = $this->callGemini($prompt, 0.0, 400, $schema);
     $decoded = $this->assistantDecodeJsonObject($result);
     $semanticItems = collect($decoded['items'] ?? [])->filter(fn ($item) => trim((string) ($item['query'] ?? '')) !== '')
-        ->map(fn ($item) => ['query' => trim((string) $item['query']), 'quantity' => max(0, (float) ($item['quantity'] ?? 0)), 'unit' => trim((string) ($item['unit'] ?? ''))])
+        ->map(fn ($item) => ['query' => trim((string) $item['query']), 'quantity' => max(0, (float) ($item['quantity'] ?? 0)), 'unit' => trim((string) ($item['unit'] ?? '')), 'pack_size' => trim((string) ($item['pack_size'] ?? ''))])
         ->take(10)->values()->all();
     return count($semanticItems) > 1 ? $semanticItems : $localItems;
 }
@@ -2406,6 +2419,15 @@ private function extractAssistantOrderItemsLocally(string $message): array
             'eight' => 8, 'aath' => 8, 'nine' => 9, 'nau' => 9,
             'ten' => 10, 'das' => 10,
         ][mb_strtolower((string) $value)] ?? $value);
+        $trailingQuantity = 0.0;
+        if (preg_match('/\b(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s*$/iu', $chunk, $trailingMatch, PREG_OFFSET_CAPTURE)) {
+            $beforeTrailing = trim(substr($chunk, 0, (int) $trailingMatch[1][1]));
+            if ($beforeTrailing !== ''
+                && !preg_match('/\b(?:kar|de|dene|dena|daal|dal|rakh|rakho|add|give)\s*$/iu', $beforeTrailing)
+                && !preg_match('/\b\d+(?:\.\d+)?\s*' . $unitPattern . '\s*$/iu', $beforeTrailing)) {
+                $trailingQuantity = $wordToQuantity($trailingMatch[1][0]);
+            }
+        }
         if (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s+(?:ka|ke|ki)?\s*(?:wala|wali|wale)?\s+(.+?)\s+(?:ka|ke|ki)?\s*(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
             $earlyQuantity = $wordToQuantity($earlyMatch[4]);
             $earlyUnit = trim((string) $earlyMatch[2]);
@@ -2426,6 +2448,9 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $chunk = trim(preg_replace('/[.!?]+$/u', '', $chunk) ?? $chunk);
         $chunk = trim(preg_replace('/\s+/', ' ', $chunk) ?? $chunk);
         if ($chunk === '') continue;
+        if (preg_match('/^\d+(?:\.\d+)?\s*' . $unitPattern . '\s*(?:ka|ke|ki)?\s*(?:wala|wali|wale|pack|bottle)?$/iu', $chunk)) {
+            continue;
+        }
 
         $quantity = $earlyQuantity;
         $unit = $earlyUnit;
@@ -2433,11 +2458,11 @@ private function extractAssistantOrderItemsLocally(string $message): array
         if ($earlyQuery !== '') {
             // Already parsed before trailing command words were stripped.
         } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s+(?:ka|ke|ki)?\s*(?:wala|wali|wale)?\s+(.+?)\s+(?:ka|ke|ki|wala|wali|wale)?\s*(\d+(?:\.\d+)?)?$/iu', $chunk, $match)) {
-            $quantity = !empty($match[4]) ? (float) $match[4] : 1;
+            $quantity = !empty($match[4]) ? (float) $match[4] : ($trailingQuantity > 0 ? $trailingQuantity : 1);
             $unit = trim((string) ($match[2] ?? ''));
             $query = trim((string) $match[3] . ' ' . $match[1] . ' ' . $unit);
         } elseif (preg_match('/^(.+?)\s+(?:ka|ke|ki)?\s*(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s*(?:wala|wali|wale)?\s*(\d+(?:\.\d+)?)?$/iu', $chunk, $match)) {
-            $quantity = !empty($match[4]) ? (float) $match[4] : 1;
+            $quantity = !empty($match[4]) ? (float) $match[4] : ($trailingQuantity > 0 ? $trailingQuantity : 1);
             $unit = trim((string) ($match[3] ?? ''));
             $query = trim((string) $match[1] . ' ' . $match[2] . ' ' . $unit);
         } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')?\s+(.+)$/iu', $chunk, $match)) {
@@ -2453,6 +2478,9 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $query = preg_replace('/\b(?:add|give|order|buy|want|need|mujhe|muje|please|plz|chahiye|chaiye|cart|mein|me|do|dena|de|de\s*do|karo|karna|kar\s*do|karke|karke\s*do|ka|ke|ki|wala|wali|wale|bada|badi|bade|large|chhota|chota|small|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|include)\b/iu', ' ', $query) ?? $query;
         $query = trim(preg_replace('/\s+/', ' ', $query) ?? $query);
         if ($query === '' || strlen($query) < 2) continue;
+        if ($quantity <= 0 && $trailingQuantity > 0) {
+            $quantity = $trailingQuantity;
+        }
         if ($quantity <= 0) {
             $quantityWords = [
                 'one' => 1, 'won' => 1, 'ek' => 1,
@@ -2493,6 +2521,10 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
     foreach ($spokenItems as $spokenItem) {
         $requestedName = trim((string) ($spokenItem['query'] ?? ''));
         if ($requestedName === '') continue;
+        $packSize = $this->assistantRequestedPackSize(trim($requestedName . ' ' . (string) ($spokenItem['pack_size'] ?? '')));
+        if ($packSize !== '' && !preg_match('/(?<![a-z0-9])' . preg_quote($packSize, '/') . '(?![a-z0-9])/iu', $requestedName)) {
+            $requestedName = trim($requestedName . ' ' . $packSize);
+        }
         $matches = $this->findAssistantProducts($requestedName, $outlet);
         $quantity = max(1, (float) ($spokenItem['quantity'] ?? 0));
         $unit = trim((string) ($spokenItem['unit'] ?? ''));
@@ -2548,6 +2580,7 @@ private function assistantMultiItemOrderFlow(array $spokenItems, ?User $user, ?U
 
 private function assistantSpokenOrderQuantity(string $message): ?int
 {
+    $message = $this->normalizeAssistantQuantityText($message);
     $words = [
         'one' => 1, 'won' => 1, 'ek' => 1,
         'two' => 2, 'too' => 2, 'do' => 2,
@@ -2563,6 +2596,19 @@ private function assistantSpokenOrderQuantity(string $message): ?int
         || preg_match('/\b(\d{1,3}|' . $wordPattern . ')\s*(?!(?:ml|kg|kgs|g|gm|gms|litre|liter|ltr)\b)\s*(?:add|cart|order|buy|give|chahiye|chaiye|karo|karna|kar\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu', $message, $match)) {
         $token = mb_strtolower((string) $match[1]);
         return (int) ($words[$token] ?? $token);
+    }
+    if (preg_match('/\b(?:wala|wali|wale|pack|packet|carton|box|bottle|piece|pieces|pcs?)\s+(\d{1,3}|' . $wordPattern . ')\s*$/iu', $message, $match)) {
+        $token = mb_strtolower((string) $match[1]);
+        return (int) ($words[$token] ?? $token);
+    }
+    if (preg_match('/\b(\d{1,3}|' . $wordPattern . ')\s*$/iu', $message, $match, PREG_OFFSET_CAPTURE)) {
+        $token = mb_strtolower((string) $match[1][0]);
+        $before = trim(substr($message, 0, (int) $match[1][1]));
+        if ($before !== ''
+            && !preg_match('/\b(?:kar|de|dene|dena|daal|dal|rakh|rakho|add|give)\s*$/iu', $before)
+            && !preg_match('/\b\d+(?:\.\d+)?\s*(?:ml|kg|kgs|g|gm|gms|litre|liter|ltr)\s*$/iu', $before)) {
+            return (int) ($words[$token] ?? $token);
+        }
     }
 
     return null;
@@ -3518,6 +3564,11 @@ private function assistantCustomerCarePhone(?string $configuredPhone = null): st
 private function resolveAssistantClarificationChoice(string $message, array $options): ?array
 {
     if (empty($options)) return null;
+    $packSize = $this->assistantRequestedPackSize($message);
+    if ($packSize !== '') {
+        $packMatches = $this->assistantFilterProductsByRequestedPackSize($options, $message);
+        if (count($packMatches) === 1) return $packMatches[0];
+    }
     $needle = mb_strtolower($this->normalizeAssistantSearchText($message));
 
     // Natural positional answers are common in voice ordering.
@@ -3572,6 +3623,7 @@ private function resolveAssistantClarificationChoiceSemantically(string $message
         'name' => trim((string) ($option['name'] ?? '')),
         'brand' => trim((string) ($option['brand'] ?? '')),
         'unit' => trim((string) ($option['unit'] ?? '')),
+        'carton_size' => trim((string) ($option['carton_size'] ?? '')),
     ])->filter(fn ($option) => $option['id'] > 0)->values()->all();
     if (empty($safeOptions)) return null;
 
@@ -4528,10 +4580,12 @@ private function assistantEnquiryConsentReply(string $message): string
 
 private function localAssistantIntent(string $message): array
 {
+    $quantity = $this->assistantSpokenOrderQuantity($message);
     return [
         'intent' => 'product_search', 'search_query' => '',
-        'quantity' => preg_match('/\d+(?:\.\d+)?/', $message, $match) ? (float) $match[0] : null,
-        'unit' => preg_match('/\b(ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen|unit)\b/i', $message, $unit) ? $unit[1] : null,
+        'quantity' => $quantity !== null ? (float) $quantity : null,
+        'unit' => preg_match('/\b(box|carton|pack|packet|pcs?|pieces?|dozen|unit)\b/i', $message, $unit) ? $unit[1] : null,
+        'pack_size' => $this->assistantRequestedPackSize($message),
         'language' => $this->detectAssistantLanguage($message),
         'items' => [],
         'found_reply' => '', 'not_found_reply' => '', 'general_reply' => '',
@@ -5349,9 +5403,43 @@ private function findAssistantTopSellingProducts(?User $outlet, bool $global = f
     })->values()->all();
 }
 
+private function normalizeAssistantCustomerUtterance(string $message): string
+{
+    $text = html_entity_decode(strip_tags($message), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = str_replace(["\r", "\n", "\t"], ' ', $text);
+    $text = preg_replace('/\b(?:krdo|kr\s*do|kardo|karro|kar\s*do)\b/iu', 'kar do', $text) ?? $text;
+    $text = preg_replace('/\b(?:daldo|daaldo|dal\s*do|daal\s*do)\b/iu', 'daal do', $text) ?? $text;
+    $text = preg_replace('/\b(?:rakhdo|rakho\s*do|rakh\s*do)\b/iu', 'rakh do', $text) ?? $text;
+
+    $aliases = [
+        'reel|riyal|rial' => 'Real',
+        'jusice|juce|juse|joos|juise|juis|jus' => 'juice',
+        'orenge|orenj|oranj|orang|orage' => 'orange',
+        'mikl|mik|melk|milke' => 'milk',
+        'biskit|biscut|biskut' => 'biscuit',
+        'bred' => 'bread',
+        'buter' => 'butter',
+        'shugar|suger' => 'sugar',
+        'taaja|taja|taza' => 'taaza',
+    ];
+    foreach ($aliases as $pattern => $replacement) {
+        $text = preg_replace('/(?<![\p{L}\p{N}])(?:' . $pattern . ')(?![\p{L}\p{N}])/iu', $replacement, $text) ?? $text;
+    }
+
+    $text = preg_replace('/(?<=\p{L})[.]{2,}/u', '', $text) ?? $text;
+    $text = preg_replace_callback('/\b([a-z0-9]{2,})\b(?:\s+\1\b){1,}/iu', function (array $match): string {
+        $word = mb_strtolower((string) $match[1]);
+        return in_array($word, ['nahi', 'nahin', 'nai', 'no', 'actually'], true) ? $match[0] : $match[1];
+    }, $text) ?? $text;
+
+    return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+}
+
 private function normalizeAssistantQuantityText(string $message): string
 {
     $text = preg_replace('/\b(?:sonic|zonic|jonik|zone\s*ik|zo\s*nik)\b/i', 'zonik', $message);
+    $text = preg_replace('/\b(?:krdo|kr\s*do|kardo|karro|kar\s*do)\b/iu', 'kar do', $text) ?? $text;
+    $text = preg_replace('/\b(?:daldo|daaldo|dal\s*do|daal\s*do)\b/iu', 'daal do', $text) ?? $text;
     $text = str_replace(['सोनिक', 'ज़ोनिक', 'झोनिक'], 'zonik', $text);
     $text = preg_replace('/\b(?:fire|file|fife)\s*box(?:es)?\b/i', '5 box', $text);
     $text = preg_replace('/\b(?:fire|file|fife)\s*(packet|pack|carton|piece|pieces|pcs)\b/i', '5 $1', $text);
@@ -5407,10 +5495,14 @@ private function assistantCartMutationReply(array $result, string $productName):
     $quantity = max(1, (int) ($result['quantity'] ?? 1));
     $action = (string) ($result['action'] ?? 'added');
     if ($action === 'unchanged') {
-        return "{$productName} already cart mein quantity {$quantity} par hai.";
+        return "{$productName} pehle se cart mein quantity {$quantity} par hai; duplicate add nahi kiya.";
     }
     if ($action === 'updated') {
-        return "{$productName} ki quantity {$quantity} kar di.";
+        $previous = (int) ($result['previous_quantity'] ?? 0);
+        if ($previous > 0 && $previous !== $quantity) {
+            return "{$productName} ki quantity {$previous} se {$quantity} update kar di.";
+        }
+        return "{$productName} ki quantity {$quantity} update kar di.";
     }
     $quantityText = $quantity > 1 ? " {$quantity} quantity" : '';
     return "{$productName}{$quantityText} cart mein add kar diya.";
@@ -5493,8 +5585,9 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
         // catalogue fallback; all ambiguous input remains conversational.
         'intent' => $isGeneralConversation ? 'greeting' : ($isClearLocalProductRequest && !$isQuestion ? 'product_search' : 'other'),
         'search_query' => $isClearLocalProductRequest && !$isQuestion ? $message : '',
-        'quantity' => preg_match('/\d+(?:\.\d+)?/', $message, $quantityMatch) ? (float) $quantityMatch[0] : null,
-        'unit' => preg_match('/\b(ml|kg|kgs|kilo|gram|g|litre|liter|ltr|box|carton|pack|packet|pcs?|pieces?|dozen)\b/i', $message, $unitMatch) ? $unitMatch[1] : null,
+        'quantity' => ($this->assistantSpokenOrderQuantity($message) !== null) ? (float) $this->assistantSpokenOrderQuantity($message) : null,
+        'unit' => preg_match('/\b(box|carton|pack|packet|pcs?|pieces?|dozen)\b/i', $message, $unitMatch) ? $unitMatch[1] : null,
+        'pack_size' => $this->assistantRequestedPackSize($message),
         'language' => $this->detectAssistantLanguage($message),
         'items' => [],
         'found_reply' => '',
@@ -5509,7 +5602,7 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
     $history = empty($recentMessages) ? 'None' : implode("\n", $recentMessages);
     $cartContext = empty($cartItems) ? 'Cart is empty' : json_encode($cartItems, JSON_UNESCAPED_UNICODE);
     $workflowSummary = json_encode($this->assistantSemanticWorkflowContext($workflowContext), JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Understand ANY language, writing system, dialect, mixed language, word order, grammar, spelling, and speech-to-text error. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent) and unit. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
+    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Treat the current message as possibly noisy speech-to-text: tolerate repeated words, missing punctuation, half words, phonetic spelling, Hinglish, Hindi, English, and mixed word order. Use catalogue-style reasoning only to understand intent, never to invent availability. Examples of likely STT/product variants: reel/riyal/rial can mean Real, juce/juse/joos/juis can mean juice, orenge/oranj can mean orange, mik/mikl/melk can mean milk, taza/taja/taaja can mean taaza. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Separate product, pack_size, and order quantity: '200ml wala' means pack_size 200ml and quantity 0; '200ml wale do' means pack_size 200ml and quantity 2; '1 litre wala ek' means pack_size 1ltr and quantity 1; 'do litre wala ek' means pack_size 2ltr and quantity 1. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent), unit, and pack_size. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'reel orange joos ek' => product_search, search_query 'Real orange juice', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -5517,15 +5610,16 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
             'search_query' => ['type' => 'STRING', 'description' => 'English product and brand search words; empty unless product_search'],
             'quantity' => ['type' => 'NUMBER', 'description' => 'Requested quantity, or 0 when absent'],
             'unit' => ['type' => 'STRING', 'description' => 'Requested unit, or empty when absent'],
+            'pack_size' => ['type' => 'STRING', 'description' => 'Requested product pack size such as 200ml or 1ltr; empty when absent'],
             'language' => ['type' => 'STRING', 'description' => 'Language/script used by the customer'],
             'items' => ['type' => 'ARRAY', 'description' => 'Every separately requested product, empty unless product_search', 'items' => ['type' => 'OBJECT', 'properties' => [
-                'query' => ['type' => 'STRING'], 'quantity' => ['type' => 'NUMBER'], 'unit' => ['type' => 'STRING'],
-            ], 'required' => ['query', 'quantity', 'unit']]],
+                'query' => ['type' => 'STRING'], 'quantity' => ['type' => 'NUMBER'], 'unit' => ['type' => 'STRING'], 'pack_size' => ['type' => 'STRING'],
+            ], 'required' => ['query', 'quantity', 'unit', 'pack_size']]],
             'found_reply' => ['type' => 'STRING'],
             'not_found_reply' => ['type' => 'STRING'],
             'general_reply' => ['type' => 'STRING'],
         ],
-        'required' => ['intent', 'search_query', 'quantity', 'unit', 'language', 'items', 'found_reply', 'not_found_reply', 'general_reply'],
+        'required' => ['intent', 'search_query', 'quantity', 'unit', 'pack_size', 'language', 'items', 'found_reply', 'not_found_reply', 'general_reply'],
     ];
 
     $text = $this->callGemini($prompt, 0.1, 260, $schema);
@@ -5548,12 +5642,14 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
         'search_query' => $resolvedSearchQuery,
         'quantity' => ($decoded['quantity'] ?? 0) > 0 ? (float) $decoded['quantity'] : null,
         'unit' => trim((string) ($decoded['unit'] ?? '')) ?: null,
+        'pack_size' => trim((string) ($decoded['pack_size'] ?? '')) ?: $fallback['pack_size'],
         'language' => trim((string) ($decoded['language'] ?? '')) ?: $fallback['language'],
         'items' => collect($decoded['items'] ?? [])->filter(fn ($item) => is_array($item) && trim((string) ($item['query'] ?? '')) !== '')
             ->map(fn ($item) => [
                 'query' => trim((string) ($item['query'] ?? '')),
                 'quantity' => max(0, (float) ($item['quantity'] ?? 0)),
                 'unit' => trim((string) ($item['unit'] ?? '')),
+                'pack_size' => trim((string) ($item['pack_size'] ?? '')),
             ])->take(10)->values()->all(),
         'found_reply' => trim((string) ($decoded['found_reply'] ?? '')),
         'not_found_reply' => trim((string) ($decoded['not_found_reply'] ?? '')),
@@ -5859,7 +5955,8 @@ private function assistantFilterProductsByRequestedVariant(array $products, stri
 
 private function assistantRequestedPackSize(string $message): string
 {
-    if (!preg_match('/\b(\d+(?:\.\d+)?)\s*(ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|litre|liter|ltr)\b/iu', $message, $match)) {
+    $message = $this->normalizeAssistantQuantityText($message);
+    if (!preg_match('/\b(\d+(?:\.\d+)?)\s*(ml|millilitre|millilitres|g|gm|gms|gram|grams|kg|kgs|kilo|l|lt|lit|litre|liter|ltr)\b/iu', $message, $match)) {
         return '';
     }
     $quantity = (string) $match[1];
@@ -5871,7 +5968,7 @@ private function assistantRequestedPackSize(string $message): string
         'millilitre', 'millilitres' => 'ml',
         'gm', 'gms', 'gram', 'grams' => 'g',
         'kgs', 'kilo' => 'kg',
-        'litre', 'liter', 'ltr' => 'ltr',
+        'l', 'lt', 'lit', 'litre', 'liter', 'ltr' => 'ltr',
         default => $unit,
     };
     return trim($quantity . $unit);
@@ -5894,13 +5991,34 @@ private function assistantQuantityLooksLikePackSize(string $message, array $inte
         && !preg_match('/^\s*(?:' . preg_quote((string) (int) $quantity, '/') . ')\s*(?:pcs?|pieces?|packet|pack|carton|box|unit)\b/iu', $message);
 }
 
+private function assistantPackSizeNeedles(string $packSize): array
+{
+    $compact = preg_replace('/\s+/', '', mb_strtolower($packSize)) ?? '';
+    if (!preg_match('/^(\d+(?:\.\d+)?)([a-z]+)$/iu', $compact, $match)) return $compact !== '' ? [$compact] : [];
+
+    $number = (string) $match[1];
+    if (str_contains($number, '.')) {
+        $number = rtrim(rtrim($number, '0'), '.');
+    }
+    $unit = mb_strtolower((string) $match[2]);
+    $units = match ($unit) {
+        'ltr', 'l', 'lt', 'lit', 'litre', 'liter' => ['ltr', 'litre', 'liter', 'l'],
+        'ml', 'millilitre', 'milliliter' => ['ml', 'millilitre', 'milliliter'],
+        'g', 'gm', 'gms', 'gram', 'grams' => ['g', 'gm', 'gram', 'grams'],
+        'kg', 'kgs', 'kilo', 'kilogram', 'kilograms' => ['kg', 'kgs', 'kilo', 'kilogram'],
+        default => [$unit],
+    };
+
+    return array_values(array_unique(array_map(fn ($candidate) => $number . $candidate, $units)));
+}
+
 private function assistantFilterProductsByRequestedPackSize(array $products, string $requestText): array
 {
     $packSize = $this->assistantRequestedPackSize($requestText);
     if ($packSize === '') return $products;
 
-    $compactPackSize = preg_replace('/\s+/', '', mb_strtolower($packSize));
-    return array_values(array_filter($products, function ($product) use ($compactPackSize) {
+    $packNeedles = $this->assistantPackSizeNeedles($packSize);
+    return array_values(array_filter($products, function ($product) use ($packNeedles) {
         $text = mb_strtolower(trim(implode(' ', [
             (string) ($product['name'] ?? ''),
             (string) ($product['unit'] ?? ''),
@@ -5908,7 +6026,10 @@ private function assistantFilterProductsByRequestedPackSize(array $products, str
         ])));
         $compactText = preg_replace('/\s+/', '', $text);
 
-        return str_contains($compactText, $compactPackSize);
+        foreach ($packNeedles as $needle) {
+            if ($needle !== '' && str_contains($compactText, $needle)) return true;
+        }
+        return false;
     }));
 }
 
@@ -6031,6 +6152,7 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
     // Keep product lookup consistent with the assistant screen: remove spoken
     // quantity/unit words before searching the real customer price list.
     $q = $this->normalizeAssistantSearchText(strtolower($message));
+    $q = preg_replace('/(?<=\p{L})[.]{2,}/u', '', $q) ?? $q;
     $q = preg_replace('/\d+(?:\.\d+)?/', ' ', $q);
     $q = preg_replace('/\b(add|added|also|aur|please|plz|show|find|search|give|buy|order|want|wanted|need|needed|looking|available|availability|milta|milte|milti|zonik|zonic|sonic|product|item|variety|varieties|variant|variants|flavour|flavours|flavor|flavors|type|types|option|options|range|the|this|that|some|any|my|for|from|me|to|in|mein|mai|of|a|an|can|could|would|you|i|is|are|have|has|zero|one|won|two|too|three|tree|four|five|six|seven|eight|nine|ten|ek|teen|char|chaar|panch|paanch|che|chhe|saat|aath|nau|das|mujhe|muje|mere|mala|ko|chahiye|chahie|chaiye|chhaiye|chahi|chaye|chahiyeh|pahije|dikhao|dikhana|batao|bataiye|kaun|kaunsa|kaunsi|kaunse|kon|konsa|konsi|konse|conse|wala|wali|wale|do|de|de\s*do|dena|dya|karo|karna|karke|karke\s*do|rakh|rakho|rakh\s*do|daal|dal|dalo|daalo|lena|le\s*lo|hai|hain|aahe|kg|kgs|kilo|kilogram|gram|g|gm|gms|ml|millilitre|millilitres|litre|liter|ltr|carton|box|packet|pack|pcs?|pieces?|dozen)\b/i', ' ', $q);
     $q = preg_replace('/(?:ऐड|एड|जोड़ो|जोड़|डालो|डाल|चाहिए|दे\s*दो|दिखाओ|करो|कर\s*दो|को|मुझे)/u', ' ', $q);
@@ -6164,6 +6286,12 @@ private function assistantSearchWordScore(string $term, string $word): int
     // Short tokens (SKU fragments, initials, etc.) must be exact. A one-letter
     // fuzzy match such as "so" -> "to" is far too likely to show a wrong SKU.
     if (min($termLength, $wordLength) < 4) {
+        if ($termLength >= 3 && $wordLength >= 4 && str_starts_with($word, $term)) {
+            return 70;
+        }
+        if ($termLength === 2 && $wordLength >= 4 && str_starts_with($word, $term)) {
+            return 58;
+        }
         return 0;
     }
 
@@ -6381,7 +6509,7 @@ private function transcribeAssistantAudio(string $audioBytes, string $mime): arr
             ->withHeaders(['x-goog-api-key' => $apiKey])
             ->post('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', [
                 'contents' => [['parts' => [
-                    ['text' => 'Transcribe this grocery order accurately in whatever language or mixed languages are spoken. Automatically identify the language and preserve the speaker\'s original script and wording. Preserve product brands, flavours, quantities, and units. Correct only obvious speech-recognition errors using grocery context. Return only JSON; do not answer or translate.'],
+                    ['text' => 'Transcribe this grocery order accurately in whatever language or mixed languages are spoken. Then create normalized_transcript for the ordering parser. Preserve product brands, flavours, quantities, pack sizes, and units. Correct only obvious speech-recognition errors using grocery context: reel/riyal/rial can be Real, juce/juse/joos can be juice, orenge/oranj can be orange, mik/mikl/melk can be milk, taza/taja can be taaza. Keep pack size separate from order quantity in wording: 200ml wale do must stay meaning 200ml pack quantity two. If speech contains a correction such as "nahi" or "actually", normalized_transcript should keep only the final corrected order. Return only JSON; do not answer, add products, or translate brands.'],
                     ['inlineData' => ['mimeType' => $mime, 'data' => base64_encode($audioBytes)]],
                 ]]],
                 'generationConfig' => [
@@ -6392,16 +6520,19 @@ private function transcribeAssistantAudio(string $audioBytes, string $mime): arr
                         'type' => 'OBJECT',
                         'properties' => [
                             'transcript' => ['type' => 'STRING'],
+                            'normalized_transcript' => ['type' => 'STRING'],
                             'language' => ['type' => 'STRING'],
                         ],
-                        'required' => ['transcript', 'language'],
+                        'required' => ['transcript', 'normalized_transcript', 'language'],
                     ],
                 ],
             ]);
         $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
         $decoded = $this->assistantDecodeJsonObject($text);
         if ($response->successful() && is_array($decoded)) {
-            return ['transcript' => trim((string) ($decoded['transcript'] ?? '')), 'language' => trim((string) ($decoded['language'] ?? ''))];
+            $transcript = trim((string) ($decoded['normalized_transcript'] ?? ''));
+            if ($transcript === '') $transcript = trim((string) ($decoded['transcript'] ?? ''));
+            return ['transcript' => $transcript, 'language' => trim((string) ($decoded['language'] ?? ''))];
         }
     } catch (\Throwable $e) {
         // The browser speech-recognition fallback remains available.
@@ -6450,6 +6581,7 @@ private function normalizeAssistantSearchText(string $text): string
         'mikl' => ' milk ', 'mik' => ' milk ', 'melk' => ' milk ', 'milke' => ' milk ',
         'biskit' => ' biscuit ', 'biscut' => ' biscuit ', 'biskut' => ' biscuit ',
         'bred' => ' bread ', 'buter' => ' butter ', 'shugar' => ' sugar ', 'suger' => ' sugar ',
+        'taza' => ' taaza ', 'taaja' => ' taaza ', 'taja' => ' taaza ',
         'almod' => ' almond ', 'almond' => ' almond ',
         'tur dal' => ' toor dal ', 'toor dal' => ' toor dal ', 'moong dal' => ' moong dal ',
         // Telugu and Bengali grocery names.

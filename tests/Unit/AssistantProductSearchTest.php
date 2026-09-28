@@ -59,6 +59,67 @@ class AssistantProductSearchTest extends TestCase
         $this->assertNull($method->invoke(new MobilePriceListController(), 'Real brand add karo', $options));
     }
 
+    public function test_common_voice_noise_is_normalized_before_order_understanding(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'normalizeAssistantCustomerUtterance');
+        $method->setAccessible(true);
+
+        $normalized = $method->invoke(
+            new MobilePriceListController(),
+            'bhai Reel... Reel orange joos ek krdo na'
+        );
+
+        $this->assertSame('bhai Real orange juice ek kar do na', $normalized);
+    }
+
+    public function test_taaza_variant_understands_taza_pronunciation(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantRequestedProductVariant');
+        $method->setAccessible(true);
+
+        $this->assertSame('taaza', $method->invoke(new MobilePriceListController(), 'Amul taza milk ek add karo'));
+        $this->assertSame('taaza', $method->invoke(new MobilePriceListController(), 'Amul taja doodh chahiye'));
+    }
+
+    public function test_pack_size_is_not_confused_with_order_quantity(): void
+    {
+        $controller = new MobilePriceListController();
+        $quantity = new ReflectionMethod(MobilePriceListController::class, 'assistantSpokenOrderQuantity');
+        $quantity->setAccessible(true);
+        $packSize = new ReflectionMethod(MobilePriceListController::class, 'assistantRequestedPackSize');
+        $packSize->setAccessible(true);
+
+        $this->assertSame(2, $quantity->invoke($controller, '200ml wale do'));
+        $this->assertSame('200ml', $packSize->invoke($controller, '200ml wale do'));
+        $this->assertSame(1, $quantity->invoke($controller, 'do litre wala ek'));
+        $this->assertSame('2ltr', $packSize->invoke($controller, 'do litre wala ek'));
+    }
+
+    public function test_half_word_prefixes_help_without_overpowering_single_short_terms(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantSearchWordScore');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertSame(70, $method->invoke($controller, 'ora', 'orange'));
+        $this->assertSame(58, $method->invoke($controller, 'ju', 'juice'));
+        $this->assertSame(0, $method->invoke($controller, 'so', 'to'));
+    }
+
+    public function test_pack_size_reply_selects_the_matching_visible_option(): void
+    {
+        $options = [
+            ['id' => 1, 'brand' => 'Real', 'name' => 'Real Orange Juice', 'unit' => '200 ml', 'carton_size' => '200 ml'],
+            ['id' => 2, 'brand' => 'Real', 'name' => 'Real Orange Juice', 'unit' => '1 ltr', 'carton_size' => '1 ltr'],
+        ];
+        $method = new ReflectionMethod(MobilePriceListController::class, 'resolveAssistantClarificationChoice');
+        $method->setAccessible(true);
+
+        $selected = $method->invoke(new MobilePriceListController(), '200ml wala', $options);
+
+        $this->assertSame(1, $selected['id']);
+    }
+
     public function test_missing_exact_juice_builds_safe_approved_alternative_queries(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantApprovedAlternativeQueries');
