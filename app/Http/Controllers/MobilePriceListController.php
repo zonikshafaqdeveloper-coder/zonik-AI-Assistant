@@ -1925,12 +1925,12 @@ public function assistantChat(Request $request)
         : ($isCartRequest
         ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
         : ($voiceSemanticProductAnalysis
-        ? $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow)
+        ? $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet)
         : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance || $isExplicitProductEnquiry
             || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
             || ($isQuantityReply && !empty($pendingProducts)))
         ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest || $isExplicitProductEnquiry) ? $this->assistantLocalProductSearchQuery($message) : ''])
-        : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow))))));
+        : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet))))));
     if ($isCartQuantityUpdate) {
         // In a correction such as "500 nahi, 1 chahiye, 1 kardo", the first
         // number is the rejected old quantity. Always use the final stated
@@ -1957,7 +1957,7 @@ public function assistantChat(Request $request)
         && !Cache::has('gemini_assistant_auth_unavailable')
         && !Cache::has('gemini_assistant_model_unavailable')
         && !Cache::has('gemini_assistant_network_unavailable')) {
-        $semanticIntent = $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow);
+        $semanticIntent = $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet);
         if (($semanticIntent['intent'] ?? '') === 'product_search'
             && trim((string) ($semanticIntent['search_query'] ?? '')) !== '') {
             $intent = array_merge($intent, $semanticIntent);
@@ -5574,7 +5574,55 @@ private function assistantSemanticWorkflowContext(array $flow): array
     return $context;
 }
 
-private function analyzeAssistantMessage(string $message, array $recentMessages = [], array $cartItems = [], array $workflowContext = []): array
+private function assistantSemanticPriceListHints(?User $user, ?User $outlet, string $message, int $limit = 80): array
+{
+    if (!$outlet) return [];
+
+    $priceMap = $this->assistantOutletPriceMap($outlet, $user);
+    if (empty($priceMap)) return [];
+
+    $request = $this->assistantComparableProductText($message);
+    $terms = array_values(array_unique(array_filter(
+        preg_split('/\s+/u', $request) ?: [],
+        fn ($term) => strlen($term) > 1
+    )));
+
+    $products = Product::with('brand:id,name')->where('status', 'active')
+        ->whereIn('id', array_keys($priceMap))
+        ->get(['id', 'product_name', 'unit', 'carton_size', 'brand_id', 'brands']);
+
+    return $products->map(function ($product) use ($request, $terms) {
+        $brand = optional($product->brand)->name ?: ($product->brands ?: '');
+        $label = trim($brand . ' ' . $product->product_name);
+        $candidateText = trim($label . ' ' . ($product->unit ?: '') . ' ' . ($product->carton_size ?: ''));
+        $score = $this->assistantSearchPhraseScore($request, $candidateText);
+        $tokens = $this->assistantProductSearchTokens($candidateText);
+        foreach ($terms as $term) {
+            $best = 0;
+            foreach ($tokens as $token) {
+                $best = max($best, $this->assistantSearchWordScore($term, $token));
+            }
+            $score += $best;
+        }
+
+        return [
+            'id' => (int) $product->id,
+            'name' => trim((string) $product->product_name),
+            'brand' => trim((string) $brand),
+            'unit' => trim((string) ($product->unit ?: '')),
+            'carton_size' => trim((string) ($product->carton_size ?: '')),
+            '_score' => $score,
+        ];
+    })->sortBy([
+        ['_score', 'desc'],
+        ['name', 'asc'],
+    ])->take($limit)->map(function ($product) {
+        unset($product['_score']);
+        return $product;
+    })->values()->all();
+}
+
+private function analyzeAssistantMessage(string $message, array $recentMessages = [], array $cartItems = [], array $workflowContext = [], ?User $user = null, ?User $outlet = null): array
 {
     $isGeneralConversation = (bool) preg_match('/^\s*(hi|hello|hey|namaste|thanks|thank you|ok|okay|how are you|who are you|kya haal|kaise ho)[!?.\s]*$/iu', $message);
     $isQuestion = $this->isAssistantGeneralQuestion($message);
@@ -5602,7 +5650,11 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
     $history = empty($recentMessages) ? 'None' : implode("\n", $recentMessages);
     $cartContext = empty($cartItems) ? 'Cart is empty' : json_encode($cartItems, JSON_UNESCAPED_UNICODE);
     $workflowSummary = json_encode($this->assistantSemanticWorkflowContext($workflowContext), JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Treat the current message as possibly noisy speech-to-text: tolerate repeated words, missing punctuation, half words, phonetic spelling, Hinglish, Hindi, English, and mixed word order. Use catalogue-style reasoning only to understand intent, never to invent availability. Examples of likely STT/product variants: reel/riyal/rial can mean Real, juce/juse/joos/juis can mean juice, orenge/oranj can mean orange, mik/mikl/melk can mean milk, taza/taja/taaja can mean taaza. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Separate product, pack_size, and order quantity: '200ml wala' means pack_size 200ml and quantity 0; '200ml wale do' means pack_size 200ml and quantity 2; '1 litre wala ek' means pack_size 1ltr and quantity 1; 'do litre wala ek' means pack_size 2ltr and quantity 1. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent), unit, and pack_size. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'reel orange joos ek' => product_search, search_query 'Real orange juice', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
+    $priceListHints = $this->assistantSemanticPriceListHints($user, $outlet, $message);
+    $priceListContext = empty($priceListHints)
+        ? 'No selected price-list candidates supplied; backend will still search the selected price list.'
+        : json_encode($priceListHints, JSON_UNESCAPED_UNICODE);
+    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Treat the current message as possibly noisy speech-to-text: tolerate repeated words, missing punctuation, half words, phonetic spelling, Hinglish, Hindi, English, and mixed word order. Use catalogue-style reasoning only to understand intent, never to invent availability. Examples of likely STT/product variants: reel/riyal/rial can mean Real, juce/juse/joos/juis can mean juice, orenge/oranj can mean orange, mik/mikl/melk can mean milk, taza/taja/taaja can mean taaza. Use the selected price-list candidate names below as grounding hints for product spelling and brand names; if the customer seems to be saying one of those products, return that product's natural searchable name. Candidate hints are not proof of add success: backend validation remains final. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Separate product, pack_size, and order quantity: '200ml wala' means pack_size 200ml and quantity 0; '200ml wale do' means pack_size 200ml and quantity 2; '1 litre wala ek' means pack_size 1ltr and quantity 1; 'do litre wala ek' means pack_size 2ltr and quantity 1. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent), unit, and pack_size. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'reel orange joos ek' => product_search, search_query 'Real orange juice', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nSelected user/outlet price-list candidate hints:\n{$priceListContext}\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -6184,19 +6236,30 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
         ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp');
 
     $candidateProducts = $candidateQuery->get();
+    $usingFullCandidateSet = false;
     if ($candidateProducts->isEmpty() && !empty($terms)) {
         $candidateProducts = Product::with('brand:id,name')->where('status', 'active')
             ->when(!$includeGlobalCatalogue, fn ($query) => $query->whereIn('id', $assignedProductIds))
             ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp')
             ->get();
+        $usingFullCandidateSet = true;
     }
 
-    $products = $candidateProducts
+    $rankCandidates = function ($candidateProducts) use ($terms, $q) {
+        return $candidateProducts
         ->map(function ($product) use ($terms, $q) {
             $brand = optional($product->brand)->name ?: ($product->brands ?: '');
-            $name = strtolower(trim($brand . ' ' . $product->product_name));
-            $words = array_values(array_filter(preg_split('/[^a-z0-9]+/i', $name)));
-            $score = str_contains($name, $q) ? 250 : 0;
+            $candidateText = strtolower(trim(implode(' ', [
+                $brand,
+                $product->product_name,
+                $product->unit,
+                $product->carton_size,
+            ])));
+            $words = $this->assistantProductSearchTokens($candidateText);
+            $comparableCandidate = $this->assistantComparableProductText($candidateText);
+            $phraseScore = $this->assistantSearchPhraseScore($q, $candidateText);
+            $score = str_contains($comparableCandidate, $q) ? 250 : 0;
+            $score += $phraseScore;
             $matchedTerms = 0;
 
             foreach ($terms as $term) {
@@ -6214,27 +6277,48 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
 
             $product->assistant_match_score = $score;
             $product->assistant_matched_terms = $matchedTerms;
+            $product->assistant_phrase_score = $phraseScore;
             return $product;
         })
         ->filter(function ($product) use ($terms) {
             // Require every meaningful requested term so unclear speech never
-            // returns a different product based on one coincidental word.
+            // returns a different product based on one coincidental word. A
+            // strong whole-name phonetic score covers compact or split product
+            // names such as "thumbs app" -> "Thums Up".
             $required = count($terms);
-            return $product->assistant_matched_terms >= $required && $product->assistant_match_score >= 70;
+            $strongWholeName = (int) ($product->assistant_phrase_score ?? 0) >= 140;
+            return ($required > 0 && $product->assistant_matched_terms >= $required && $product->assistant_match_score >= 70)
+                || $strongWholeName;
         });
+    };
+
+    $products = $rankCandidates($candidateProducts);
+
+    if ($products->isEmpty() && !$usingFullCandidateSet && !empty($terms)) {
+        $candidateProducts = Product::with('brand:id,name')->where('status', 'active')
+            ->when(!$includeGlobalCatalogue, fn ($query) => $query->whereIn('id', $assignedProductIds))
+            ->select('id', 'product_name', 'unit', 'carton_size', 'image', 'brand_id', 'brands', 'sale_price_loose_pcs', 'sale_price_carton', 'product_mrp')
+            ->get();
+        $usingFullCandidateSet = true;
+        $products = $rankCandidates($candidateProducts);
+    }
 
     if ($products->isNotEmpty()) {
         $maxMatchedTerms = (int) $products->max('assistant_matched_terms');
         $maxScore = (int) $products->where('assistant_matched_terms', $maxMatchedTerms)->max('assistant_match_score');
+        $maxPhraseScore = (int) $products->max('assistant_phrase_score');
         $products = $products->filter(fn ($product) =>
-            $product->assistant_matched_terms === $maxMatchedTerms
-            && $product->assistant_match_score >= ($maxScore - 10)
+            ($product->assistant_matched_terms === $maxMatchedTerms
+                && $product->assistant_match_score >= ($maxScore - 10))
+            || ((int) ($product->assistant_phrase_score ?? 0) >= 140
+                && (int) ($product->assistant_phrase_score ?? 0) >= ($maxPhraseScore - 10))
         );
     }
 
     $products = $products
         ->sortBy([
             ['assistant_matched_terms', 'desc'],
+            ['assistant_phrase_score', 'desc'],
             ['assistant_match_score', 'desc'],
             ['product_name', 'asc'],
         ])
@@ -6255,6 +6339,98 @@ private function findAssistantProducts(string $message, ?User $outlet, bool $inc
             'image' => $product->image ? asset('uploads/' . $product->image) : null,
         ];
     })->values()->all();
+}
+
+private function assistantProductSearchTokens(string $text): array
+{
+    $normalized = $this->assistantComparableProductText($text);
+    $words = array_values(array_filter(preg_split('/[^a-z0-9]+/i', $normalized) ?: []));
+    $tokens = $words;
+    $count = count($words);
+
+    for ($size = 2; $size <= 4; $size++) {
+        if ($count < $size) continue;
+        for ($index = 0; $index <= $count - $size; $index++) {
+            $tokens[] = implode('', array_slice($words, $index, $size));
+        }
+    }
+
+    $compact = implode('', $words);
+    if ($compact !== '' && strlen($compact) <= 80) {
+        $tokens[] = $compact;
+    }
+
+    return array_values(array_unique(array_filter($tokens, fn ($token) => strlen($token) > 1)));
+}
+
+private function assistantSearchPhraseScore(string $requestText, string $candidateText): int
+{
+    $request = $this->assistantComparableProductText($requestText);
+    $candidate = $this->assistantComparableProductText($candidateText);
+    if ($request === '' || $candidate === '') return 0;
+
+    if ($request === $candidate) return 260;
+    if (str_contains(' ' . $candidate . ' ', ' ' . $request . ' ')) return 220;
+
+    $requestCompact = preg_replace('/\s+/', '', $request) ?? '';
+    $candidateCompact = preg_replace('/\s+/', '', $candidate) ?? '';
+    if ($requestCompact === '' || $candidateCompact === '') return 0;
+    if ($requestCompact === $candidateCompact) return 245;
+    if (strlen($requestCompact) >= 4 && str_contains($candidateCompact, $requestCompact)) return 205;
+
+    $shorter = min(strlen($requestCompact), strlen($candidateCompact));
+    $longer = max(strlen($requestCompact), strlen($candidateCompact));
+    if ($shorter < 5 || $longer <= 0) return 0;
+
+    $bestChunkScore = 0;
+    foreach ($this->assistantProductSearchTokens($candidate) as $token) {
+        if (strlen($token) < 5) continue;
+        if ($requestCompact === $token) return 245;
+        if (strlen($requestCompact) >= 4 && str_contains($token, $requestCompact)) {
+            $bestChunkScore = max($bestChunkScore, 205);
+            continue;
+        }
+
+        $tokenSound = metaphone($token);
+        $requestSound = metaphone($requestCompact);
+        if ($requestSound !== '' && $tokenSound !== '') {
+            if ($requestSound === $tokenSound) {
+                $bestChunkScore = max($bestChunkScore, 155);
+                continue;
+            }
+            if (strlen($requestSound) >= 4 && strlen($tokenSound) >= 4 && levenshtein($requestSound, $tokenSound) <= 1) {
+                $bestChunkScore = max($bestChunkScore, 145);
+                continue;
+            }
+        }
+
+        $tokenLonger = max(strlen($requestCompact), strlen($token));
+        $tokenDistance = levenshtein($requestCompact, $token);
+        if ($tokenLonger > 0 && ($tokenDistance / $tokenLonger) <= 0.22) {
+            $bestChunkScore = max($bestChunkScore, 150 - min(35, $tokenDistance * 5));
+            continue;
+        }
+
+        similar_text($requestCompact, $token, $tokenPercent);
+        if ($tokenPercent >= 84) $bestChunkScore = max($bestChunkScore, 135);
+    }
+    if ($bestChunkScore > 0) return $bestChunkScore;
+
+    $requestSound = metaphone($requestCompact);
+    $candidateSound = metaphone($candidateCompact);
+    if ($requestSound !== '' && $candidateSound !== '') {
+        if ($requestSound === $candidateSound) return 155;
+        if (strlen($requestSound) >= 4 && strlen($candidateSound) >= 4 && levenshtein($requestSound, $candidateSound) <= 1) {
+            return 145;
+        }
+    }
+
+    $distance = levenshtein($requestCompact, $candidateCompact);
+    $ratio = $distance / $longer;
+    if ($ratio <= 0.22) return 150 - min(35, $distance * 5);
+
+    similar_text($requestCompact, $candidateCompact, $percent);
+    return $percent >= 84 ? 135 : 0;
 }
 
 private function assistantSearchWordScore(string $term, string $word): int

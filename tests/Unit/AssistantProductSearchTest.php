@@ -106,6 +106,29 @@ class AssistantProductSearchTest extends TestCase
         $this->assertSame(0, $method->invoke($controller, 'so', 'to'));
     }
 
+    public function test_compact_phonetic_product_names_can_be_ranked_safely(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantSearchPhraseScore');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertGreaterThanOrEqual(140, $method->invoke($controller, 'thumbs app', 'Thums Up Soft Drink 250 ml'));
+        $this->assertGreaterThanOrEqual(140, $method->invoke($controller, 'coka cola', 'Coca Cola Bottle'));
+        $this->assertSame(0, $method->invoke($controller, 'oil', 'Toilet Cleaner'));
+    }
+
+    public function test_product_search_tokens_include_compact_catalogue_forms(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantProductSearchTokens');
+        $method->setAccessible(true);
+
+        $tokens = $method->invoke(new MobilePriceListController(), 'Thums Up Soft Drink 250 ml');
+
+        $this->assertContains('thumsup', $tokens);
+        $this->assertContains('softdrink', $tokens);
+        $this->assertContains('thumsupsoftdrink', $tokens);
+    }
+
     public function test_pack_size_reply_selects_the_matching_visible_option(): void
     {
         $options = [
