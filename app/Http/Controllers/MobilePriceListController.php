@@ -2353,7 +2353,8 @@ private function extractAssistantOrderItemsLocally(string $message): array
         $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s+[a-z0-9][a-z0-9.-]{1,})/iu', (string) $number, $text) ?? $text;
         $text = preg_replace('/\b' . preg_quote($word, '/') . '\b(?=\s*(?:add|cart|order|buy|give|chahiye|chaiye|please|plz|karo|karna|kar\s*do|karke|de|dena)\b)/iu', (string) $number, $text) ?? $text;
     }
-    $unitPattern = '(?:kg|kgs|kilo|gram|g|litre|liter|ltr|box(?:es)?|carton|pack|packet|pcs?|pieces?|dozen|unit)';
+    $unitPattern = '(?:kg|kgs|kilo|gram|g|gm|gms|ml|millilitre|millilitres|litre|liter|ltr|box(?:es)?|carton|pack|packet|pcs?|pieces?|dozen|unit)';
+    $text = preg_replace('/,\s*(?=\d+(?:\.\d+)?\s*' . $unitPattern . '\b)/iu', ' ', $text) ?? $text;
     $separatorPattern = '/\s*(?:,|;|&|\band\b|\baur\b|\bplus\b|\bwith\b|\bbhi\b)\s*/iu';
     $chunks = preg_split($separatorPattern, $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
@@ -2397,6 +2398,10 @@ private function extractAssistantOrderItemsLocally(string $message): array
             $earlyQuantity = $wordToQuantity($earlyMatch[4]);
             $earlyUnit = trim((string) $earlyMatch[2]);
             $earlyQuery = trim((string) $earlyMatch[3] . ' ' . $earlyMatch[1] . ' ' . $earlyUnit);
+        } elseif (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*(' . $unitPattern . ')\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
+            $earlyQuantity = 1;
+            $earlyUnit = trim((string) $earlyMatch[3]);
+            $earlyQuery = trim((string) $earlyMatch[1] . ' ' . $earlyMatch[2] . ' ' . $earlyUnit);
         } elseif (preg_match('/^(\d+(?:\.\d+)?|' . $numberWordPattern . ')\s+(.+?)\s*(?:' . $commandPattern . ')\b/iu', $chunk, $earlyMatch)) {
             $earlyQuantity = $wordToQuantity($earlyMatch[1]);
             $earlyQuery = trim((string) $earlyMatch[2]);

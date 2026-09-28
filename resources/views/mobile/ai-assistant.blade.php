@@ -1720,7 +1720,7 @@ body:has(.ai-page){background:#edf2f5}
                 const image = product.image
                     ? '<img class="ai-catalogue-image" src="' + escapeHtml(product.image) + '" alt="">'
                     : '<span class="ai-catalogue-image"></span>';
-                return '<button class="ai-catalogue-item" type="button" data-catalogue-product="' + escapeHtml(product.name) + '">'
+                return '<button class="ai-catalogue-item" type="button" data-catalogue-product="' + escapeHtml(product.name) + '" data-add-product="' + escapeHtml(product.id) + '" data-qty="1" data-workflow-stage="anything_else">'
                     + image + '<span class="ai-catalogue-copy"><span class="ai-catalogue-name">' + escapeHtml(product.name) + '</span>'
                     + '<span class="ai-catalogue-meta">' + escapeHtml(product.unit || 'unit') + ' · Carton: ' + escapeHtml(product.carton_size || '-') + '</span>'
                     + '<span class="ai-catalogue-price">' + money(product.price) + '</span></span></button>';
@@ -4466,9 +4466,8 @@ function appendTyping() {
         catalogueList?.addEventListener('click', function (event) {
             const product = event.target.closest('[data-catalogue-product]');
             if (!product) return;
-            input.value = product.dataset.catalogueProduct + ' ';
             closeCataloguePanel();
-            input.focus();
+            addAssistantProductCard(product);
         });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && cataloguePanel?.classList.contains('open')) closeCataloguePanel();
