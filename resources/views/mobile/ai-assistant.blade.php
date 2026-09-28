@@ -2154,6 +2154,14 @@ body:has(.ai-page){background:#edf2f5}
                 || /(?:\u0915\u094d\u092f\u093e|\u0915\u094d\u092f\u094b\u0902|\u0915\u0948\u0938\u0947|\u0915\u092c|\u0915\u0939\u093e\u0901|\u0915\u094c\u0928|\u092c\u0924\u093e\u0913|\u092c\u0924\u093e\u0907\u090f)/u.test(message);
         }
 
+        function isFreshProductCommand(value) {
+            const message = String(value || '').trim();
+            if (!message) return false;
+            if (/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu.test(message)) return false;
+            if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
+            return /\b(?:add|buy|order|cart\s+mein|cart\s+me|chahiye|chaiye|do|de|de\s*do|dena|karo|karna|kar\s*do|kardo|karke|karke\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu.test(message);
+        }
+
         function renderOnboardingHandledReply(data) {
             const response = data || {};
             const workflow = response.workflow || {};
@@ -2888,12 +2896,18 @@ function appendTyping() {
             const sendOptions = options || {};
             const sourceProductMessage = sendOptions.sourceProductMessage || null;
             const alreadyRenderedUserMessage = Boolean(sendOptions.alreadyRenderedUserMessage);
+            const freshProductCommand = !selectedProductId && isFreshProductCommand(text);
+            const payloadSelectedProductId = selectedProductId || (freshProductCommand ? null : activeOrderingProductId || null);
+            const payloadWorkflowStage = freshProductCommand && ['confirm_product', 'await_quantity', 'confirm_quantity'].includes(activeOrderingStage)
+                ? null
+                : activeOrderingStage || null;
             aiDebug('Command received', {
                 text: text,
                 conversationId: conversationId,
                 activeStage: activeOrderingStage,
-                selectedProductId: selectedProductId || activeOrderingProductId || null,
+                selectedProductId: payloadSelectedProductId,
                 clarificationOptions: activeClarificationOptions,
+                freshProductCommand: freshProductCommand,
                 replayingOnboardingMessage: alreadyRenderedUserMessage
             });
             if (/^\s*(?:stop|ruko|ruk jao|bas chup|band karo|pause)\s*[.!?]*$/iu.test(text)) {
@@ -2910,8 +2924,8 @@ function appendTyping() {
             }
             const commandKey = [
                 conversationId || '',
-                activeOrderingStage || '',
-                String(selectedProductId || activeOrderingProductId || ''),
+                payloadWorkflowStage || '',
+                String(payloadSelectedProductId || ''),
                 text.toLowerCase().replace(/\s+/g, ' ').trim()
             ].join('|');
             const commandNow = Date.now();
@@ -3143,10 +3157,10 @@ function appendTyping() {
                 body: JSON.stringify({
                     message: text,
                     conversation_id: conversationId,
-                    selected_product_id: selectedProductId || activeOrderingProductId || null,
-                    workflow_stage: activeOrderingStage || null,
-                    clarification_options: activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
-                    candidate_set_id: activeOrderingStage === 'clarify_product' ? activeCandidateSetId : null,
+                    selected_product_id: payloadSelectedProductId,
+                    workflow_stage: payloadWorkflowStage,
+                    clarification_options: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
+                    candidate_set_id: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeCandidateSetId : null,
                     delivery_details: selectedDeliveryDetails || null
                 })
             });

@@ -1237,6 +1237,14 @@ public function assistantChat(Request $request)
     $clientSentFreshProductCommand = $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)
         && !$this->isAssistantAddConfirmation($message);
+    if ($clientSentFreshProductCommand) {
+        $selectedProductId = null;
+        if (in_array(($orderFlow['stage'] ?? null), ['confirm_product', 'clarify_product', 'await_quantity', 'confirm_quantity'], true)) {
+            $orderFlow = [];
+            $request->session()->forget($flowKey);
+            if ($user && $conversationId) Cache::forget($this->assistantStateCacheKey($user->id, $conversationId));
+        }
+    }
 
     // A spoken ordinal or delayed card tap belongs only to the candidate set
     // currently shown for this conversation. Reject stale UI state before it
@@ -2069,7 +2077,7 @@ public function assistantChat(Request $request)
         $intent['quantity'] = $productHints[0]['requested_quantity'] ?? null;
         $intent['unit'] = $productHints[0]['requested_unit'] ?? null;
     }
-    $quantityOnlyReply = $intent['quantity'] && !empty($pendingProducts)
+    $quantityOnlyReply = !$clientSentFreshProductCommand && $intent['quantity'] && !empty($pendingProducts)
         && (empty($productHints) || $isQuantityReply);
     if ($quantityOnlyReply) $productHints = $pendingProducts;
     if (!empty($productHints) && !collect($productHints)->contains(fn ($product) => ($product['available_in_outlet'] ?? true) === true)) {
