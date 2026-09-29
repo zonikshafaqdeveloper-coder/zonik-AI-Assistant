@@ -59,8 +59,8 @@ return [
     ],
 
     'gemini' => [
-        'api_key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+        'api_key' => env('GEMINI_API_KEY', env('GOOGLE_AI_API_KEY', env('GOOGLE_API_KEY'))),
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),
     ],
 
     'customer_care' => [

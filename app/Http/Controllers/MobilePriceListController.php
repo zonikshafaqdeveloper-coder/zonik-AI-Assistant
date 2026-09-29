@@ -1825,9 +1825,12 @@ public function assistantChat(Request $request)
         }
     }
 
+    $geminiPlannerAvailable = !empty(config('services.gemini.api_key'))
+        && !$this->assistantGeminiIsTemporarilyUnavailable();
+
     $spokenItems = $this->extractAssistantOrderItems($rawMessage);
     if (count($spokenItems) > 1
-        && (!$isVoiceInput || empty(config('services.gemini.api_key')) || $this->assistantGeminiIsTemporarilyUnavailable())) {
+        && !$geminiPlannerAvailable) {
         $addedNames = [];
         $needsChoice = [];
         foreach ($spokenItems as $spokenItem) {
@@ -1862,7 +1865,7 @@ public function assistantChat(Request $request)
 
     $singleSpokenItems = $this->extractAssistantOrderItemsLocally($rawMessage);
     if (count($singleSpokenItems) === 1
-        && (!$isVoiceInput || empty(config('services.gemini.api_key')) || $this->assistantGeminiIsTemporarilyUnavailable())
+        && !$geminiPlannerAvailable
         && $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)) {
         $singleItem = $singleSpokenItems[0];
@@ -1930,31 +1933,40 @@ public function assistantChat(Request $request)
         && ($looksLikeProductRequest || $isQuantityProductUtterance);
     $isExplicitProductEnquiry = $this->assistantExplicitEnquiryRequested($message)
         && $this->assistantRequestedMissingProductName(['search_query' => ''], $message) !== '';
-    $voiceSemanticProductAnalysis = $isVoiceInput
-        && ($isProductDiscovery || $isQuantityProductUtterance || $isExplicitProductEnquiry || $looksLikeProductRequest)
-        && !empty(config('services.gemini.api_key'))
-        && !$this->assistantGeminiIsTemporarilyUnavailable();
+    $shouldUseSemanticPlanner = $geminiPlannerAvailable;
     // When a customer interrupts a soft prompt (for example with another
     // product or a Zonik question), give the semantic layer the verified
     // workflow summary. It can then understand the latest message without
     // forcing it to be an answer to an older prompt.
     $analysisWorkflow = $request->session()->get($flowKey, []);
     if (!is_array($analysisWorkflow)) $analysisWorkflow = [];
-    $intent = $isCartRemove
-        ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_remove'])
-        : ($isAddConfirmation
-        ? $this->localAssistantIntent($message)
-        : ($isCartQuantityUpdate
-        ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart_update'])
-        : ($isCartRequest
-        ? array_merge($this->localAssistantIntent($message), ['intent' => 'cart', 'general_reply' => ''])
-        : ($voiceSemanticProductAnalysis
+    $semanticIntent = $shouldUseSemanticPlanner
         ? $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet)
-        : (($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance || $isExplicitProductEnquiry
-            || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
-            || ($isQuantityReply && !empty($pendingProducts)))
-        ? array_merge($this->localAssistantIntent($message), ['search_query' => ($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest || $isExplicitProductEnquiry) ? $this->assistantLocalProductSearchQuery($message) : ''])
-        : $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet))))));
+        : null;
+    $semanticIntent = (is_array($semanticIntent) && !empty($semanticIntent['intent'])) ? $semanticIntent : null;
+    $localIntent = $this->localAssistantIntent($message);
+    $intentBase = $semanticIntent ?: $localIntent;
+    if ($isCartRemove) {
+        $intent = array_merge($intentBase, ['intent' => 'cart_remove']);
+    } elseif ($isAddConfirmation) {
+        $intent = $intentBase;
+    } elseif ($isCartQuantityUpdate) {
+        $intent = array_merge($intentBase, ['intent' => 'cart_update']);
+    } elseif ($isCartRequest) {
+        $intent = array_merge($intentBase, ['intent' => 'cart', 'general_reply' => '']);
+    } elseif ($isRecommendation || $isProductDiscovery || $selectedProductId || $isQuantityProductUtterance || $isExplicitProductEnquiry
+        || ($looksLikeProductRequest && $this->hasAssistantExplicitProductAction($message))
+        || ($isQuantityReply && !empty($pendingProducts))) {
+        $intent = array_merge($intentBase, [
+            'intent' => 'product_search',
+            'search_query' => trim((string) ($intentBase['search_query'] ?? '')) !== ''
+                ? trim((string) ($intentBase['search_query'] ?? ''))
+                : (($isProductDiscovery || $isQuantityProductUtterance || $looksLikeProductRequest || $isExplicitProductEnquiry)
+                    ? $this->assistantLocalProductSearchQuery($message) : ''),
+        ]);
+    } else {
+        $intent = $semanticIntent ?: $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet);
+    }
     if ($isCartQuantityUpdate) {
         // In a correction such as "500 nahi, 1 chahiye, 1 kardo", the first
         // number is the rejected old quantity. Always use the final stated
@@ -1975,12 +1987,9 @@ public function assistantChat(Request $request)
     if (!$isRecommendation
         && ($looksLikeProductRequest || $isQuantityProductUtterance || $isProductDiscovery)
         && (!$hasFastLocalProductParse || $isVoiceInput)
-        && !empty(config('services.gemini.api_key'))
-        && !Cache::has('gemini_assistant_rate_limited')
-        && !Cache::has('gemini_assistant_auth_unavailable')
-        && !Cache::has('gemini_assistant_model_unavailable')
-        && !Cache::has('gemini_assistant_network_unavailable')) {
-        $semanticIntent = $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet);
+        && $geminiPlannerAvailable) {
+        $semanticIntent = $semanticIntent
+            ?: $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet);
         if (($semanticIntent['intent'] ?? '') === 'product_search'
             && trim((string) ($semanticIntent['search_query'] ?? '')) !== '') {
             $intent = array_merge($intent, $semanticIntent);
@@ -6990,7 +6999,7 @@ private function assistantGeminiRetryAfterSeconds($response): int
 private function callGemini(string $prompt, float $temperature, int $maxOutputTokens, ?array $responseSchema = null): ?string
 {
     $apiKey = config('services.gemini.api_key');
-    $model = config('services.gemini.model', 'gemini-3.5-flash-lite');
+    $model = config('services.gemini.model', 'gemini-3.5-flash');
     if (empty($apiKey)) {
         return null;
     }
@@ -7092,7 +7101,7 @@ private function callGemini(string $prompt, float $temperature, int $maxOutputTo
 private function transcribeAssistantAudio(string $audioBytes, string $mime): array
 {
     $apiKey = config('services.gemini.api_key');
-    $model = config('services.gemini.model', 'gemini-3.5-flash-lite');
+    $model = config('services.gemini.model', 'gemini-3.5-flash');
     if (empty($apiKey) || $audioBytes === '') return [];
 
     try {
