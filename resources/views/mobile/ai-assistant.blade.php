@@ -3613,6 +3613,20 @@ function appendTyping() {
             let bestHeardTranscript = '';
             let finishListeningTimer = null;
             let bestConfidence = 0;
+            const voiceCompletionDelay = function (text, hasFinal, hasInterim) {
+                const normalized = String(text || '').trim();
+                const words = normalized ? normalized.split(/\s+/).length : 0;
+                const hasCartMutation = /\b(?:remove|delete|hata|hatao|nikal|nikaal|increase|decrease|badha|badhao|kam|ghata|quantity|qty|update|set|make)\b/i.test(normalized);
+                const hasOrderCommand = /\b(?:add|order|cart|chahiye|chaiye|daal|dal|rakh|give|need|want|de\s*do)\b/i.test(normalized);
+                const hasQuantity = /\b(?:\d+(?:\.\d+)?|one|two|three|four|five|ek|do|teen|char|chaar|panch|paanch|aur|more|extra)\b/i.test(normalized);
+                let delay = hasFinal ? 1250 : 2100;
+                if (hasInterim) delay += 450;
+                if (words >= 5) delay += 450;
+                if (words >= 8) delay += 350;
+                if (hasCartMutation || hasOrderCommand) delay += 300;
+                if ((hasCartMutation || hasOrderCommand) && !hasQuantity) delay += 350;
+                return Math.min(3200, delay);
+            };
             const finishCurrentUtterance = function (delay) {
                 if (finishListeningTimer) window.clearTimeout(finishListeningTimer);
                 finishListeningTimer = window.setTimeout(function () {
@@ -3657,7 +3671,7 @@ function appendTyping() {
                 receivedSpeech = true;
                 setMicStatus('Listening…', 'listening');
                 aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript, best: bestHeardTranscript});
-                finishCurrentUtterance(finalTranscript ? 850 : 1400);
+                finishCurrentUtterance(voiceCompletionDelay(bestHeardTranscript, !!finalTranscript, !!latestInterimTranscript));
             };
             recognition.onerror = function (event) {
                 if (['not-allowed', 'service-not-allowed'].includes(event.error)) {

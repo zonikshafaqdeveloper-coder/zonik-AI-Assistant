@@ -465,6 +465,43 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertSame(1.0, $correctedQuantity->invoke($controller, '500 nahi 1 chahiye 1 kardo', 500.0));
     }
 
+    public function test_cart_quantity_change_accepts_relative_commands_without_number(): void
+    {
+        $controller = new MobilePriceListController();
+        $detect = new ReflectionMethod($controller, 'isAssistantCartQuantityUpdateRequest');
+        $detect->setAccessible(true);
+        $resolve = new ReflectionMethod($controller, 'resolveAssistantCartTargetQuantity');
+        $resolve->setAccessible(true);
+
+        $this->assertTrue($detect->invoke($controller, 'Amul Taaza Milk badha do'));
+        $this->assertTrue($detect->invoke($controller, 'Real Orange Juice kam kar do'));
+        $this->assertFalse($detect->invoke($controller, 'price kam kar do'));
+        $this->assertSame(4, $resolve->invoke($controller, 'Amul Taaza Milk badha do', ['current_quantity' => 3], 1));
+        $this->assertSame(2, $resolve->invoke($controller, 'Real Orange Juice kam kar do', ['current_quantity' => 3], 1));
+    }
+
+    public function test_cart_matching_understands_brand_partial_and_position_references(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'findAssistantCartMatches');
+        $method->setAccessible(true);
+        $items = [
+            ['product_id' => 1, 'name' => 'Taaza Toned Milk 1 Ltr', 'brand' => 'Amul', 'unit' => '1 ltr', 'carton_size' => '-', 'price' => 75, 'image' => null, 'qty' => 3],
+            ['product_id' => 2, 'name' => 'Orange Juice 1 Ltr', 'brand' => 'Real', 'unit' => '1 ltr', 'carton_size' => '-', 'price' => 120, 'image' => null, 'qty' => 1],
+        ];
+
+        $brandPartial = $method->invoke(new MobilePriceListController(), 'amul taza milk badha do', $items);
+        $this->assertCount(1, $brandPartial);
+        $this->assertSame(1, $brandPartial[0]['id']);
+
+        $shortName = $method->invoke(new MobilePriceListController(), 'orange wala remove karo', $items);
+        $this->assertCount(1, $shortName);
+        $this->assertSame(2, $shortName[0]['id']);
+
+        $position = $method->invoke(new MobilePriceListController(), 'first wala kam kar do', $items);
+        $this->assertCount(1, $position);
+        $this->assertSame(1, $position[0]['id']);
+    }
+
     public function test_unverified_ai_text_cannot_claim_a_cart_mutation(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantNaturalFlowReply');

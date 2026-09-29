@@ -424,21 +424,24 @@ private function assistantCartItemsForResponse(?User $user, ?User $outlet): arra
 {
     if (!$user || !$outlet) return [];
 
-    return Cart::with('product')
+    return Cart::with('product.brand')
         ->where('user_id', $user->id)
         ->where('outlet_id', $outlet->id)
         ->orderBy('id')
         ->get()
         ->map(function ($item) {
+            $product = $item->product;
+            $brand = $product ? (optional($product->brand)->name ?: ($product->brands ?: '')) : '';
             return [
                 'product_id' => (int) $item->product_id,
-                'name' => optional($item->product)->product_name ?: 'Unknown product',
+                'name' => $product?->product_name ?: 'Unknown product',
+                'brand' => trim((string) $brand),
                 'qty' => $this->assistantResolvedCartQuantity($item),
                 'total' => (float) $item->total_amt_basic,
                 'price' => (float) $item->offer_price,
-                'unit' => optional($item->product)->unit ?: 'unit',
-                'carton_size' => optional($item->product)->carton_size ?: '-',
-                'image' => optional($item->product)->image ? asset('uploads/' . $item->product->image) : null,
+                'unit' => $product?->unit ?: 'unit',
+                'carton_size' => $product?->carton_size ?: '-',
+                'image' => $product?->image ? asset('uploads/' . $product->image) : null,
             ];
         })
         ->filter(fn ($item) => (float) ($item['qty'] ?? 0) > 0)
@@ -1196,22 +1199,25 @@ public function assistantChat(Request $request)
 
     $cartItems = [];
     if ($user && $outlet) {
-        $cartRows = Cart::with('product')
+        $cartRows = Cart::with('product.brand')
             ->where('user_id', $user->id)
             ->where('outlet_id', $outlet->id)
             ->orderBy('id')
             ->get();
 
         $cartItems = $cartRows->map(function ($item) {
+            $product = $item->product;
+            $brand = $product ? (optional($product->brand)->name ?: ($product->brands ?: '')) : '';
             return [
                 'product_id' => (int) $item->product_id,
-                'name' => optional($item->product)->product_name ?: 'Unknown product',
+                'name' => $product?->product_name ?: 'Unknown product',
+                'brand' => trim((string) $brand),
                 'qty' => $this->assistantResolvedCartQuantity($item),
                 'total' => (float) $item->total_amt_basic,
                 'price' => (float) $item->offer_price,
-                'unit' => optional($item->product)->unit ?: 'unit',
-                'carton_size' => optional($item->product)->carton_size ?: '-',
-                'image' => optional($item->product)->image ? asset('uploads/' . $item->product->image) : null,
+                'unit' => $product?->unit ?: 'unit',
+                'carton_size' => $product?->carton_size ?: '-',
+                'image' => $product?->image ? asset('uploads/' . $product->image) : null,
             ];
         })->filter(fn ($item) => (float) ($item['qty'] ?? 0) > 0)->take(50)->values()->all();
     }
@@ -1936,8 +1942,7 @@ public function assistantChat(Request $request)
         // number is the rejected old quantity. Always use the final stated
         // quantity instead of the generic intent parser's first number.
         $intent['quantity'] = $this->assistantCorrectedCartQuantity($message, $intent['quantity'] ?? null);
-        if (empty($intent['quantity'])
-            && preg_match('/\b(?:ek|one)\s+(?:aur|more)\b|\b(?:ek|one)\b.*\b(?:kam|less|reduce)\b/iu', $message)) {
+        if (empty($intent['quantity']) && $this->assistantUsesRelativeCartQuantity($message)) {
             $intent['quantity'] = 1;
         }
     }
@@ -4985,6 +4990,8 @@ private function isAssistantCartRequest(string $message): bool
 
 private function isAssistantCartQuantityUpdateRequest(string $message): bool
 {
+    if (preg_match('/\b(?:price|rate|discount|offer|mrp)\b/iu', $message)) return false;
+    if ($this->assistantUsesRelativeCartQuantity($message)) return true;
     if (preg_match('/\b(?:ek|one)\s+(?:aur|more)\b|\b(?:ek|one)\b.*\b(?:kam|less|reduce)\b/iu', $message)) {
         return true;
     }
@@ -5006,6 +5013,12 @@ private function isAssistantCartQuantityUpdateRequest(string $message): bool
         && (bool) preg_match('/\d+(?:\.\d+)?/', $message);
 }
 
+private function assistantUsesRelativeCartQuantity(string $message): bool
+{
+    return (bool) preg_match('/\b(?:(?:ek|one)\s+(?:aur|more|extra)|(?:aur|more|extra)\s+(?:ek|one)|(?:increase|badha|badhao|badhado)\b(?!.*\b(?:new|naya|fresh)\b)|(?:decrease|reduce|less|kam|ghata|ghatao)\b)\b/iu', $message)
+        || (bool) preg_match('/(?:à¤¬à¤¢à¤¼à¤¾|à¤¬à¤¢à¤¾|à¤µà¤¾à¤¢à¤µà¤¾|à¤•à¤®|à¤˜à¤Ÿà¤¾|à¤•à¤®à¥€)/u', $message);
+}
+
 private function isAssistantCartRemoveRequest(string $message): bool
 {
     if (preg_match('/(?:रिमूव|डिलीट|हटा(?:ओ|ना)?|निकाल(?:ो|ना)?)/u', $message)) return true;
@@ -5020,6 +5033,9 @@ private function isAssistantAddConfirmation(string $message): bool
 
 private function findAssistantCartMatches(string $message, array $cartItems): array
 {
+    $scoredMatches = $this->findAssistantCartMatchesByScore($message, $cartItems);
+    if (!empty($scoredMatches)) return $scoredMatches;
+
     if (preg_match('/\b(?:last|latest|aakhri|akhri|pichla|pichhli)\s+(?:wala\s+)?(?:item|product)?\b/iu', $message)) {
         $last = collect($cartItems)->last();
         return $last ? [[
@@ -5057,6 +5073,116 @@ private function findAssistantCartMatches(string $message, array $cartItems): ar
     ])->values()->all();
 }
 
+private function findAssistantCartMatchesByScore(string $message, array $cartItems): array
+{
+    $cartItems = array_values($cartItems);
+    if (empty($cartItems)) return [];
+
+    $positionWords = [
+        0 => '/\b(?:first|1st|pehla|pehli|pehle|upar|top)\s*(?:wala\s+)?(?:item|product)?\b/iu',
+        1 => '/\b(?:second|2nd|dusra|doosra|dusri|doosri|beech|middle)\s*(?:wala\s+)?(?:item|product)?\b/iu',
+        2 => '/\b(?:third|3rd|teesra|tisra)\s*(?:wala\s+)?(?:item|product)?\b/iu',
+    ];
+    foreach ($positionWords as $index => $pattern) {
+        if (preg_match($pattern, $message) && isset($cartItems[$index])) {
+            return [$this->assistantCartMatchPayload($cartItems[$index])];
+        }
+    }
+    if (preg_match('/\b(?:last|latest|aakhri|akhri|pichla|pichhli|neeche|bottom)\s+(?:wala\s+)?(?:item|product)?\b/iu', $message)) {
+        $last = collect($cartItems)->last();
+        return $last ? [$this->assistantCartMatchPayload($last)] : [];
+    }
+
+    $query = mb_strtolower($this->normalizeAssistantSearchText($message));
+    $query = preg_replace('/\d+(?:\.\d+)?/', ' ', $query) ?? $query;
+    $query = preg_replace('/\b(?:increase|decrease|reduce|less|change|update|set|make|quantity|qty|cart|please|pls|my|the|to|kardo|kar|do|badha|badhao|badhado|kam|ghata|ghatao|more|extra|remove|delete|hata|hatao|hatado|nikalo|nikaal|karo|ki|ka|ko|se|mein|me|wala|wali|wale|item|product|rakh|rakho|rakhdo|krdo|aur|ek|one)\b/iu', ' ', $query) ?? $query;
+    $query = trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
+    if ($query === '') return count($cartItems) === 1 ? [$this->assistantCartMatchPayload($cartItems[0])] : [];
+
+    $comparableQuery = $this->assistantComparableProductText($query);
+    $terms = array_values(array_unique(array_filter(
+        preg_split('/\s+/u', $comparableQuery) ?: [],
+        fn ($term) => strlen($term) > 1
+    )));
+    if (empty($terms)) return count($cartItems) === 1 ? [$this->assistantCartMatchPayload($cartItems[0])] : [];
+
+    $ranked = collect($cartItems)->map(function ($item) use ($query, $comparableQuery, $terms) {
+        $candidateText = trim(implode(' ', array_filter([
+            (string) ($item['brand'] ?? ''),
+            (string) ($item['name'] ?? ''),
+            (string) ($item['unit'] ?? ''),
+            (string) ($item['carton_size'] ?? ''),
+        ])));
+        $candidateComparable = $this->assistantComparableProductText($candidateText);
+        $tokens = $this->assistantProductSearchTokens($candidateText);
+        $phraseScore = $this->assistantSearchPhraseScore($query, $candidateText);
+        $score = $phraseScore;
+        if ($comparableQuery !== '' && $candidateComparable !== ''
+            && str_contains(' ' . $candidateComparable . ' ', ' ' . $comparableQuery . ' ')) {
+            $score += 160;
+        }
+
+        $matchedTerms = 0;
+        foreach ($terms as $term) {
+            $best = 0;
+            foreach ($tokens as $token) {
+                if ($token === $term) {
+                    $best = 125;
+                    break;
+                }
+                $best = max($best, $this->assistantSearchWordScore($term, $token));
+            }
+            if ($best > 0) $matchedTerms++;
+            $score += $best;
+        }
+
+        return [
+            'item' => $item,
+            'score' => $score,
+            'matched_terms' => $matchedTerms,
+            'phrase_score' => $phraseScore,
+        ];
+    })->filter(function ($match) use ($terms) {
+        $required = count($terms);
+        $matchedTerms = (int) ($match['matched_terms'] ?? 0);
+        $score = (int) ($match['score'] ?? 0);
+        $phraseScore = (int) ($match['phrase_score'] ?? 0);
+
+        return ($required > 0 && $matchedTerms >= $required && $score >= max(85, $required * 55))
+            || ($required >= 2 && $matchedTerms >= max(2, (int) ceil($required * 0.67)) && $score >= 150)
+            || $phraseScore >= 135;
+    })->sortBy([
+        ['matched_terms', 'desc'],
+        ['phrase_score', 'desc'],
+        ['score', 'desc'],
+    ])->values();
+
+    if ($ranked->isEmpty()) return [];
+
+    $best = $ranked->first();
+    $close = $ranked->filter(fn ($match) =>
+        (int) ($match['matched_terms'] ?? 0) === (int) ($best['matched_terms'] ?? 0)
+        && (int) ($match['score'] ?? 0) >= ((int) ($best['score'] ?? 0) - 20)
+    )->values();
+
+    return $close->map(fn ($match) => $this->assistantCartMatchPayload($match['item']))->all();
+}
+
+private function assistantCartMatchPayload(array $item): array
+{
+    return [
+        'id' => (int) ($item['product_id'] ?? $item['id'] ?? 0),
+        'name' => (string) ($item['name'] ?? 'Product'),
+        'brand' => (string) ($item['brand'] ?? ''),
+        'unit' => (string) ($item['unit'] ?? 'unit'),
+        'carton_size' => (string) ($item['carton_size'] ?? '-'),
+        'price' => (float) ($item['price'] ?? 0),
+        'image' => $item['image'] ?? null,
+        'available_in_outlet' => true,
+        'current_quantity' => (int) ($item['qty'] ?? $item['current_quantity'] ?? 1),
+    ];
+}
+
 private function findAssistantCartMatchesSemantically(string $message, array $cartItems): array
 {
     $localMatches = $this->findAssistantCartMatches($message, $cartItems);
@@ -5065,8 +5191,10 @@ private function findAssistantCartMatchesSemantically(string $message, array $ca
     $options = collect($cartItems)->take(50)->map(fn ($item) => [
         'product_id' => (int) ($item['product_id'] ?? 0),
         'name' => trim((string) ($item['name'] ?? '')),
+        'brand' => trim((string) ($item['brand'] ?? '')),
         'quantity' => (int) ($item['qty'] ?? 0),
         'unit' => trim((string) ($item['unit'] ?? '')),
+        'carton_size' => trim((string) ($item['carton_size'] ?? '')),
     ])->filter(fn ($item) => $item['product_id'] > 0)->values()->all();
     if (empty($options)) return [];
 
@@ -5090,6 +5218,7 @@ private function findAssistantCartMatchesSemantically(string $message, array $ca
 
     return [[
         'id' => (int) $item['product_id'], 'name' => $item['name'], 'unit' => $item['unit'],
+        'brand' => (string) ($item['brand'] ?? ''),
         'carton_size' => $item['carton_size'], 'price' => $item['price'], 'image' => $item['image'],
         'available_in_outlet' => true, 'current_quantity' => (int) $item['qty'],
     ]];
