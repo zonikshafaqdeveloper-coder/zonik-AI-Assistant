@@ -457,6 +457,8 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertTrue($update->invoke($controller, 'Real juice quantity 4 kar do'));
         $this->assertTrue($update->invoke($controller, 'rice ko 2 kar do'));
         $this->assertTrue($update->invoke($controller, 'Amul Butter 5 rakh do'));
+        $this->assertTrue($update->invoke($controller, 'Amul Taaza Milk quantity update kar do'));
+        $this->assertTrue($update->invoke($controller, 'iska quantity badal do'));
         $this->assertTrue($update->invoke($controller, 'अरे वह पहले पांच थी अब 2 करो'));
         $this->assertTrue($update->invoke($controller, 'अमूल बटर क को 10 कर दो 500 के जगह'));
 
@@ -478,6 +480,7 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($detect->invoke($controller, 'price kam kar do'));
         $this->assertSame(4, $resolve->invoke($controller, 'Amul Taaza Milk badha do', ['current_quantity' => 3], 1));
         $this->assertSame(2, $resolve->invoke($controller, 'Real Orange Juice kam kar do', ['current_quantity' => 3], 1));
+        $this->assertSame(5, $resolve->invoke($controller, 'isko 5 kar do', ['current_quantity' => 3], 5));
     }
 
     public function test_cart_matching_understands_brand_partial_and_position_references(): void
@@ -500,6 +503,10 @@ class AssistantReplyGuardTest extends TestCase
         $position = $method->invoke(new MobilePriceListController(), 'first wala kam kar do', $items);
         $this->assertCount(1, $position);
         $this->assertSame(1, $position[0]['id']);
+
+        $partialUpdate = $method->invoke(new MobilePriceListController(), 'taza quantity update kar do', $items);
+        $this->assertCount(1, $partialUpdate);
+        $this->assertSame(1, $partialUpdate[0]['id']);
     }
 
     public function test_unverified_ai_text_cannot_claim_a_cart_mutation(): void
@@ -512,6 +519,21 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertSame('Valid product aur quantity bataiye.', $reply);
         $reply = $method->invoke(new MobilePriceListController(), ['assistant_reply' => 'Amul Butter ki quantity update karke 10 kar di hai.'], 'Product update execute nahi hui.');
         $this->assertSame('Product update execute nahi hui.', $reply);
+
+        $claims = new ReflectionMethod(MobilePriceListController::class, 'assistantReplyClaimsUnverifiedMutation');
+        $claims->setAccessible(true);
+        $this->assertTrue($claims->invoke(new MobilePriceListController(), 'Haan bhai, abhi karke deta hu.'));
+        $this->assertTrue($claims->invoke(new MobilePriceListController(), 'Abhi quantity update karke deta hoon.'));
+    }
+
+    public function test_cart_quantity_update_reply_reports_verified_before_and_after(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantCartQuantityUpdateReply');
+        $method->setAccessible(true);
+
+        $reply = $method->invoke(new MobilePriceListController(), ['before_quantity' => 3, 'quantity' => 5], 'Amul Taaza Milk');
+
+        $this->assertStringContainsString('3 se 5 update', $reply);
     }
 
     public function test_explicit_order_confirmation_is_distinguished_from_just_finishing_items(): void

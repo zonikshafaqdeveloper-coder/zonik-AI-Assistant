@@ -1997,7 +1997,7 @@ body:has(.ai-page){background:#edf2f5}
         }
         function setAgentUiFromWorkflow(workflow, autoAdded) {
             const stage = String(workflow?.stage || '');
-            if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity'].includes(stage)) return setAgentUiState('clarifying');
+            if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity', 'await_update_quantity'].includes(stage)) return setAgentUiState('clarifying');
             if (['delivery_details', 'payment_method', 'checkout_ready', 'confirm_order'].includes(stage)) return setAgentUiState('checkout');
             if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else'].includes(stage)) return setAgentUiState('ready');
             if (stage === 'customer_care_offer') return setAgentUiState('clarifying', 'Would you like me to send this enquiry to customer care?');
@@ -2169,7 +2169,7 @@ body:has(.ai-page){background:#edf2f5}
             const workflow = response.workflow || {};
             const workflowStage = String(workflow.stage || response.workflow_stage || '');
             const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakta hoon.');
-            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'];
+            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'];
 
             onboardingStage = null;
             activeOrderingStage = supportedStages.includes(workflowStage) ? workflowStage : null;
@@ -2754,6 +2754,7 @@ function appendTyping() {
                     confirm_product: 'Main is product par ruki hoon. Jab free ho, haan ya nahi bol dena.',
                     clarify_product: 'Options screen par hain. Product ka naam bolkar cart mein add ya enquiry bata dijiye.',
                     await_quantity: 'Main quantity ka wait kar raha hoon. Free hoke sirf number bol dena.',
+                    await_update_quantity: 'Main quantity update par ruka hoon. Free hoke naya number bol dena.',
                     confirm_quantity: 'Quantity pending hai. Jab ready ho, confirm ya change bol dena.',
                     anything_else: 'Aap busy ho toh koi problem nahi. Baad mein yahin se order continue ho jayega.',
                     confirm_order: 'Order summary safe hai. Free hone par confirm karke delivery continue kar lena.',
@@ -2769,6 +2770,7 @@ function appendTyping() {
                 confirm_product: ['Jab ready ho, bas haan ya nahi bol dijiye—main isi product ke saath aage badh jaungi.', 'Koi jaldi nahi hai. Yeh product rakhna hai ya koi aur option dekhna hai?'],
                 clarify_product: ['Product ka naam ya brand bolkar saath mein cart mein add ya enquiry bol dijiye.', 'Kaunsa flavour chahiye aur usko cart mein add karna hai ya price enquiry bhejni hai?'],
                 await_quantity: ['Bas quantity bata dijiye, jaise 1, 2 ya 3—phir main add kar dungi.', 'Is product ki kitni quantity rakhni hai? Aap araam se bata dijiye.'],
+                await_update_quantity: ['Final quantity number bol dijiye, main order list update kar dunga.', 'Kitni quantity karni hai? Bas naya number bol dijiye.'],
                 confirm_quantity: ['Quantity confirm kar dijiye, phir main order list update kar dungi.', 'Jo quantity batayi thi, wahi rakhni hai ya change karni hai?'],
                 anything_else: ['Aur kuch chahiye ho toh bata dijiye. Nahi toh order confirm bol dijiye, main summary dikha dungi.', 'Main yahin hoon—kuch add karna hai, ya order summary ke liye confirm bolna hai?'],
                 confirm_order: ['Summary check kar lijiye. Sab sahi ho toh confirm bol dijiye, phir delivery slot choose karwaunga.', 'Order ready hai. Aapki haan milte hi selected outlet address par slot options dikh jaayenge.'],
@@ -3290,7 +3292,7 @@ function appendTyping() {
                     clearAssistantDeliveryOptions();
                 }
                 liveOrderEditable = workflow.stage === 'confirm_order';
-                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'].includes(workflow.stage)
+                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'].includes(workflow.stage)
                     ? workflow.stage
                     : null;
                 aiDebug('Workflow state updated', {previousStage: requestStage, currentStage: activeOrderingStage, workflow: workflow});
@@ -3395,7 +3397,7 @@ function appendTyping() {
                         appendMessage('assistant', '<div class="ai-product-actions"><a class="ai-product-btn primary" href="' + escapeHtml(dialUrl) + '">Opening Customer Care call…</a></div>');
                         openCustomerCareDialer(dialUrl, 'customer-care-workflow-response', false);
                     }
-                    activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready'].includes(workflow.resume_stage)
+                    activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready'].includes(workflow.resume_stage)
                         ? workflow.resume_stage
                         : 'anything_else';
                 }
