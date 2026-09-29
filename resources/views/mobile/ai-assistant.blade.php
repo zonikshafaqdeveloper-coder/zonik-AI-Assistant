@@ -1999,7 +1999,7 @@ body:has(.ai-page){background:#edf2f5}
             const stage = String(workflow?.stage || '');
             if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity', 'await_update_quantity', 'await_remove_quantity', 'choose_cart_item', 'update_cart_item', 'choose_cart_remove', 'remove_cart_item'].includes(stage)) return setAgentUiState('clarifying');
             if (['delivery_details', 'payment_method', 'checkout_ready', 'confirm_order'].includes(stage)) return setAgentUiState('checkout');
-            if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else'].includes(stage)) return setAgentUiState('ready');
+            if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else', 'top_selling'].includes(stage)) return setAgentUiState('ready');
             if (stage === 'customer_care_offer') return setAgentUiState('clarifying', 'Would you like me to send this enquiry to customer care?');
             if (stage === 'missing_product_enquiry') return setAgentUiState('clarifying', 'Should I send this product enquiry?');
             setAgentUiState('matching');
@@ -2170,7 +2170,7 @@ body:has(.ai-page){background:#edf2f5}
             const workflow = response.workflow || {};
             const workflowStage = String(workflow.stage || response.workflow_stage || '');
             const reply = String(response.reply || response.message || workflow.reply || 'Main Zonik se related ismein madad kar sakta hoon.');
-            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'];
+            const supportedStages = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'top_selling', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'];
 
             onboardingStage = null;
             activeOrderingStage = supportedStages.includes(workflowStage) ? workflowStage : null;
@@ -3293,7 +3293,7 @@ function appendTyping() {
                     clearAssistantDeliveryOptions();
                 }
                 liveOrderEditable = workflow.stage === 'confirm_order';
-                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'].includes(workflow.stage)
+                activeOrderingStage = ['confirm_product', 'await_quantity', 'confirm_quantity', 'anything_else', 'clarify_product', 'top_selling', 'await_remove_quantity', 'await_update_quantity', 'confirm_order', 'order_suggestions', 'delivery_details', 'payment_method', 'checkout_ready', 'customer_care_offer', 'missing_product_enquiry'].includes(workflow.stage)
                     ? workflow.stage
                     : null;
                 aiDebug('Workflow state updated', {previousStage: requestStage, currentStage: activeOrderingStage, workflow: workflow});
@@ -3348,7 +3348,7 @@ function appendTyping() {
                         clarificationMessage.remove();
                         clarificationMessage = null;
                     }
-                    const productCardStages = ['clarify_product', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
+                    const productCardStages = ['clarify_product', 'top_selling', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
                         html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 3).map(suggestionCard).join('') + '</div>'

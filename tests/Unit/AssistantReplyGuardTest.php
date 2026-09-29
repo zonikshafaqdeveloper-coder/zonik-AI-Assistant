@@ -229,6 +229,37 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($method->invoke(new MobilePriceListController(), 'Real Orange Juice add karo', 'unknown'));
     }
 
+    public function test_add_previously_suggested_understands_natural_memory_phrases(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantAddPreviouslySuggestedRequest');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertTrue($method->invoke($controller, 'tum mujhe bataye wo sub add karro'));
+        $this->assertTrue($method->invoke($controller, 'jo bataye the sab cart mein daal do'));
+        $this->assertFalse($method->invoke($controller, 'saare products add karo'));
+    }
+
+    public function test_previously_suggested_products_prefer_full_memory_over_visible_cards(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantProductsFromCurrentOrRecentSuggestions');
+        $method->setAccessible(true);
+
+        $products = $method->invoke(new MobilePriceListController(), [
+            'stage' => 'clarify_product',
+            'products' => [
+                ['id' => 11, 'name' => 'Visible Tea'],
+            ],
+            'suggestions' => [
+                ['id' => 21, 'name' => 'Remembered Tea'],
+                ['id' => 22, 'name' => 'Remembered Biscuit'],
+                ['id' => 21, 'name' => 'Duplicate Tea'],
+            ],
+        ], null, null, null);
+
+        $this->assertSame([21, 22], array_map(fn ($product) => (int) $product['id'], $products));
+    }
+
     public function test_customer_care_decline_wins_over_the_continue_command_and_resumes_the_order(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'continueAssistantOrderFlow');

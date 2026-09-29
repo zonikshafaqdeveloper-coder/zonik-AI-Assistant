@@ -1262,9 +1262,11 @@ public function assistantChat(Request $request)
         $request->session()->put($flowKey, $orderFlow);
     }
     $clientWorkflowStage = (string) $request->input('workflow_stage', '');
+    $addPreviouslySuggestedRequest = $this->assistantAddPreviouslySuggestedRequest($message);
     $clientSentFreshProductCommand = $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)
-        && !$this->isAssistantAddConfirmation($message);
+        && !$this->isAssistantAddConfirmation($message)
+        && !$addPreviouslySuggestedRequest;
     if ($clientSentFreshProductCommand) {
         $selectedProductId = null;
         if (in_array(($orderFlow['stage'] ?? null), ['confirm_product', 'clarify_product', 'await_quantity', 'confirm_quantity'], true)) {
@@ -1309,7 +1311,7 @@ public function assistantChat(Request $request)
     // Product facts and price protection come from the selected outlet's
     // verified price list. A model may understand wording, but it never
     // decides prices or executes an unsafe "add everything" command.
-    if ($this->assistantAddPreviouslySuggestedRequest($message)) {
+    if ($addPreviouslySuggestedRequest) {
         $suggestedProducts = $this->assistantProductsFromCurrentOrRecentSuggestions($orderFlow, $user, $outlet, $conversationId);
         if (!empty($suggestedProducts)) {
             $added = [];
@@ -1372,8 +1374,8 @@ public function assistantChat(Request $request)
             $recipeProducts = array_values($recipePlan['products'] ?? []);
             $recipeNeedsChoice = count($recipeProducts) > 1;
             $recipeState = $recipeNeedsChoice
-                ? ['stage' => 'clarify_product', 'products' => $recipeProducts]
-                : ['stage' => 'anything_else'];
+                ? ['stage' => 'clarify_product', 'products' => $recipeProducts, 'suggestions' => $recipeProducts]
+                : ['stage' => 'anything_else', 'suggestions' => $recipeProducts];
             $request->session()->put($flowKey, $recipeState);
             $recipePlan['workflow'] = ['stage' => $recipeNeedsChoice ? 'clarify_product' : 'anything_else', 'recipe_suggestions' => true];
             if ($recipeNeedsChoice) {
@@ -1390,8 +1392,8 @@ public function assistantChat(Request $request)
         if ($weatherPlan) {
             $weatherProducts = array_values($weatherPlan['products'] ?? []);
             $weatherState = !empty($weatherProducts)
-                ? ['stage' => 'clarify_product', 'products' => $weatherProducts]
-                : ['stage' => 'anything_else'];
+                ? ['stage' => 'clarify_product', 'products' => $weatherProducts, 'suggestions' => $weatherProducts]
+                : ['stage' => 'anything_else', 'suggestions' => $weatherProducts];
             $request->session()->put($flowKey, $weatherState);
             $weatherPlan['workflow'] = ['stage' => $weatherState['stage'], 'weather_suggestions' => true];
             $weatherPlan['state'] = $weatherState;
@@ -1404,8 +1406,8 @@ public function assistantChat(Request $request)
         if ($guestPlan) {
             $guestProducts = array_values($guestPlan['products'] ?? []);
             $guestState = !empty($guestProducts)
-                ? ['stage' => 'clarify_product', 'products' => $guestProducts]
-                : ['stage' => 'anything_else'];
+                ? ['stage' => 'clarify_product', 'products' => $guestProducts, 'suggestions' => $guestProducts]
+                : ['stage' => 'anything_else', 'suggestions' => $guestProducts];
             $request->session()->put($flowKey, $guestState);
             $guestPlan['workflow'] = ['stage' => $guestState['stage'], 'guest_suggestions' => true];
             $guestPlan['state'] = $guestState;
@@ -2246,6 +2248,13 @@ public function assistantChat(Request $request)
     if ($automaticEnquiry) {
         $workflow['stage'] = 'anything_else';
         $request->session()->put($flowKey, ['stage' => 'anything_else']);
+    }
+    if (!$autoAdded && $isRecommendation && !empty($productHints)) {
+        $request->session()->put($flowKey, [
+            'stage' => 'anything_else',
+            'suggestions' => array_values($productHints),
+        ]);
+        $workflow['suggestions_remembered'] = true;
     }
     // A missing product is a real consent step, not merely a text suggestion.
     // Persist it so a following voice reply such as "haan enquiry bhejo" sends
@@ -4987,7 +4996,7 @@ private function assistantAddPreviouslySuggestedRequest(string $message): bool
     $lower = mb_strtolower(trim($message));
     if ($lower === '') return false;
 
-    $refersBack = (bool) preg_match('/\b(?:ye|yeh|is|in|inka|inke|isko|inko|jo\s+jo|jo\s+bhi|jo|jaisa|jitna|tumne|tum\s+ne|aapne|aap\s+ne|woh|wo|wahi|unko|unhe|those|these|this|that|suggest(?:ed)?|suggestions?|bole\s+the|bola\s+tha|bataya\s+tha|dikhaya\s+tha|pehle\s+(?:bole|bola|bataya|dikhaya))\b/iu', $lower);
+    $refersBack = (bool) preg_match('/\b(?:ye|yeh|is|in|inka|inke|isko|inko|jo\s+jo|jo\s+bhi|jo|jaisa|jitna|tum(?:ne|\s+ne)?|aap(?:ne|\s+ne)?|woh|wo|wahi|unko|unhe|those|these|this|that|suggest(?:ed)?|suggestions?|bole(?:\s+the)?|bola(?:\s+tha)?|batay(?:a|e|i)(?:\s+tha|\s+the)?|dikhay(?:a|e|i)(?:\s+tha|\s+the)?|pehle\s+(?:bole|bola|bataya|bataye|dikhaya|dikhaye))\b/iu', $lower);
     $wantsAdd = (bool) preg_match('/\b(?:add|cart|order|daal|dal|dalo|daalo|laga|lagao|kar\s*do|kardo|de\s*do|rakh\s*do|include)\b/iu', $lower);
     $all = (bool) preg_match('/\b(?:sab|sub|saare|sare|sara|all|everything|all\s+these|ye\s+sab|yeh\s+sab|in\s+sab|inko\s+sab|jo\s+jo|jo\s+bhi)\b/iu', $lower);
     $affirmativeAll = (bool) preg_match('/^\s*(?:haan|han|haa|ha|yes|yeah|ok|okay|theek|thik|ji)\b.*\b(?:sab|sub|saare|sare|all|ye\s+sab|yeh\s+sab|in\s+sab)\b/iu', $lower);
@@ -4997,9 +5006,15 @@ private function assistantAddPreviouslySuggestedRequest(string $message): bool
 
 private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?User $user, ?User $outlet, ?string $conversationId): array
 {
-    $products = collect($flow['products'] ?? $flow['suggestions'] ?? [])
+    $products = collect($flow['suggestions'] ?? $flow['last_suggestions'] ?? [])
         ->filter(fn ($product) => is_array($product) && empty($product['order_snapshot']))
         ->values();
+
+    if ($products->isEmpty()) {
+        $products = collect($flow['products'] ?? [])
+            ->filter(fn ($product) => is_array($product) && empty($product['order_snapshot']))
+            ->values();
+    }
 
     if ($products->isEmpty() && $user && $conversationId) {
         $message = AiAssistantMessage::where('user_id', $user->id)
