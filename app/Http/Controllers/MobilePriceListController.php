@@ -1197,6 +1197,7 @@ public function assistantChat(Request $request)
         'delivery_details' => 'nullable|string|max:1000',
         'candidate_set_id' => 'nullable|string|max:64',
         'input_source' => 'nullable|string|max:40',
+        'last_assistant_reply' => 'nullable|string|max:1000',
     ]);
 
     $user = $request->user();
@@ -1246,6 +1247,14 @@ public function assistantChat(Request $request)
     if (empty($orderFlow) && $user && $conversationId) {
         $orderFlow = Cache::get($this->assistantStateCacheKey($user->id, $conversationId), []);
         if (!empty($orderFlow)) $request->session()->put($flowKey, $orderFlow);
+    }
+    $clientLastAssistantReply = trim((string) $request->input('last_assistant_reply', ''));
+    if ($clientLastAssistantReply !== '' && !empty($orderFlow)) {
+        $orderFlow['last_assistant_reply'] = mb_substr($clientLastAssistantReply, 0, 500);
+        $request->session()->put($flowKey, $orderFlow);
+        if ($user && $conversationId) {
+            Cache::put($this->assistantStateCacheKey($user->id, $conversationId), $orderFlow, now()->addHours(24));
+        }
     }
     $rememberedCheckoutPreferences = $user && $conversationId
         ? Cache::get($this->assistantCheckoutPreferenceKey($user->id, $conversationId), [])
@@ -1940,6 +1949,9 @@ public function assistantChat(Request $request)
     // forcing it to be an answer to an older prompt.
     $analysisWorkflow = $request->session()->get($flowKey, []);
     if (!is_array($analysisWorkflow)) $analysisWorkflow = [];
+    if ($clientLastAssistantReply !== '') {
+        $analysisWorkflow['last_assistant_reply'] = mb_substr($clientLastAssistantReply, 0, 500);
+    }
     $semanticIntent = $shouldUseSemanticPlanner
         ? $this->analyzeAssistantMessage($rawMessage, $recentMessages, $cartItems, $analysisWorkflow, $user, $outlet)
         : null;
@@ -5981,13 +5993,45 @@ private function assistantSemanticWorkflowContext(array $flow): array
         ];
     }
 
-    $choices = $flow['products'] ?? $flow['suggestions'] ?? [];
-    if (is_array($choices) && !empty($choices)) {
-        $context['visible_choices'] = collect($choices)->filter(fn ($choice) => is_array($choice))
+    foreach (['quantity', 'current_quantity', 'requested_quantity'] as $quantityKey) {
+        if (isset($flow[$quantityKey]) && is_numeric($flow[$quantityKey])) {
+            $context[$quantityKey] = (float) $flow[$quantityKey];
+        }
+    }
+
+    $checkoutPreferences = $flow['checkout_preferences'] ?? [];
+    if (is_array($checkoutPreferences) && !empty($checkoutPreferences)) {
+        $context['checkout_preferences'] = collect($checkoutPreferences)
+            ->map(fn ($value) => mb_substr(trim((string) $value), 0, 180))
+            ->filter(fn ($value) => $value !== '')
+            ->all();
+    }
+
+    $visibleChoices = $flow['products'] ?? [];
+    if ((!is_array($visibleChoices) || empty($visibleChoices)) && is_array($flow['suggestions'] ?? null)) {
+        $visibleChoices = $flow['suggestions'];
+    }
+    if (is_array($visibleChoices) && !empty($visibleChoices)) {
+        $context['visible_choices'] = collect($visibleChoices)->filter(fn ($choice) => is_array($choice))
             ->take(6)->map(fn ($choice) => [
                 'id' => (int) ($choice['id'] ?? 0),
                 'name' => trim((string) ($choice['name'] ?? '')),
                 'brand' => trim((string) ($choice['brand'] ?? '')),
+                'quantity' => (float) ($choice['selected_quantity'] ?? $choice['requested_quantity'] ?? 0),
+            ])->filter(fn ($choice) => $choice['id'] > 0 && $choice['name'] !== '')
+            ->values()->all();
+    }
+
+    $rememberedSuggestions = $flow['suggestions'] ?? [];
+    if (is_array($rememberedSuggestions) && !empty($rememberedSuggestions)) {
+        $context['remembered_suggestions'] = collect($rememberedSuggestions)->filter(fn ($choice) => is_array($choice))
+            ->take(10)->map(fn ($choice) => [
+                'id' => (int) ($choice['id'] ?? 0),
+                'name' => trim((string) ($choice['name'] ?? '')),
+                'brand' => trim((string) ($choice['brand'] ?? '')),
+                'quantity' => (float) ($choice['selected_quantity'] ?? $choice['requested_quantity'] ?? 0),
+                'for' => trim((string) ($choice['recipe_ingredient'] ?? '')),
+                'available_in_outlet' => array_key_exists('available_in_outlet', $choice) ? (bool) $choice['available_in_outlet'] : null,
             ])->filter(fn ($choice) => $choice['id'] > 0 && $choice['name'] !== '')
             ->values()->all();
     }
@@ -6053,6 +6097,8 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
         // product searches. Only a clear local ordering command can use the
         // catalogue fallback; all ambiguous input remains conversational.
         'intent' => $isGeneralConversation ? 'greeting' : ($isClearLocalProductRequest && !$isQuestion ? 'product_search' : 'other'),
+        'task' => $isClearLocalProductRequest && !$isQuestion ? 'order_product' : ($isGeneralConversation || $isQuestion ? 'answer' : 'none'),
+        'needs_backend_action' => $isClearLocalProductRequest && !$isQuestion,
         'search_query' => $isClearLocalProductRequest && !$isQuestion ? $message : '',
         'quantity' => ($this->assistantSpokenOrderQuantity($message) !== null) ? (float) $this->assistantSpokenOrderQuantity($message) : null,
         'unit' => preg_match('/\b(box|carton|pack|packet|pcs?|pieces?|dozen)\b/i', $message, $unitMatch) ? $unitMatch[1] : null,
@@ -6062,6 +6108,7 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
         'found_reply' => '',
         'not_found_reply' => '',
         'general_reply' => $isGeneralConversation ? 'Namaste! Bataiye, kya chahiye?' : '',
+        'spoken_response' => $isGeneralConversation ? 'Namaste! Bataiye, kya chahiye?' : '',
     ];
 
     if (empty(config('services.gemini.api_key'))) {
@@ -6075,11 +6122,13 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
     $priceListContext = empty($priceListHints)
         ? 'No selected price-list candidates supplied; backend will still search the selected price list.'
         : json_encode($priceListHints, JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the multilingual understanding layer for Zonik, a real grocery ordering assistant and general in-app helper. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. Treat the current message as possibly noisy speech-to-text: tolerate repeated words, missing punctuation, half words, phonetic spelling, Hinglish, Hindi, English, and mixed word order. Use catalogue-style reasoning only to understand intent, never to invent availability. Examples of likely STT/product variants: reel/riyal/rial can mean Real, juce/juse/joos/juis can mean juice, orenge/oranj can mean orange, mik/mikl/melk can mean milk, taza/taja/taaja can mean taaza. Use the selected price-list candidate names below as grounding hints for product spelling and brand names; if the customer seems to be saying one of those products, return that product's natural searchable name. Candidate hints are not proof of add success: backend validation remains final. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Separate product, pack_size, and order quantity: '200ml wala' means pack_size 200ml and quantity 0; '200ml wale do' means pack_size 200ml and quantity 2; '1 litre wala ek' means pack_size 1ltr and quantity 1; 'do litre wala ek' means pack_size 2ltr and quantity 1. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent), unit, and pack_size. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'reel orange joos ek' => product_search, search_query 'Real orange juice', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nSelected user/outlet price-list candidate hints:\n{$priceListContext}\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
+    $prompt = "You are the multilingual brain before every Zonik voice/text command: first understand the customer's real task, then choose the safest app action. Analyze the customer's COMPLETE CURRENT message and its relationship to the full supplied conversation before deciding anything. If the task needs the app to add, update, remove, show, deliver, pay, checkout, or contact support, return needs_backend_action true and the executable structured intent; do not merely say you will do it. If it is a normal question or conversation, return a natural spoken_response/general_reply. Treat the current message as possibly noisy speech-to-text: tolerate repeated words, missing punctuation, half words, phonetic spelling, Hinglish, Hindi, English, and mixed word order. Use catalogue-style reasoning only to understand intent, never to invent availability. Examples of likely STT/product variants: reel/riyal/rial can mean Real, juce/juse/joos/juis can mean juice, orenge/oranj can mean orange, mik/mikl/melk can mean milk, taza/taja/taaja can mean taaza. Use the selected price-list candidate names below as grounding hints for product spelling and brand names; if the customer seems to be saying one of those products, return that product's natural searchable name. Candidate hints are not proof of add success: backend validation remains final. Use earlier goals, preferences, exclusions, quantities, dishes, products shown, assistant answers, remembered suggestions, visible choices, and unresolved choices as durable memory. The current message always wins when it changes the topic or corrects an older detail. If the customer corrects themselves with words like nahi, actually, instead, galat, use only the final corrected intent. Never force an unrelated message to be an answer to an older workflow prompt.\n\nChoose product_search only when the customer is actually asking to find, show, add, buy, order, or receive a product. Do NOT treat a product word inside a question, cart review, delivery/payment question, support request, or general Zonik question as a product purchase. For product_search, translate generic product terms into English search_query while preserving brand, flavour, variety, pack names and any relevant preference established earlier; remove quantities and command words. Preserve the requested product type exactly: milk must stay milk, butter must stay butter, ghee must stay ghee, curd must stay curd, juice must stay juice. Never substitute a different dairy category because the brand matches. Separate product, pack_size, and order quantity: '200ml wala' means pack_size 200ml and quantity 0; '200ml wale do' means pack_size 200ml and quantity 2; '1 litre wala ek' means pack_size 1ltr and quantity 1; 'do litre wala ek' means pack_size 2ltr and quantity 1. If the requested flavour/variant is not verified later by backend, the app will ask clarification/enquiry; do not hallucinate that another variant is the same product. Return every independently requested item in items, even without commas or familiar conjunctions, with numeric quantity (0 when absent), unit, and pack_size. Detect digits and number words in every language. Example: 'ek abc sweet soya sauce add karro' => product_search, search_query 'ABC sweet soya sauce', quantity 1. Example: 'reel orange joos ek' => product_search, search_query 'Real orange juice', quantity 1. Example: 'amul milk' => product_search, search_query 'Amul milk', not Amul butter.\n\nUse cart only for cart review/update/removal meaning. Use checkout, delivery, or payment only when that is the actual request. Use other/greeting for Zonik questions or conversation and give a useful, complete general_reply in the customer's original language and script. Think through the context silently before responding. Never invent products, prices, availability, discounts, cart changes, slots, policy, or payment results. Never claim an item was added; the verified application decides that. Never repeat or stutter the customer's transcript; do not output loops like 'sofit sofit nahi nahi'. Return language accurately. Do not artificially shorten an answer; use up to 120 words when the question needs explanation.\n\nSelected user/outlet price-list candidate hints:\n{$priceListContext}\nVerified current workflow summary: {$workflowSummary}\nVerified cart context: {$cartContext}\nConversation memory (opening context plus detailed recent turns):\n{$history}\nCurrent message: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
             'intent' => ['type' => 'STRING', 'enum' => ['product_search', 'cart', 'checkout', 'delivery', 'payment', 'greeting', 'other']],
+            'task' => ['type' => 'STRING', 'enum' => ['answer', 'order_product', 'update_cart', 'remove_cart', 'show_cart', 'recommend_products', 'checkout', 'delivery', 'payment', 'support', 'none']],
+            'needs_backend_action' => ['type' => 'BOOLEAN', 'description' => 'True when the app must execute or continue a verified workflow instead of only answering.'],
             'search_query' => ['type' => 'STRING', 'description' => 'English product and brand search words; empty unless product_search'],
             'quantity' => ['type' => 'NUMBER', 'description' => 'Requested quantity, or 0 when absent'],
             'unit' => ['type' => 'STRING', 'description' => 'Requested unit, or empty when absent'],
@@ -6091,11 +6140,12 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
             'found_reply' => ['type' => 'STRING'],
             'not_found_reply' => ['type' => 'STRING'],
             'general_reply' => ['type' => 'STRING'],
+            'spoken_response' => ['type' => 'STRING', 'description' => 'Natural customer-facing answer only; never claim unverified cart/order mutations.'],
         ],
-        'required' => ['intent', 'search_query', 'quantity', 'unit', 'pack_size', 'language', 'items', 'found_reply', 'not_found_reply', 'general_reply'],
+        'required' => ['intent', 'task', 'needs_backend_action', 'search_query', 'quantity', 'unit', 'pack_size', 'language', 'items', 'found_reply', 'not_found_reply', 'general_reply', 'spoken_response'],
     ];
 
-    $text = $this->callGemini($prompt, 0.1, 260, $schema);
+    $text = $this->callGemini($prompt, 0.1, 360, $schema);
     $decoded = $this->assistantDecodeJsonObject($text);
     if (!is_array($decoded) || empty($decoded['intent'])) {
         return $fallback;
@@ -6103,15 +6153,31 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
 
     $allowedIntents = ['product_search', 'cart', 'checkout', 'delivery', 'payment', 'greeting', 'other'];
     $resolvedIntent = in_array($decoded['intent'], $allowedIntents, true) ? $decoded['intent'] : 'other';
+    $allowedTasks = ['answer', 'order_product', 'update_cart', 'remove_cart', 'show_cart', 'recommend_products', 'checkout', 'delivery', 'payment', 'support', 'none'];
+    $resolvedTask = in_array(($decoded['task'] ?? ''), $allowedTasks, true) ? $decoded['task'] : 'none';
     $resolvedSearchQuery = trim((string) ($decoded['search_query'] ?? ''));
     // Models sometimes interpret "add X" as a cart action. It is still a
     // product lookup until a verified SKU has been selected and added.
     if ($resolvedSearchQuery !== '' && in_array($resolvedIntent, ['cart', 'other'], true)
         && !$this->isAssistantCartRequest($message) && !$this->isAssistantGeneralQuestion($message)) {
         $resolvedIntent = 'product_search';
+        $resolvedTask = 'order_product';
+    }
+    $spokenResponse = trim((string) ($decoded['spoken_response'] ?? ''));
+    if ($spokenResponse !== '' && $this->assistantReplyClaimsUnverifiedMutation($spokenResponse)) {
+        $spokenResponse = '';
+    }
+    $generalReply = trim((string) ($decoded['general_reply'] ?? ''));
+    if ($generalReply === '' && in_array($resolvedIntent, ['greeting', 'other'], true)) {
+        $generalReply = $spokenResponse;
+    }
+    if ($generalReply !== '' && $this->assistantReplyClaimsUnverifiedMutation($generalReply)) {
+        $generalReply = '';
     }
     return [
         'intent' => $resolvedIntent,
+        'task' => $resolvedTask,
+        'needs_backend_action' => (bool) ($decoded['needs_backend_action'] ?? in_array($resolvedIntent, ['product_search', 'cart', 'checkout', 'delivery', 'payment'], true)),
         'search_query' => $resolvedSearchQuery,
         'quantity' => ($decoded['quantity'] ?? 0) > 0 ? (float) $decoded['quantity'] : null,
         'unit' => trim((string) ($decoded['unit'] ?? '')) ?: null,
@@ -6126,7 +6192,8 @@ private function analyzeAssistantMessage(string $message, array $recentMessages 
             ])->take(10)->values()->all(),
         'found_reply' => trim((string) ($decoded['found_reply'] ?? '')),
         'not_found_reply' => trim((string) ($decoded['not_found_reply'] ?? '')),
-        'general_reply' => trim((string) ($decoded['general_reply'] ?? '')),
+        'general_reply' => $generalReply,
+        'spoken_response' => $spokenResponse,
     ];
 }
 

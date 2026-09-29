@@ -937,4 +937,34 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertStringContainsString('duplicate add nahi kiya', $unchanged);
     }
 
+    public function test_semantic_workflow_context_preserves_voice_brain_memory(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantSemanticWorkflowContext');
+        $method->setAccessible(true);
+
+        $context = $method->invoke(new MobilePriceListController(), [
+            'stage' => 'order_suggestions',
+            'last_assistant_reply' => 'Maine mehmaan ke liye chips, juice aur biscuits suggest kiye the.',
+            'products' => [
+                ['id' => 11, 'name' => 'Visible Orange Juice', 'brand' => 'Real', 'requested_quantity' => 2],
+            ],
+            'suggestions' => [
+                ['id' => 21, 'name' => 'Remembered Chips', 'brand' => 'Zonik', 'requested_quantity' => 1, 'available_in_outlet' => true],
+                ['id' => 22, 'name' => 'Remembered Biscuit', 'brand' => 'Parle', 'recipe_ingredient' => 'guest snacks'],
+            ],
+            'checkout_preferences' => [
+                'payment_query' => 'UPI se karunga',
+                'slot_query' => 'kal morning',
+            ],
+            'current_quantity' => 3,
+        ]);
+
+        $this->assertSame('order_suggestions', $context['stage']);
+        $this->assertStringContainsString('mehmaan', $context['last_assistant_reply']);
+        $this->assertSame([11], array_map(fn ($choice) => (int) $choice['id'], $context['visible_choices']));
+        $this->assertSame([21, 22], array_map(fn ($choice) => (int) $choice['id'], $context['remembered_suggestions']));
+        $this->assertSame(3.0, $context['current_quantity']);
+        $this->assertSame('UPI se karunga', $context['checkout_preferences']['payment_query']);
+    }
+
 }

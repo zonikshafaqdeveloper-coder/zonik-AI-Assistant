@@ -3227,7 +3227,8 @@ function appendTyping() {
                     clarification_options: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeClarificationOptions : [],
                     candidate_set_id: !freshProductCommand && activeOrderingStage === 'clarify_product' ? activeCandidateSetId : null,
                     delivery_details: selectedDeliveryDetails || null,
-                    input_source: sendOptions.inputSource || null
+                    input_source: sendOptions.inputSource || null,
+                    last_assistant_reply: lastAssistantReplyText || lastAssistantSpokenText || ''
                 })
             });
             if (customerCareConsent) {
