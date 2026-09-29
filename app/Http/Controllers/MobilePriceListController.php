@@ -2633,6 +2633,11 @@ private function assistantSpokenOrderQuantity(string $message): ?int
         $token = mb_strtolower((string) $match[1]);
         return (int) ($words[$token] ?? $token);
     }
+    if (preg_match('/\b(\d{1,3}|' . $wordPattern . ')\s*(?:aur|or|more|extra)\b/iu', $message, $match)
+        || preg_match('/\b(?:aur|or|more|extra)\s*(\d{1,3}|' . $wordPattern . ')\b/iu', $message, $match)) {
+        $token = mb_strtolower((string) $match[1]);
+        return (int) ($words[$token] ?? $token);
+    }
     if (preg_match('/\b(\d{1,3}|' . $wordPattern . ')\s*$/iu', $message, $match, PREG_OFFSET_CAPTURE)) {
         $token = mb_strtolower((string) $match[1][0]);
         $before = trim(substr($message, 0, (int) $match[1][1]));
@@ -2660,11 +2665,11 @@ private function assistantContextualAddQuantity(string $message): int
     if ($quantity < 1) $quantity = 1;
 
     $referencesPrevious = (bool) preg_match('/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu', $lower);
-    $asksMore = (bool) preg_match('/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)\b|\b(?:aur\s+(?:ek|one|do|two|teen|three|\d+))\b/iu', $lower);
+    $asksMore = (bool) preg_match('/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)\b|\b(?:(?:aur|or)\s+(?:ek|one|do|two|teen|three|\d+))\b/iu', $lower);
     $hasAddAction = (bool) preg_match('/\b(?:add|daal|dal|dalo|daalo|rakh|rakho|include|cart\s+mein|cart\s+me|kar\s*do|kardo)\b/iu', $lower);
 
     if (($referencesPrevious && ($hasAddAction || $asksMore))
-        || preg_match('/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu', $lower)) {
+        || preg_match('/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu', $lower)) {
         return max(1, min(99, (int) $quantity));
     }
 
@@ -5239,7 +5244,7 @@ private function isAssistantCartQuantityUpdateRequest(string $message): bool
 
 private function assistantUsesRelativeCartQuantity(string $message): bool
 {
-    return (bool) preg_match('/\b(?:(?:ek|one)\s+(?:aur|more|extra)|(?:aur|more|extra)\s+(?:ek|one)|(?:increase|badha|badhao|badhado)\b(?!.*\b(?:new|naya|fresh)\b)|(?:decrease|reduce|less|kam|ghata|ghatao)\b)\b/iu', $message)
+    return (bool) preg_match('/\b(?:(?:ek|one|\d+)\s+(?:aur|or|more|extra)|(?:aur|or|more|extra)\s+(?:ek|one|\d+)|(?:increase|badha|badhao|badhado)\b(?!.*\b(?:new|naya|fresh)\b)|(?:decrease|reduce|less|kam|ghata|ghatao)\b)\b/iu', $message)
         || (bool) preg_match('/(?:à¤¬à¤¢à¤¼à¤¾|à¤¬à¤¢à¤¾|à¤µà¤¾à¤¢à¤µà¤¾|à¤•à¤®|à¤˜à¤Ÿà¤¾|à¤•à¤®à¥€)/u', $message);
 }
 
@@ -5272,6 +5277,7 @@ private function findAssistantCartMatches(string $message, array $cartItems): ar
     $query = preg_replace('/\d+(?:\.\d+)?/', ' ', $query);
     $query = preg_replace('/\b(?:increase|decrease|change|update|set|make|quantity|qty|cart|please|my|the|to|kardo|kar|do|badha|badhao|badhado|kam|ghata|ghatao|remove|delete|hata|hatao|hatado|nikalo|nikaal|karo|ki|ka|ko|se|mein|क्वांटिटी|प्रमाण|करो|करा|वाढवा|कमी|हटाओ|निकालो|काढा)\b/iu', ' ', $query);
     $query = preg_replace('/\b(?:rakh|rakho|rakhdo|krdo)\b/iu', ' ', $query);
+    $query = preg_replace('/\b(?:lekar|leke|le\s*kar|liye|aur|or|more|extra)\b/iu', ' ', $query) ?? $query;
     $terms = array_values(array_filter(preg_split('/\s+/', trim($query)), fn ($term) => mb_strlen($term) > 1));
     if (empty($terms)) return [];
 
@@ -5320,6 +5326,7 @@ private function findAssistantCartMatchesByScore(string $message, array $cartIte
     $query = mb_strtolower($this->normalizeAssistantSearchText($message));
     $query = preg_replace('/\d+(?:\.\d+)?/', ' ', $query) ?? $query;
     $query = preg_replace('/\b(?:increase|decrease|reduce|less|change|update|set|make|quantity|qty|cart|please|pls|my|the|to|kardo|kar|do|badha|badhao|badhado|kam|ghata|ghatao|more|extra|remove|delete|hata|hatao|hatado|nikalo|nikaal|karo|ki|ka|ko|se|mein|me|wala|wali|wale|item|product|rakh|rakho|rakhdo|krdo|aur|ek|one)\b/iu', ' ', $query) ?? $query;
+    $query = preg_replace('/\b(?:lekar|leke|le\s*kar|liye|or|more|extra)\b/iu', ' ', $query) ?? $query;
     $query = trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
     if ($query === '') return count($cartItems) === 1 ? [$this->assistantCartMatchPayload($cartItems[0])] : [];
 
@@ -5470,6 +5477,8 @@ private function resolveAssistantCartTargetQuantity(string $message, array $prod
 {
     $current = max(0, (int) ($product['current_quantity'] ?? 0));
     $amount = max(1, (int) $spokenQuantity);
+    if (!preg_match('/\b(?:decrease|reduce|less|kam|ghata|ghatao)\b/iu', $message)
+        && preg_match('/(?:\b(?:\d{1,3}|one|ek|do|two|teen|three)\s+(?:or|aur|more|extra)\b|\b(?:or|aur|more|extra)\s+(?:\d{1,3}|one|ek|do|two|teen|three)\b)/iu', $message)) return $current + $amount;
     if (preg_match('/(?:\b(?:decrease|reduce|less|kam|ghata|ghatao)\b|(?:कम|घटा|कमी))/iu', $message)) return max(0, $current - $amount);
     if (preg_match('/(?:\b(?:increase|add|more|extra|aur|badha|badhao|badhado)\b|(?:बढ़ा|बढा|वाढवा))/iu', $message)) return $current + $amount;
     return $amount;

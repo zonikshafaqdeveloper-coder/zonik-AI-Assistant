@@ -474,12 +474,17 @@ class AssistantReplyGuardTest extends TestCase
         $detect->setAccessible(true);
         $resolve = new ReflectionMethod($controller, 'resolveAssistantCartTargetQuantity');
         $resolve->setAccessible(true);
+        $quantity = new ReflectionMethod($controller, 'assistantSpokenOrderQuantity');
+        $quantity->setAccessible(true);
 
         $this->assertTrue($detect->invoke($controller, 'Amul Taaza Milk badha do'));
         $this->assertTrue($detect->invoke($controller, 'Real Orange Juice kam kar do'));
+        $this->assertTrue($detect->invoke($controller, 'Amul Milk Gold lekar 1 or kardo'));
         $this->assertFalse($detect->invoke($controller, 'price kam kar do'));
         $this->assertSame(4, $resolve->invoke($controller, 'Amul Taaza Milk badha do', ['current_quantity' => 3], 1));
         $this->assertSame(2, $resolve->invoke($controller, 'Real Orange Juice kam kar do', ['current_quantity' => 3], 1));
+        $this->assertSame(1, $quantity->invoke($controller, 'Amul Milk Gold lekar 1 or kardo'));
+        $this->assertSame(2, $resolve->invoke($controller, 'Amul Milk Gold lekar 1 or kardo', ['current_quantity' => 1], 1));
         $this->assertSame(5, $resolve->invoke($controller, 'isko 5 kar do', ['current_quantity' => 3], 5));
     }
 
@@ -495,6 +500,10 @@ class AssistantReplyGuardTest extends TestCase
         $brandPartial = $method->invoke(new MobilePriceListController(), 'amul taza milk badha do', $items);
         $this->assertCount(1, $brandPartial);
         $this->assertSame(1, $brandPartial[0]['id']);
+
+        $lekarOr = $method->invoke(new MobilePriceListController(), 'taza lekar 1 or kardo', $items);
+        $this->assertCount(1, $lekarOr);
+        $this->assertSame(1, $lekarOr[0]['id']);
 
         $shortName = $method->invoke(new MobilePriceListController(), 'orange wala remove karo', $items);
         $this->assertCount(1, $shortName);

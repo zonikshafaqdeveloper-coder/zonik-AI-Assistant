@@ -1997,7 +1997,7 @@ body:has(.ai-page){background:#edf2f5}
         }
         function setAgentUiFromWorkflow(workflow, autoAdded) {
             const stage = String(workflow?.stage || '');
-            if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity', 'await_update_quantity'].includes(stage)) return setAgentUiState('clarifying');
+            if (stage === 'clarify_product' || ['confirm_product', 'await_quantity', 'confirm_quantity', 'await_update_quantity', 'await_remove_quantity', 'choose_cart_item', 'update_cart_item', 'choose_cart_remove', 'remove_cart_item'].includes(stage)) return setAgentUiState('clarifying');
             if (['delivery_details', 'payment_method', 'checkout_ready', 'confirm_order'].includes(stage)) return setAgentUiState('checkout');
             if (autoAdded || ['added', 'cart_updated', 'cart_removed', 'anything_else'].includes(stage)) return setAgentUiState('ready');
             if (stage === 'customer_care_offer') return setAgentUiState('clarifying', 'Would you like me to send this enquiry to customer care?');
@@ -2160,7 +2160,8 @@ body:has(.ai-page){background:#edf2f5}
             const message = String(value || '').trim();
             if (!message) return false;
             if (/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu.test(message)) return false;
-            if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
+            if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
+            if (/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)\b|\b(?:aur|or|more|extra)\s+(?:ek|one|do|two|teen|three|\d+)\b/iu.test(message)) return false;
             return /\b(?:add|buy|order|cart\s+mein|cart\s+me|chahiye|chaiye|do|de|de\s*do|dena|karo|karna|kar\s*do|kardo|karke|karke\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu.test(message);
         }
 
