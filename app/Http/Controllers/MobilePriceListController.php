@@ -3085,7 +3085,7 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         return ['reply' => $this->assistantNaturalFlowReply($understanding, 'Kya current order list confirm karun?'), 'products' => [], 'workflow' => ['stage' => 'confirm_order', 'show_cart' => true], 'state' => $flow];
     }
     if ($stage === 'order_suggestions') {
-        if ($no || $action === 'finish' || $this->assistantRejectsSuggestionsForDelivery($message, (string) $action)) {
+        if ($this->assistantRejectsSuggestionsForDelivery($message, (string) $action)) {
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
@@ -3096,6 +3096,10 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
         if ($suggestedProduct) {
             $added = $this->addAssistantProductToCart($user, $outlet, $suggestedProduct, 1);
             return ['reply' => $added ? ($this->assistantCartMutationReply($added, $suggestedProduct['name'] ?? 'Product') . ' Updated order summary confirm kijiye.') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'confirm_order' : 'order_suggestions', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'confirm_order', 'skip_suggestions' => true] : $flow];
+        }
+        if ($no || $action === 'finish') {
+            $delivery = $this->assistantDeliveryChoices($outlet);
+            return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
         if ($action === 'add_more' || $yes) {
             $onlyConfirmation = (bool) preg_match('/^\s*(?:yes|yeah|haan|han|haa|ok|okay|aur|add\s+more)\s*[.!?]*\s*$/iu', $message);
@@ -3433,12 +3437,20 @@ private function assistantSanitizeFinishShoppingReply(string $message, string $r
 
 private function assistantRejectsSuggestionsForDelivery(string $message, string $action): bool
 {
-    if (in_array($action, ['delivery_details', 'payment'], true)) return true;
+    if (in_array($action, ['reject', 'finish', 'delivery_details', 'payment'], true)) return true;
 
-    $hasDecline = (bool) preg_match('/\b(?:no|nope|nahi|nahin|nhi|nai|na|skip|thanks?|thank\s*you|inme\s+se\s+(?:kuch|koi)\s+nahi|kuch\s+nahi|koi\s+nahi)\b/iu', $message);
+    $message = mb_strtolower($this->normalizeAssistantCustomerUtterance($message));
+    $hasDecline = (bool) preg_match('/\b(?:no|nope|nah+i+n?|nahi|nahin|nhi|nai|na|nako|skip|ignore|leave|thanks?|thank\s*you|rehne\s+do|mat\s+add|add\s+mat|inme\s+se\s+(?:kuch|koi|ek\s+bhi)?\s*nahi|isme\s+se\s+(?:kuch|koi|ek\s+bhi)?\s*nahi|kuch\s+nahi|koi\s+nahi|none\s+of\s+these|not\s+these|not\s+from\s+these)\b/iu', $message);
     $wantsDelivery = (bool) preg_match('/\b(?:continue|proceed|next|aage|age|delivery|delevery|slot|checkout|address)\b/iu', $message);
+    if ($hasDecline && $wantsDelivery) return true;
+    if ($hasDecline && preg_match('/\b(?:inme|isme|unme|these|suggestions?|items?|products?|none\s+of\s+these|not\s+these|not\s+from\s+these)\b/iu', $message)) return true;
 
-    return $hasDecline && $wantsDelivery;
+    $shortDecline = (bool) preg_match('/^\s*(?:no|nope|nah+i+n?|nahi|nahin|nhi|nai|na|nako)(?:\s+(?:thanks?|thank\s+you|ji|please|pls|bas))*\s*[.!?]*\s*$/iu', $message)
+        || (bool) preg_match('/^\s*(?:thanks?|thank\s+you|skip|ignore|leave|rehne\s+do)(?:\s+(?:please|pls|ji|karo|kar\s+do|it))*\s*[.!?]*\s*$/iu', $message);
+    if ($shortDecline) return true;
+
+    return (bool) preg_match('/\b(?:(?:mujhe|muje|mereko|humko|hame)\s+)?(?:(?:inme|isme|is\s+me|inn\s+me|unme|ye|yeh|these|suggestions?|items?|products?)\s+(?:mein|me|se)?\s*)?(?:kuch|koi|ek\s+bhi|any)?\s*(?:nahi|nahin|nhi|nai|na|no)\s*(?:chahiye|chaiye|pahije|want|needed?)\b/iu', $message)
+        || (bool) preg_match('/\b(?:dont|do\s+not|don\'t)\s+(?:want|need|add)\s+(?:these|this|suggestions?|items?|products?|any)\b/iu', $message);
 }
 
 private function isAssistantGenericConfirmation(string $message): bool
@@ -3902,13 +3914,13 @@ private function understandAssistantFlowReply(string $message, string $stage, ar
         'confirm_quantity' => 'Decide whether the customer confirms the stated quantity or rejects/corrects it.',
         'anything_else' => 'Decide whether the customer wants another product (add_more) or has finished shopping (finish).',
         'confirm_order' => 'Decide whether the customer confirms the complete current order or wants to change it.',
-        'order_suggestions' => 'Decide whether the customer rejects suggestions (finish) or wants a suggested product (add_more).',
+        'order_suggestions' => 'The assistant just showed previous-order suggestion cards. If the customer says no/no thanks/nahi/nahi chahiye/isme se kuch nahi/not these/skip, treat it as rejecting suggestions and continuing delivery: action finish, message_type flow_answer. If they name or select one visible suggestion, use add_more.',
         'delivery_details' => 'If the customer names a location/date/day/time, treat it as delivery details. If they ask or say something unrelated to delivery, use action unknown and answer it briefly in assistant_reply without pretending a slot was selected.',
         'payment_method' => 'Extract a payment choice only when one is actually stated. For an unrelated question or request, use action unknown and answer briefly in assistant_reply without inventing a payment selection.',
         'checkout_ready' => 'The order has NOT been placed yet. Any requested product, cart, or quantity change must be handled before order placement.',
     ][$stage] ?? 'Understand the customer response.';
-    $flowContext = json_encode(['product' => $flow['product'] ?? null, 'quantity' => $flow['quantity'] ?? null], JSON_UNESCAPED_UNICODE);
-    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite male Indian delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Never treat finish-shopping phrases like 'bas itna hi', 'aur kuch nahi chahiye', or 'no more' as order cancellation, product removal, or customer-care cancellation. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer; at confirm_order 'aur kuch nahi chahiye' => confirm + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Always use masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; never use feminine forms such as 'kar rahi hoon', 'karungi', or 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
+    $flowContext = json_encode($this->assistantSemanticWorkflowContext($flow), JSON_UNESCAPED_UNICODE);
+    $prompt = "You are the action-planning layer for Zonik's in-app ordering agent. Current stage: {$stage}. Verified workflow context: {$flowContext}. {$stageInstruction} First understand the customer's COMPLETE CURRENT message; do not force a fresh request into the current step merely because a prior prompt exists. Understand ANY human language, writing system, mixed language, regional wording, and speech-to-text mistake. Behave like a polite male Indian delivery-app assistant: identify the next safe action and escalate to a human customer-care executive only when requested or genuinely needed. Until the Place Order button is actually pressed, any requested product/cart/quantity change must win over checkout and must never place or confirm the order. First label message_type: use flow_answer only if the customer is actually answering the current stage; use fresh_product_request if they ask for another product; cart_request for a cart change/review; question for a Zonik question; support_request for customer-care/help; other otherwise. Set has_product_reference true only if the current message actually names or describes a product; it must be false for generic phrases such as 'show another' with no product named. Then interpret confirmations, rejections, quantities, finish-shopping phrases, delivery details, and payment choices by meaning rather than fixed keywords. Never treat finish-shopping phrases like 'bas itna hi', 'aur kuch nahi chahiye', or 'no more' as order cancellation, product removal, or customer-care cancellation. Examples: 'haa yahi hai' => confirm + flow_answer; 'nahi doosra dikhao' => reject + fresh_product_request + has_product_reference false; 'mujhe doodh chahiye' => unknown + fresh_product_request + has_product_reference true; at anything_else 'bas itna hi' => finish + flow_answer; at confirm_order 'aur kuch nahi chahiye' => confirm + flow_answer; at order_suggestions 'no thanks' or 'nahi mujhe isme se nahi chahiye' => finish + flow_answer. If assistant_reply is needed, answer the actual message clearly in the same language and script. Always use masculine self-reference such as 'kar raha hoon', 'karunga', or 'dunga'; never use feminine forms such as 'kar rahi hoon', 'karungi', or 'dungi'. Never invent an action, slot, address, payment, price, policy, or cart mutation. Return structured data only. Customer: {$message}";
     $schema = [
         'type' => 'OBJECT',
         'properties' => [
@@ -3973,6 +3985,10 @@ private function assistantFlowJsonResponse(?User $user, ?User $outlet, ?string $
     if ($flowResponse['reply'] !== '') {
         $flowResponse['reply'] = $this->localizeAssistantReply($flowResponse['reply'], $message, $replyLanguage);
         $flowResponse['reply'] = $this->assistantSanitizeFinishShoppingReply($message, $flowResponse['reply']);
+    }
+    if (!empty($state) && $flowResponse['reply'] !== '') {
+        $state['last_assistant_reply'] = mb_substr($flowResponse['reply'], 0, 500);
+        $flowResponse['state'] = $state;
     }
     AiAssistantMessage::create(['user_id' => $user?->id, 'outlet_id' => $outlet?->id, 'conversation_id' => $conversationId, 'role' => 'user', 'message' => $this->assistantDatabaseSafeText($message)]);
     AiAssistantMessage::create(['user_id' => $user?->id, 'outlet_id' => $outlet?->id, 'conversation_id' => $conversationId, 'role' => 'assistant', 'message' => $this->assistantDatabaseSafeText($flowResponse['reply']), 'product_data' => $flowResponse['products'] ?? []]);
@@ -5551,6 +5567,11 @@ private function buildAssistantPrompt(string $message, ?User $user, ?User $outle
 private function assistantSemanticWorkflowContext(array $flow): array
 {
     $context = ['stage' => trim((string) ($flow['stage'] ?? 'none')) ?: 'none'];
+
+    $lastAssistantReply = trim((string) ($flow['last_assistant_reply'] ?? ''));
+    if ($lastAssistantReply !== '') {
+        $context['last_assistant_reply'] = mb_substr($lastAssistantReply, 0, 350);
+    }
 
     $pendingProduct = $flow['product'] ?? null;
     if (is_array($pendingProduct) && trim((string) ($pendingProduct['name'] ?? '')) !== '') {

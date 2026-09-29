@@ -196,6 +196,39 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertStringContainsString('rice', $normalize->invoke($controller, $message));
     }
 
+    /**
+     * @dataProvider suggestionDeclineExamples
+     */
+    public function test_suggestion_declines_are_detected_for_delivery_continue(string $message): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantRejectsSuggestionsForDelivery');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke(new MobilePriceListController(), $message, 'unknown'));
+    }
+
+    public function suggestionDeclineExamples(): array
+    {
+        return [
+            'plain no' => ['no'],
+            'polite English' => ['no thanks'],
+            'Hinglish no' => ['nahi'],
+            'requested phrase isme se' => ['nahi mujhe isme se nahi chahiye'],
+            'requested phrase nahi chahiye' => ['nahi mujhe nahi chahiye'],
+            'none of these' => ['inme se kuch nahi chahiye'],
+            'skip command' => ['skip karo'],
+            'English not these' => ['not these please'],
+        ];
+    }
+
+    public function test_suggestion_decline_guard_does_not_swallow_product_selection(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantRejectsSuggestionsForDelivery');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke(new MobilePriceListController(), 'Real Orange Juice add karo', 'unknown'));
+    }
+
     public function test_customer_care_decline_wins_over_the_continue_command_and_resumes_the_order(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'continueAssistantOrderFlow');
