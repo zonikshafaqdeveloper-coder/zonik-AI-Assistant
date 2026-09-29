@@ -1787,6 +1787,8 @@ body:has(.ai-page){background:#edf2f5}
         let assistantOrderCompleted = false;
         let cartPanelRequestVersion = 0;
         let lastUserMessage = '';
+        let lastAssistantReplyText = '';
+        let recentReminderTexts = [];
         let welcomeGreetingFinished = false;
         let onboardingStage = 'choose_order';
         let onboardingIntentRequestVersion = 0;
@@ -2652,8 +2654,22 @@ function appendTyping() {
                 .trim();
         }
 
+        function rememberAssistantReplyText(text) {
+            const clean = speechFriendlyText(text);
+            if (clean) lastAssistantReplyText = clean.slice(0, 500);
+        }
+
+        function rememberReminderText(text) {
+            const clean = speechFriendlyText(text);
+            if (!clean) return;
+            recentReminderTexts.push(clean.slice(0, 260));
+            recentReminderTexts = recentReminderTexts.slice(-5);
+            rememberAssistantReplyText(clean);
+        }
+
         function loadVoiceAsync(text, onEnded, onStart, options) {
             const voiceOptions = options || {};
+            rememberAssistantReplyText(text);
             lastAssistantSpokenText = speechFriendlyText(text);
             const voiceKey = lastAssistantSpokenText.toLowerCase().replace(/\s+/g, ' ').trim();
             const voiceNow = Date.now();
@@ -2719,6 +2735,7 @@ function appendTyping() {
         function resetResponseReminders() {
             cancelResponseReminder();
             responseReminderCount = 0;
+            recentReminderTexts = [];
         }
 
         function stopAssistantAudio(clearQueue) {
@@ -2770,10 +2787,10 @@ function appendTyping() {
             const reminder = responseReminderText();
             responseReminderCount++;
             const requestGeneration = speechRequestGeneration;
+            const reminderNumber = responseReminderCount;
             // A reminder must still be useful when the speech provider is
             // out of quota or the customer is not using microphone mode.
             // It is deliberately display-only state: no workflow is changed.
-            appendMessage('assistant', escapeHtml(reminder));
             fetch(speakUrl, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'X-Requested-With': 'XMLHttpRequest'},
@@ -2781,11 +2798,17 @@ function appendTyping() {
                     text: reminder,
                     match_language_to: lastUserMessage || 'Hinglish mein jawab dijiye.',
                     language_hint: (!conversationReplyLanguage || ['english', 'hinglish'].includes(conversationReplyLanguage))
-                        ? 'Hinglish' : conversationReplyLanguage
+                        ? 'Hinglish' : conversationReplyLanguage,
+                    reminder_stage: activeOrderingStage,
+                    reminder_count: reminderNumber,
+                    last_assistant_reply: lastAssistantReplyText || lastAssistantSpokenText || '',
+                    recent_reminders: recentReminderTexts.slice(-4)
                 })
             }).then(function (response) { return response.json(); }).then(function (data) {
                 if (requestGeneration !== speechRequestGeneration) return;
                 const localizedText = data.text || reminder;
+                rememberReminderText(localizedText);
+                appendMessage('assistant', escapeHtml(localizedText));
                 if (speechRecognition) {
                     try { speechRecognition.abort(); } catch (error) {}
                     speechRecognition = null;
@@ -2794,6 +2817,8 @@ function appendTyping() {
                 else scheduleResponseReminder();
             }).catch(function () {
                 if (requestGeneration === speechRequestGeneration) {
+                    rememberReminderText(reminder);
+                    appendMessage('assistant', escapeHtml(reminder));
                     scheduleResponseReminder();
                 }
             });
@@ -2812,7 +2837,7 @@ function appendTyping() {
                 responseReminderTimer = null;
                 if (!activeOrderingStage) return;
                 loadResponseReminder();
-            }, [12000, 25000, 45000][responseReminderCount] || 45000);
+            }, [18000, 42000, 90000][responseReminderCount] || 90000);
         }
 
         document.addEventListener('click', function playQueuedWelcome() {
@@ -3295,6 +3320,7 @@ function appendTyping() {
                     return;
                 }
                 appendMessage('assistant', escapeHtml(reply));
+                rememberAssistantReplyText(reply);
                 if (data.auto_added || ['added', 'cart_updated'].includes(workflow.stage)) cartShortcut.hidden = false;
                 const cartMutationConfirmed = Boolean(data.auto_added)
                     || ['added', 'cart_updated', 'cart_removed'].includes(workflow.stage);

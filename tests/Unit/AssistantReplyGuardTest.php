@@ -593,6 +593,22 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertStringNotContainsString('completed', $method->invoke($controller, 'Where can I track my order?'));
     }
 
+    public function test_silence_reminder_fallback_avoids_recent_repetition(): void
+    {
+        $controller = new MobilePriceListController();
+        $fallback = new ReflectionMethod(MobilePriceListController::class, 'assistantGentleReminderFallback');
+        $fallback->setAccessible(true);
+        $repeats = new ReflectionMethod(MobilePriceListController::class, 'assistantReminderRepeatsRecent');
+        $repeats->setAccessible(true);
+
+        $first = $fallback->invoke($controller, 'await_quantity', 1, 'Quantity bataiye.', []);
+        $second = $fallback->invoke($controller, 'await_quantity', 2, 'Quantity bataiye.', [$first]);
+
+        $this->assertNotSame($first, $second);
+        $this->assertFalse($repeats->invoke($controller, $second, [$first]));
+        $this->assertTrue($repeats->invoke($controller, $first, [$first]));
+    }
+
     /**
      * @dataProvider freshOrderSpeechExamples
      */

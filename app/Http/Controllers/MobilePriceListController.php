@@ -742,10 +742,26 @@ public function assistantSpeak(Request $request)
         'text' => 'required|string|max:2000',
         'match_language_to' => 'nullable|string|max:2000',
         'language_hint' => 'nullable|string|max:100',
+        'reminder_stage' => 'nullable|string|max:60',
+        'reminder_count' => 'nullable|integer|min:0|max:10',
+        'last_assistant_reply' => 'nullable|string|max:1000',
+        'recent_reminders' => 'nullable|array|max:5',
+        'recent_reminders.*' => 'nullable|string|max:500',
     ]);
     $text = $data['text'];
     $customerText = (string) ($data['match_language_to'] ?? '');
     $languageHint = trim((string) ($data['language_hint'] ?? ''));
+    if (!empty($data['reminder_stage'])) {
+        $text = $this->assistantGentleReminderText(
+            $text,
+            (string) $data['reminder_stage'],
+            (int) ($data['reminder_count'] ?? 0),
+            $customerText,
+            (string) ($data['last_assistant_reply'] ?? ''),
+            is_array($data['recent_reminders'] ?? null) ? $data['recent_reminders'] : [],
+            $languageHint ?: null
+        );
+    }
     if (!empty($data['match_language_to'])) {
         // Latin-script chat defaults to the requested conversational Roman
         // Hinglish. Preserve explicit regional scripts instead of forcing
@@ -4080,6 +4096,160 @@ private function assistantOutletWelcomeName(?User $outlet): string
     $name = trim($name, " \t\n\r\0\x0B,.;:!?-_()[]{}<>\"");
 
     return $name !== '' ? mb_substr($name, 0, 100) : 'selected';
+}
+
+private function assistantGentleReminderText(string $fallback, string $stage, int $count, string $customerText = '', string $lastAssistantReply = '', array $recentReminders = [], ?string $languageHint = null): string
+{
+    $fallback = trim($this->assistantCollapseRepetitiveText($fallback));
+    $localFallback = $this->assistantGentleReminderFallback($stage, $count, $fallback, $recentReminders);
+    if (empty(config('services.gemini.api_key'))
+        || Cache::has('gemini_assistant_rate_limited')
+        || Cache::has('gemini_assistant_auth_unavailable')
+        || Cache::has('gemini_assistant_model_unavailable')
+        || Cache::has('gemini_assistant_network_unavailable')) {
+        return $localFallback;
+    }
+
+    $stageLabels = [
+        'confirm_product' => 'waiting for product confirmation',
+        'clarify_product' => 'visible product choices are waiting',
+        'await_quantity' => 'waiting for quantity',
+        'confirm_quantity' => 'waiting for quantity confirmation',
+        'anything_else' => 'shopping can continue or finish',
+        'confirm_order' => 'order summary is waiting for confirmation',
+        'order_suggestions' => 'previous-order suggestions are visible',
+        'delivery_details' => 'waiting for delivery slot/address choice',
+        'payment_method' => 'waiting for payment method',
+        'checkout_ready' => 'place-order confirmation is pending',
+        'customer_care_offer' => 'waiting for customer-care call consent',
+        'missing_product_enquiry' => 'waiting for product enquiry consent',
+    ];
+    $recent = array_values(array_filter(array_map(
+        fn ($item) => mb_substr(trim((string) $item), 0, 180),
+        $recentReminders
+    )));
+    $language = $this->assistantReplyLanguage($customerText, $languageHint);
+    $prompt = "Write one gentle silence reminder for Zonik's voice ordering assistant. Current stage: "
+        . ($stageLabels[$stage] ?? $stage)
+        . ". Reminder number: " . max(1, $count)
+        . ". Last assistant reply: " . mb_substr($lastAssistantReply, 0, 500)
+        . ". Recent reminders to avoid repeating: " . json_encode($recent, JSON_UNESCAPED_UNICODE)
+        . ". Fallback meaning: {$fallback}. Reply in {$language}. Keep it natural, warm, short, and not robotic. Do not scold, do not say the same thing as recent reminders, do not ask repeatedly, do not claim any product/cart/order action happened, do not invent products/prices/slots/payment, and do not tell the customer to type. If the user may be busy, sound patient. Use masculine self-reference if needed. Return structured data only.";
+    $schema = [
+        'type' => 'OBJECT',
+        'properties' => [
+            'reminder' => ['type' => 'STRING'],
+        ],
+        'required' => ['reminder'],
+    ];
+    $decoded = $this->assistantDecodeJsonObject($this->callGemini($prompt, 0.65, 120, $schema));
+    $candidate = trim((string) ($decoded['reminder'] ?? ''));
+    $candidate = $this->assistantCollapseRepetitiveText($candidate);
+    if ($candidate === ''
+        || mb_strlen($candidate) > 240
+        || $this->assistantReplyClaimsUnverifiedMutation($candidate)
+        || $this->assistantReminderRepeatsRecent($candidate, array_merge($recent, [$lastAssistantReply]))) {
+        return $localFallback;
+    }
+
+    return $candidate;
+}
+
+private function assistantGentleReminderFallback(string $stage, int $count, string $fallback, array $recentReminders = []): string
+{
+    $optionsByStage = [
+        'confirm_product' => [
+            'Jab aap ready ho, bas haan ya nahi bol dena.',
+            'Koi jaldi nahi hai. Is product ko rakhna hai ya change karna hai?',
+            'Main product confirmation par ruka hoon; aap araam se bol dijiye.',
+        ],
+        'clarify_product' => [
+            'Jo option chahiye uska naam bol dijiye, main aage badha dunga.',
+            'Screen par options hain; product add karna hai ya enquiry bhejni hai?',
+            'Aap araam se brand ya flavour bata dijiye.',
+        ],
+        'await_quantity' => [
+            'Quantity clear ho jaye to bas number bol dijiye.',
+            'Kitni quantity rakhni hai, aap araam se bata dijiye.',
+            'Main quantity ka wait kar raha hoon; ready ho to bol dijiye.',
+        ],
+        'confirm_quantity' => [
+            'Quantity sahi hai to haan bol dijiye, warna nayi quantity bata dijiye.',
+            'Main quantity confirmation par ruka hoon.',
+            'Jo quantity chahiye wahi confirm kar dijiye.',
+        ],
+        'anything_else' => [
+            'Aur kuch chahiye ho to bata dijiye; warna bas itna hi bol sakte hain.',
+            'Main yahin hoon. Product add karna ho ya order complete karna ho, bata dijiye.',
+            'Koi rush nahi. Order continue karna ho to product bol dijiye.',
+        ],
+        'confirm_order' => [
+            'Summary ready hai; sab sahi ho to confirm bol dijiye.',
+            'Order list safe hai. Ready ho to confirm karke delivery par chalte hain.',
+            'Aap check kar lijiye; confirm bolte hi delivery options dikhata hoon.',
+        ],
+        'order_suggestions' => [
+            'Suggestions me se kuch chahiye ho to naam boliye, warna no thanks.',
+            'Previous-order suggestions ready hain; lena hai ya skip karna hai?',
+            'Aap chahen to suggestion add kar sakte hain, nahi to delivery continue karte hain.',
+        ],
+        'delivery_details' => [
+            'Bas delivery slot pending hai. Convenient slot choose kar dijiye.',
+            'Cart safe hai; ready ho to delivery slot bata dijiye.',
+            'Delivery step par hain. Slot choose karte hi payment par chalenge.',
+        ],
+        'payment_method' => [
+            'Payment option choose kar dijiye, phir final place order rahega.',
+            'Ab payment method pending hai; jo option chahiye bol dijiye.',
+            'Order safe hai. Ready ho to payment option select kar dijiye.',
+        ],
+        'checkout_ready' => [
+            'Order abhi place nahi hua hai; ready ho to Place Order button dabaiye.',
+            'Sab details ready hain. Final confirm ke liye Place Order dabana hoga.',
+            'Main final step par ruka hoon; order place karna ho to button dabaiye.',
+        ],
+        'customer_care_offer' => [
+            'Customer care se baat karni ho to haan bol dijiye, warna yahin continue karte hain.',
+            'Aap decide kar lijiye; call chahiye ya main yahin help karun?',
+            'Main customer-care option par ruka hoon.',
+        ],
+        'missing_product_enquiry' => [
+            'Is product ki enquiry bhejni ho to haan bol dijiye.',
+            'Enquiry send karni hai ya doosra product dekhna hai?',
+            'Product nahi mila; enquiry bhejni ho to bata dijiye.',
+        ],
+    ];
+    $options = $optionsByStage[$stage] ?? [$fallback !== '' ? $fallback : 'Main yahin hoon. Jab ready ho, bata dijiye.'];
+    if ($fallback !== '') $options[] = $fallback;
+    $recentKeys = array_map(fn ($text) => $this->assistantReminderKey((string) $text), $recentReminders);
+    $offset = max(0, $count - 1);
+    for ($i = 0; $i < count($options); $i++) {
+        $candidate = $options[($offset + $i) % count($options)];
+        if (!in_array($this->assistantReminderKey($candidate), $recentKeys, true)) return $candidate;
+    }
+
+    return $options[$offset % count($options)];
+}
+
+private function assistantReminderRepeatsRecent(string $candidate, array $recent): bool
+{
+    $candidateKey = $this->assistantReminderKey($candidate);
+    if ($candidateKey === '') return true;
+    foreach ($recent as $item) {
+        $recentKey = $this->assistantReminderKey((string) $item);
+        if ($recentKey === '') continue;
+        if ($candidateKey === $recentKey) return true;
+        similar_text($candidateKey, $recentKey, $percent);
+        if ($percent >= 86) return true;
+    }
+    return false;
+}
+
+private function assistantReminderKey(string $text): string
+{
+    $text = mb_strtolower(strip_tags(html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    $text = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text) ?? $text;
+    return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
 }
 
 private function normalizeAssistantSpeechText(string $text): string
