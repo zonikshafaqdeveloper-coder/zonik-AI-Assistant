@@ -267,6 +267,24 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($method->invoke($controller, 'aaj ghar pe hoon'));
     }
 
+    public function test_weather_order_advice_is_not_confused_with_guest_context(): void
+    {
+        $weather = new ReflectionMethod(MobilePriceListController::class, 'isAssistantWeatherShoppingRequest');
+        $guest = new ReflectionMethod(MobilePriceListController::class, 'isAssistantGuestShoppingRequest');
+        $weather->setAccessible(true);
+        $guest->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        foreach ([
+            'aaj barish ka mosaam hai toh batao kya order karru',
+            'weather suhana hai kya order karu',
+            'rainy day hai suggest karo kya lena chahiye',
+        ] as $message) {
+            $this->assertTrue($weather->invoke($controller, $message));
+            $this->assertFalse($guest->invoke($controller, $message));
+        }
+    }
+
     public function test_previously_suggested_products_prefer_full_memory_over_visible_cards(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantProductsFromCurrentOrRecentSuggestions');

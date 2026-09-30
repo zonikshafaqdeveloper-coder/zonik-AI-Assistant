@@ -4948,8 +4948,9 @@ private function isAssistantRecipePlanningRequest(string $message): bool
 
 private function isAssistantWeatherShoppingRequest(string $message): bool
 {
-    $mentionsWeather = (bool) preg_match('/\b(?:barish|baarish|rain|rainy|monsoon|mausam|mosam|weather)\b/iu', $message);
-    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|what|which|suggest|recommend|lena|chahiye|chaiye|need|items?|products?|order|mangau|mangwaun)\b/iu', $message);
+    $normalized = mb_strtolower($this->normalizeAssistantCustomerUtterance($message));
+    $mentionsWeather = (bool) preg_match('/\b(?:barish|baarish|barsaat|barsad|rain|rainy|monsoon|mausam|mousam|mosaam|mosam|mausum|mosum|weather|suhana|suhaana|thand|thandi|cold|garam\s+garam)\b|(?:बारिश|बरसात|मौसम|मोस[मम]|सुहाना)/iu', $normalized);
+    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|kya|what|which|suggest|recommend|batao|bataiye|batana|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|order|mangau|mangwaun|mangwao|karu|karun|karru)\b/iu', $normalized);
 
     return $mentionsWeather && $asksShopping;
 }
@@ -4958,7 +4959,31 @@ private function assistantWeatherProductPlan(string $message, ?User $user, ?User
 {
     if (!$outlet) return null;
 
-    $terms = ['tea', 'coffee', 'maggi noodle', 'soup', 'biscuits', 'ginger', 'besan', 'green chilli'];
+    $terms = ['tea', 'coffee', 'maggi noodle', 'soup', 'biscuits', 'ginger', 'besan', 'green chilli', 'cooking oil'];
+    $weatherLabel = 'barish ka mausam';
+    $aiSuggestion = '';
+    if (!empty(config('services.gemini.api_key'))) {
+        $schema = ['type' => 'OBJECT', 'properties' => [
+            'weather_label' => ['type' => 'STRING'],
+            'shopping_terms' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+            'suggestion_line' => ['type' => 'STRING'],
+        ], 'required' => ['weather_label', 'shopping_terms', 'suggestion_line']];
+        $prompt = "The customer is asking what to order for a weather/season condition. Understand the exact condition from the latest message only; do not reuse older guest/party context unless the customer says guests now. Return 5 to 10 grocery catalogue search terms that could exist in a B2B grocery price list. Prefer practical orderable products or ingredients: tea, coffee, soup, noodles, biscuits, besan, oil, ginger, chilli, sugar, ready snacks. You may include samosa/pakoda only as search terms if useful, but do not claim they are available. Keep weather_label and suggestion_line in natural Roman Hinglish. Return structured data only.\nCustomer message: {$message}";
+        $decoded = $this->assistantDecodeJsonObject($this->callGemini($prompt, 0.25, 260, $schema));
+        if (is_array($decoded)) {
+            $weatherLabel = trim((string) ($decoded['weather_label'] ?? '')) ?: $weatherLabel;
+            $aiSuggestion = trim((string) ($decoded['suggestion_line'] ?? ''));
+            $aiTerms = collect($decoded['shopping_terms'] ?? [])
+                ->filter(fn ($term) => is_string($term) && trim($term) !== '')
+                ->map(fn ($term) => trim($term))
+                ->take(10)
+                ->values()
+                ->all();
+            if (!empty($aiTerms)) {
+                $terms = array_values(array_unique(array_merge($aiTerms, $terms)));
+            }
+        }
+    }
     if (preg_match('/\b(?:cold|thand|khansi|cough|sardi)\b/iu', $message)) {
         array_unshift($terms, 'honey');
     }
@@ -4975,16 +5000,18 @@ private function assistantWeatherProductPlan(string $message, ?User $user, ?User
             continue;
         }
         $product = $matches[0];
-        $product['recipe_ingredient'] = 'rainy weather';
+        $product['recipe_ingredient'] = $weatherLabel;
         if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
             $matched->push($product);
         }
-        if ($matched->count() >= 6) break;
+        if ($matched->count() >= 8) break;
     }
 
     if ($matched->isEmpty()) return null;
 
-    $reply = 'Barish ke mausam mein chai/coffee, soup ya Maggi, biscuits aur pakoda ke liye besan-chilli jaise items useful rahenge. Selected outlet se matching products neeche dikhaye hain. Jo jo chahiye unka naam boliye, ya "jo jo bole the add kardo" bolenge to ye suggestions cart mein add kar dunga.';
+    $names = $matched->pluck('name')->filter()->take(5)->implode(', ');
+    $reply = ($aiSuggestion !== '' ? $aiSuggestion : 'Barish ke mausam mein garma garam chai/coffee, soup ya Maggi, biscuits aur pakode ke ingredients mast rahenge.')
+        . ' Aapki selected price list se matching items mile: ' . $names . '. Neeche cards dikhaye hain; chahiye to "haan ye sab add kardo" bol dijiye, main verified items cart mein add kar dunga.';
     if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice($missing, 0, 3)) . '.';
 
     return ['reply' => $reply, 'products' => $matched->values()->all()];
