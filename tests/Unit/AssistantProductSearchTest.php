@@ -196,10 +196,29 @@ class AssistantProductSearchTest extends TestCase
         $controller = new MobilePriceListController();
 
         $this->assertTrue($method->invoke($controller, 'Real apple juice add karo'));
+        $this->assertTrue($method->invoke($controller, 'Real juice Take'));
         $this->assertTrue($method->invoke($controller, 'mujhe orange juice chahiye'));
         $this->assertFalse($method->invoke($controller, 'aap jo theek samjho karo'));
         $this->assertFalse($method->invoke($controller, 'new order karna hai'));
         $this->assertFalse($method->invoke($controller, 'apple ko select karo'));
+    }
+
+    public function test_browser_voice_apple_juice_fillers_are_removed_from_search_query(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantLocalProductSearchQuery');
+        $method->setAccessible(true);
+
+        $query = $method->invoke(new MobilePriceListController(), 'Apple flavor Valar real jusice add');
+
+        $this->assertSame('Apple real juice', $query);
+    }
+
+    public function test_browser_voice_take_word_is_treated_as_product_command(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'looksLikeAssistantProductRequest');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke(new MobilePriceListController(), 'Real juice Take'));
     }
 
     /** @dataProvider naturalVariantReplies */

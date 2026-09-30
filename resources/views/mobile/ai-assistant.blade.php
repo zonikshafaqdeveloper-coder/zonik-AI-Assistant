@@ -1734,6 +1734,23 @@ body:has(.ai-page){background:#edf2f5}
                 .then(function (data) { renderCatalogueProducts(data.products || []); })
                 .catch(function () { catalogueList.innerHTML = '<div class="ai-catalogue-empty">Price list load nahi hui. Dobara try kijiye.</div>'; });
         }
+        function catalogueSearchQueryFromUtterance(text) {
+            return String(text || '')
+                .replace(/\b(?:add|added|buy|order|take|cart|please|plz|mujhe|muje|chahiye|chaiye|do|de|dena|karo|karna|kar\s*do|kardo|rakh|rakho|daal|dal|dalo|daalo|flavour|flavor|variant|brand|wala|wali|wale|valar|walar|waller|wallah|walaa|waala)\b/giu, ' ')
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        function cataloguePanelIsOpen() {
+            return Boolean(cataloguePanel?.classList.contains('open'));
+        }
+        function syncCatalogueFromAssistantProducts(products, spokenText) {
+            if (!cataloguePanelIsOpen()) return;
+            const query = catalogueSearchQueryFromUtterance(spokenText);
+            if (catalogueSearch && query) catalogueSearch.value = query;
+            if (products && products.length) renderCatalogueProducts(products);
+            else loadCatalogueProducts(query || spokenText || '');
+        }
         function openCataloguePanel() {
             openAccessiblePanel(cataloguePanel);
             catalogueScrim?.classList.add('open');
@@ -2162,7 +2179,7 @@ body:has(.ai-page){background:#edf2f5}
             if (/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu.test(message)) return false;
             if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
             if (/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)\b|\b(?:aur|or|more|extra)\s+(?:ek|one|do|two|teen|three|\d+)\b/iu.test(message)) return false;
-            return /\b(?:add|buy|order|cart\s+mein|cart\s+me|chahiye|chaiye|do|de|de\s*do|dena|karo|karna|kar\s*do|kardo|karke|karke\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu.test(message);
+            return /\b(?:add|buy|order|take|cart\s+mein|cart\s+me|chahiye|chaiye|do|de|de\s*do|dena|karo|karna|kar\s*do|kardo|karke|karke\s*do|rakh|rakho|daal|dal|dalo|daalo)\b/iu.test(message);
         }
 
         function renderOnboardingHandledReply(data) {
@@ -2246,7 +2263,8 @@ body:has(.ai-page){background:#edf2f5}
                 .replace(/\b(?:sonic|zonic|jonik|zone\s*ik|zo\s*nik)\b/gi, 'zonik')
                 .replace(/\b(?:a\s+more|a\s+mole|amol)\s+(?=(?:taaza|taza|taja|tasa|milk|gold|butter|curd|cheese)\b)/gi, 'Amul ')
                 .replace(/\b(?:tasa|taaja|taja|taza)\b/gi, 'taaza')
-                .replace(/\b(?:juce|juse|joos|juise|juis)\b/gi, 'juice')
+                .replace(/\b(?:juce|juse|joos|juise|juis|jusice)\b/gi, 'juice')
+                .replace(/\b(?:valar|walar|waller|wallah|walaa|waala)\b/gi, 'wala')
                 .replace(/\b(?:fire|file|fife)\s*box(?:es)?\b/gi, '5 box')
                 .replace(/\b(?:fire|file|fife)\s*(packet|pack|carton|piece|pieces|pcs)\b/gi, '5 $1')
                 .replace(/\b(?:search|surge|church|turn|term|then|den|tan|tin)\s*box(?:es)?\b/gi, '10 box')
@@ -2267,7 +2285,7 @@ body:has(.ai-page){background:#edf2f5}
             if (!value) return 0;
             const words = value.split(/\s+/).filter(Boolean);
             let score = words.length * 8 + value.length;
-            if (/\b(?:add|order|cart|chahiye|daal|dal|rakh|give|need|want|mujhe|muje)\b/i.test(value)) score += 35;
+            if (/\b(?:add|order|take|cart|chahiye|daal|dal|rakh|give|need|want|mujhe|muje)\b/i.test(value)) score += 35;
             if (/\b(?:milk|juice|butter|rice|oil|biscuit|bread|taaza|amul|real)\b/i.test(value)) score += 25;
             if (/\d+|\b(?:one|two|three|ek|do|teen)\b/i.test(value)) score += 15;
             if (/^(?:milk|juice|butter|rice|oil|bread)$/i.test(value)) score -= 20;
@@ -2963,9 +2981,16 @@ function appendTyping() {
             const alreadyRenderedUserMessage = Boolean(sendOptions.alreadyRenderedUserMessage);
             const freshProductCommand = !selectedProductId && isFreshProductCommand(text);
             const payloadSelectedProductId = selectedProductId || (freshProductCommand ? null : activeOrderingProductId || null);
-            const payloadWorkflowStage = freshProductCommand && ['confirm_product', 'await_quantity', 'confirm_quantity'].includes(activeOrderingStage)
+            const payloadWorkflowStage = freshProductCommand
                 ? null
                 : activeOrderingStage || null;
+            if (freshProductCommand) {
+                activeOrderingProductId = null;
+                activeClarificationOptions = [];
+                activeCandidateSetId = '';
+                dismissProductChoiceMessages();
+                syncCatalogueFromAssistantProducts([], text);
+            }
             aiDebug('Command received', {
                 text: text,
                 conversationId: conversationId,
@@ -3269,6 +3294,9 @@ function appendTyping() {
                 const quantity = aiIntent.quantity || order.quantity;
                 const unit = aiIntent.unit || order.unit;
                 const workflow = data.workflow || {};
+                if (products.length && ['clarify_product', 'top_selling', 'choose_product', 'choose_brand', 'confirm_product', 'order_suggestions'].includes(workflow.stage)) {
+                    syncCatalogueFromAssistantProducts(products, text);
+                }
                 activeCandidateSetId = workflow.stage === 'clarify_product'
                     ? String(workflow.candidate_set_id || activeCandidateSetId || '')
                     : '';
@@ -3647,7 +3675,7 @@ function appendTyping() {
                 const normalized = String(text || '').trim();
                 const words = normalized ? normalized.split(/\s+/).length : 0;
                 const hasCartMutation = /\b(?:remove|delete|hata|hatao|nikal|nikaal|increase|decrease|badha|badhao|kam|ghata|quantity|qty|update|set|make)\b/i.test(normalized);
-                const hasOrderCommand = /\b(?:add|order|cart|chahiye|chaiye|daal|dal|rakh|give|need|want|de\s*do)\b/i.test(normalized);
+                const hasOrderCommand = /\b(?:add|order|take|cart|chahiye|chaiye|daal|dal|rakh|give|need|want|de\s*do)\b/i.test(normalized);
                 const hasQuantity = /\b(?:\d+(?:\.\d+)?|one|two|three|four|five|ek|do|teen|char|chaar|panch|paanch|aur|more|extra)\b/i.test(normalized);
                 let delay = hasFinal ? 1250 : 2100;
                 if (hasInterim) delay += 450;
