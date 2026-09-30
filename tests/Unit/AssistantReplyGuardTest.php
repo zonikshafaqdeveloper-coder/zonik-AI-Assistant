@@ -123,6 +123,7 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertTrue($method->invoke(new MobilePriceListController(), 'delivery kab milegi?', $flow));
         $this->assertTrue($method->invoke(new MobilePriceListController(), 'aaj weather kaisa hai', $flow));
         $this->assertTrue($method->invoke(new MobilePriceListController(), 'Zonik mein kya kya milta hai?', $flow));
+        $this->assertFalse($method->invoke(new MobilePriceListController(), 'garmi ka mosam hai kya order karu', $flow));
         $this->assertFalse($method->invoke(new MobilePriceListController(), '2 packet Real juice add karo', $flow));
         $this->assertFalse($method->invoke(new MobilePriceListController(), 'customer care ko call karo', $flow));
         $this->assertFalse($method->invoke(new MobilePriceListController(), 'order confirm karo', $flow));
@@ -283,6 +284,72 @@ class AssistantReplyGuardTest extends TestCase
             $this->assertTrue($weather->invoke($controller, $message));
             $this->assertFalse($guest->invoke($controller, $message));
         }
+    }
+
+    public function test_summer_order_advice_is_weather_context(): void
+    {
+        $weather = new ReflectionMethod(MobilePriceListController::class, 'isAssistantWeatherShoppingRequest');
+        $guest = new ReflectionMethod(MobilePriceListController::class, 'isAssistantGuestShoppingRequest');
+        $recipe = new ReflectionMethod(MobilePriceListController::class, 'isAssistantRecipePlanningRequest');
+        $weather->setAccessible(true);
+        $guest->setAccessible(true);
+        $recipe->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $message = 'garmi ka mosam hai toh batao kya order karru';
+        $this->assertTrue($weather->invoke($controller, $message));
+        $this->assertFalse($guest->invoke($controller, $message));
+        $this->assertFalse($recipe->invoke($controller, $message));
+    }
+
+    public function test_recipe_order_advice_is_not_weather_context(): void
+    {
+        $recipe = new ReflectionMethod(MobilePriceListController::class, 'isAssistantRecipePlanningRequest');
+        $weather = new ReflectionMethod(MobilePriceListController::class, 'isAssistantWeatherShoppingRequest');
+        $guest = new ReflectionMethod(MobilePriceListController::class, 'isAssistantGuestShoppingRequest');
+        $recipe->setAccessible(true);
+        $weather->setAccessible(true);
+        $guest->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $message = 'maggie banane ke liye kya order karru';
+        $this->assertTrue($recipe->invoke($controller, $message));
+        $this->assertFalse($weather->invoke($controller, $message));
+        $this->assertFalse($guest->invoke($controller, $message));
+    }
+
+    public function test_contextual_shopping_request_detects_latest_condition(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'isAssistantContextualShoppingRequest');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertTrue($method->invoke($controller, 'aaj barish ka mosaam hai kya order karu'));
+        $this->assertTrue($method->invoke($controller, 'garmi ka mosam hai kya order karu'));
+        $this->assertTrue($method->invoke($controller, 'maggie banane ke liye kya order karru'));
+        $this->assertTrue($method->invoke($controller, 'aaj ghar pe mahmaan aa rahe toh batao kya order karru'));
+        $this->assertFalse($method->invoke($controller, 'cart dikhao'));
+    }
+
+    public function test_contextual_fallback_terms_are_specific_to_the_latest_topic(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantContextualShoppingFallback');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $summer = $method->invoke($controller, 'garmi ka mosam hai kya order karu');
+        $rain = $method->invoke($controller, 'barish ka mosam hai kya order karu');
+        $recipe = $method->invoke($controller, 'maggie banane ke liye kya order karru');
+        $guest = $method->invoke($controller, 'ghar pe mahmaan aa rahe kya order karu');
+
+        $this->assertSame('summer', $summer['context_type']);
+        $this->assertContains('cold drink', $summer['terms']);
+        $this->assertSame('rain', $rain['context_type']);
+        $this->assertContains('tea', $rain['terms']);
+        $this->assertSame('recipe', $recipe['context_type']);
+        $this->assertContains('maggi noodle', $recipe['terms']);
+        $this->assertSame('guest', $guest['context_type']);
+        $this->assertContains('namkeen', $guest['terms']);
     }
 
     public function test_previously_suggested_products_prefer_full_memory_over_visible_cards(): void
