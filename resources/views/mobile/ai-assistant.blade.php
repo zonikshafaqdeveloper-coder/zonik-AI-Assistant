@@ -1426,6 +1426,12 @@ body:has(.ai-page){background:#edf2f5}
 .ai-card:has(.ai-live-preview-row) .ai-live-preview-price{font-size:12px!important}
 .ai-card:has(.ai-live-preview-row) .ai-agent-state{display:block!important;top:58px!important}
 .ai-order-dock.is-delivery-stage .ai-live-preview{display:none!important}
+.ai-order-dock.is-passive .ai-live-preview{display:none!important}
+.ai-card:has(.ai-order-dock.is-passive) .ai-order-dock-total{min-width:74px!important;padding:0!important;border-radius:0!important;background:transparent!important;color:#102a56!important;font-size:12px!important;line-height:1.2!important;text-align:right!important}
+.ai-card:has(.ai-order-dock.is-passive) .ai-order-dock-total::before,
+.ai-card:has(.ai-order-dock.is-passive) .ai-order-dock-total::after{content:none!important}
+.ai-card:has(.ai-order-dock.is-passive) .ai-actions,
+.ai-card:has(.ai-order-dock.is-passive) .ai-input-row{display:flex!important}
 /* Use the Live Order body as a temporary interaction surface. Once the
    actionable row is removed after a successful choice, the cart rows return. */
 .ai-order-dock:has(.ai-order-interactions .ai-product-card) .ai-live-preview,
@@ -2961,7 +2967,7 @@ function appendTyping() {
                     if (html.trim()) appendMessage(message.role, html, message.time);
                 });
                 appendMessage('assistant', escapeHtml(instantWelcomeText));
-                renderLiveOrderList();
+                renderLiveOrderList({promote: !['', 'anything_else', 'account_answer'].includes(String(activeOrderingStage || ''))});
                 playWelcome().catch(finishWelcomeAndListen);
             })
             .catch(function () {
@@ -3348,6 +3354,7 @@ function appendTyping() {
                 }
                 if (aiIntent.intent === 'cart') {
                     removeTyping(typing);
+                    renderLiveOrderList();
                     showCart();
                     return;
                 }
@@ -3369,6 +3376,9 @@ function appendTyping() {
                 if (workflow.show_cart || cartMutationConfirmed) window.setTimeout(renderLiveOrderList, 100);
                 if (workflow.stage === 'cart_removed') cartShortcut.hidden = !(data.cart || []).length;
                 if (cartSettledStage && workflow.stage === 'anything_else') {
+                    if (!workflow.show_cart && !cartMutationConfirmed) {
+                        window.setTimeout(function () { renderLiveOrderList({promote: false}); }, 100);
+                    }
                     loadVoiceAsync(reply);
                     return;
                 }
@@ -3985,8 +3995,10 @@ function appendTyping() {
 
         function money(value) { return '₹' + Number(value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
-        function renderLiveOrderList() {
-            aiDebug('Loading live order list', {conversationId: conversationId, stage: activeOrderingStage});
+        function renderLiveOrderList(options) {
+            const renderOptions = options || {};
+            const passive = renderOptions.promote === false;
+            aiDebug('Loading live order list', {conversationId: conversationId, stage: activeOrderingStage, passive: passive});
             if (activeOrderingStage !== 'customer_care_offer') {
                 chat?.querySelectorAll('[data-customer-care-call]').forEach(function (choice) {
                     choice.closest('.ai-message-row')?.remove();
@@ -4004,6 +4016,7 @@ function appendTyping() {
                         });
                         orderDock?.classList.add('visible');
                         orderDock?.classList.add('is-empty');
+                        orderDock?.classList.remove('is-passive');
                         if (orderDock) orderDock.hidden = false;
                         if (orderDockCount) orderDockCount.textContent = '(0)';
                         if (orderDockTotal) orderDockTotal.textContent = money(0);
@@ -4016,36 +4029,41 @@ function appendTyping() {
                         orderDock.hidden = false;
                         orderDock.classList.add('visible');
                         orderDock.classList.remove('is-empty');
+                        orderDock.classList.toggle('is-passive', passive);
                     }
                     if (orderDockCount) orderDockCount.textContent = '(' + itemCount + ')';
                     if (orderDockTotal) orderDockTotal.textContent = money(data.total);
                     if (livePreview) {
-                        let newestChangedKey = '';
-                        const nextRows = new Map();
-                        livePreview.innerHTML = items.map(function (item) {
-                            const rowKey = String(item.cart_id || item.product_id || item.name);
-                            const signature = [item.qty, item.unit, item.total].join('|');
-                            const changed = previousLiveOrderRows.get(rowKey) !== signature;
-                            if (changed) newestChangedKey = rowKey;
-                            nextRows.set(rowKey, signature);
-                            const quantityControl = liveOrderEditable
-                                ? '<span class="ai-qty-control"><button type="button" class="ai-qty-btn" data-live-qty="-1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Decrease quantity">&minus;</button><span class="ai-qty-value">' + escapeHtml(item.qty) + '</span><button type="button" class="ai-qty-btn" data-live-qty="1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Increase quantity">+</button></span>'
-                                : '<span class="ai-live-preview-qty">' + escapeHtml(item.qty) + ' &times; ' + escapeHtml(item.unit || 'unit') + '</span>';
-                            return '<span class="ai-live-preview-row' + (changed ? ' is-new' : '') + (liveOrderEditable ? ' has-controls' : '') + '" data-live-preview-key="' + escapeHtml(rowKey) + '">'
-                                + '<span class="ai-live-preview-name">' + escapeHtml(item.name) + '</span>'
-                                + quantityControl
-                                + '<span class="ai-live-preview-price">' + money(item.total) + '</span></span>';
-                        }).join('');
-                        previousLiveOrderRows = nextRows;
-                        if (newestChangedKey) {
-                            const changedRow = Array.from(livePreview.querySelectorAll('[data-live-preview-key]')).find(function (row) {
-                                return row.dataset.livePreviewKey === newestChangedKey;
-                            });
-                            if (changedRow) {
-                                livePreview.scrollTo({
-                                    top: Math.max(0, changedRow.offsetTop - livePreview.clientHeight + changedRow.offsetHeight),
-                                    behavior: 'smooth'
+                        if (passive) {
+                            livePreview.innerHTML = '';
+                        } else {
+                            let newestChangedKey = '';
+                            const nextRows = new Map();
+                            livePreview.innerHTML = items.map(function (item) {
+                                const rowKey = String(item.cart_id || item.product_id || item.name);
+                                const signature = [item.qty, item.unit, item.total].join('|');
+                                const changed = previousLiveOrderRows.get(rowKey) !== signature;
+                                if (changed) newestChangedKey = rowKey;
+                                nextRows.set(rowKey, signature);
+                                const quantityControl = liveOrderEditable
+                                    ? '<span class="ai-qty-control"><button type="button" class="ai-qty-btn" data-live-qty="-1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Decrease quantity">&minus;</button><span class="ai-qty-value">' + escapeHtml(item.qty) + '</span><button type="button" class="ai-qty-btn" data-live-qty="1" data-cart-id="' + escapeHtml(item.cart_id) + '" data-current-qty="' + escapeHtml(item.qty) + '" aria-label="Increase quantity">+</button></span>'
+                                    : '<span class="ai-live-preview-qty">' + escapeHtml(item.qty) + ' &times; ' + escapeHtml(item.unit || 'unit') + '</span>';
+                                return '<span class="ai-live-preview-row' + (changed ? ' is-new' : '') + (liveOrderEditable ? ' has-controls' : '') + '" data-live-preview-key="' + escapeHtml(rowKey) + '">'
+                                    + '<span class="ai-live-preview-name">' + escapeHtml(item.name) + '</span>'
+                                    + quantityControl
+                                    + '<span class="ai-live-preview-price">' + money(item.total) + '</span></span>';
+                            }).join('');
+                            previousLiveOrderRows = nextRows;
+                            if (newestChangedKey) {
+                                const changedRow = Array.from(livePreview.querySelectorAll('[data-live-preview-key]')).find(function (row) {
+                                    return row.dataset.livePreviewKey === newestChangedKey;
                                 });
+                                if (changedRow) {
+                                    livePreview.scrollTo({
+                                        top: Math.max(0, changedRow.offsetTop - livePreview.clientHeight + changedRow.offsetHeight),
+                                        behavior: 'smooth'
+                                    });
+                                }
                             }
                         }
                     }
@@ -4629,7 +4647,7 @@ function appendTyping() {
             });
         });
         cartShortcut?.addEventListener('click', openCartPanel);
-        renderLiveOrderList().then(function () {
+        renderLiveOrderList({promote: false}).then(function () {
             cartShortcut.hidden = orderDock?.hidden !== false;
         });
     });
