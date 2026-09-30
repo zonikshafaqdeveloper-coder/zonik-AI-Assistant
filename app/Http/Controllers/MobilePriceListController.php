@@ -1271,7 +1271,7 @@ public function assistantChat(Request $request)
         $request->session()->put($flowKey, $orderFlow);
     }
     $clientWorkflowStage = (string) $request->input('workflow_stage', '');
-    $addPreviouslySuggestedRequest = $this->assistantAddPreviouslySuggestedRequest($message);
+    $addPreviouslySuggestedRequest = $this->assistantConfirmsAddingSuggestedProducts($message, $orderFlow);
     $clientSentFreshProductCommand = $this->looksLikeAssistantProductRequest($message)
         && $this->hasAssistantExplicitProductAction($message)
         && !$this->isAssistantAddConfirmation($message)
@@ -1322,29 +1322,17 @@ public function assistantChat(Request $request)
     // decides prices or executes an unsafe "add everything" command.
     if ($addPreviouslySuggestedRequest) {
         $suggestedProducts = $this->assistantProductsFromCurrentOrRecentSuggestions($orderFlow, $user, $outlet, $conversationId);
-        if (!empty($suggestedProducts)) {
-            $added = [];
-            $failed = [];
-            foreach (array_slice($suggestedProducts, 0, 8) as $product) {
-                if (($product['available_in_outlet'] ?? true) === false) {
-                    $failed[] = (string) ($product['name'] ?? 'Product');
-                    continue;
-                }
-                $result = $this->addAssistantProductToCart($user, $outlet, $product, 1);
-                $result ? $added[] = (string) ($product['name'] ?? 'Product') : $failed[] = (string) ($product['name'] ?? 'Product');
-            }
-            $reply = empty($added)
-                ? 'Jo suggestions dikhaye the unme se koi product abhi cart mein add nahi ho paya. Product ka naam bolkar add kar sakte hain.'
-                : count($added) . ' suggested products cart mein add kar diye: ' . implode(', ', array_slice($added, 0, 6)) . '. Aur kuch chahiye?';
-            if (!empty($failed)) $reply .= ' Kuch items add nahi ho paye: ' . implode(', ', array_slice($failed, 0, 4)) . '.';
-            $nextState = ['stage' => 'anything_else'];
-            $request->session()->put($flowKey, $nextState);
-            return $this->assistantFlowJsonResponse($user, $outlet, $conversationId, $message, [
-                'reply' => $reply,
-                'products' => [],
-                'workflow' => ['stage' => 'anything_else', 'show_cart' => true],
-                'state' => $nextState,
-            ], $this->assistantCartItemsForResponse($user, $outlet));
+        $bulkAddResponse = $this->assistantSuggestedBulkAddResponse($suggestedProducts, $user, $outlet);
+        if ($bulkAddResponse) {
+            $request->session()->put($flowKey, $bulkAddResponse['state']);
+            return $this->assistantFlowJsonResponse(
+                $user,
+                $outlet,
+                $conversationId,
+                $message,
+                $bulkAddResponse,
+                $this->assistantCartItemsForResponse($user, $outlet)
+            );
         }
     }
 
@@ -1727,6 +1715,27 @@ public function assistantChat(Request $request)
         ->where('role', 'assistant')->whereNotNull('product_data')
         ->latest('id')->first();
     $lastShownOptions = collect($lastAssistantChoice?->product_data ?: [])->values()->all();
+    if (count($lastShownOptions) > 1 && !$clientSentFreshProductCommand) {
+        $lastShownFlow = [
+            'stage' => $clientWorkflowStage ?: ($currentStage ?: 'clarify_product'),
+            'products' => $lastShownOptions,
+            'suggestions' => $lastShownOptions,
+        ];
+        if ($this->assistantConfirmsAddingSuggestedProducts($message, $lastShownFlow)) {
+            $bulkAddResponse = $this->assistantSuggestedBulkAddResponse($lastShownOptions, $user, $outlet);
+            if ($bulkAddResponse) {
+                $request->session()->put($flowKey, $bulkAddResponse['state']);
+                return $this->assistantFlowJsonResponse(
+                    $user,
+                    $outlet,
+                    $conversationId,
+                    $message,
+                    $bulkAddResponse,
+                    $this->assistantCartItemsForResponse($user, $outlet)
+                );
+            }
+        }
+    }
     if (count($lastShownOptions) > 1 && !$clientSentFreshProductCommand) {
         $spokenChoice = $this->resolveAssistantClarificationChoiceSemantically($message, $lastShownOptions);
         if ($spokenChoice && $outlet) {
@@ -2854,6 +2863,14 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
                 'state' => ['stage' => 'confirm_order'],
             ];
         }
+        if ($this->assistantConfirmsAddingSuggestedProducts($message, $flow)) {
+            $bulkAddResponse = $this->assistantSuggestedBulkAddResponse(
+                $this->assistantProductsFromCurrentOrRecentSuggestions($flow, $user, $outlet, null),
+                $user,
+                $outlet
+            );
+            if ($bulkAddResponse) return $bulkAddResponse;
+        }
         if ($this->assistantAllEnquiriesRequested($message) && !empty($options)) {
             $sentNames = [];
             $failedOptions = [];
@@ -3186,6 +3203,14 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
+        if ($this->assistantConfirmsAddingSuggestedProducts($message, $flow)) {
+            $bulkAddResponse = $this->assistantSuggestedBulkAddResponse(
+                $this->assistantProductsFromCurrentOrRecentSuggestions($flow, $user, $outlet, null),
+                $user,
+                $outlet
+            );
+            if ($bulkAddResponse) return $bulkAddResponse;
+        }
         // A spoken card name ("apple wala") is already an unambiguous add
         // instruction. Resolve it before relying on a separate yes/add_more
         // classifier so selection keeps working if Gemini is slow/unavailable.
@@ -3384,14 +3409,14 @@ private function assistantPreviousOrderSuggestions(?User $user, ?User $outlet, a
  * price list. This keeps stored/history suggestion state safe after prices or
  * catalogue assignments change.
  */
-private function assistantSuggestionProductsForIds(array $orderedProductIds, ?User $outlet, int $limit = 3): array
+private function assistantSuggestionProductsForIds(array $orderedProductIds, ?User $outlet, int $limit = 3, ?User $customer = null): array
 {
     if (!$outlet || $limit < 1) return [];
     $orderedProductIds = collect($orderedProductIds)->map(fn ($id) => (int) $id)
         ->filter()->unique()->values();
     if ($orderedProductIds->isEmpty()) return [];
 
-    $prices = collect($this->assistantOutletPriceMap($outlet))
+    $prices = collect($this->assistantOutletPriceMap($outlet, $customer))
         ->only($orderedProductIds->all());
     if ($prices->isEmpty()) return [];
 
@@ -4968,7 +4993,7 @@ private function assistantWeatherProductPlan(string $message, ?User $user, ?User
 private function isAssistantGuestShoppingRequest(string $message): bool
 {
     $mentionsGuest = (bool) preg_match('/\b(?:mehmaan|mehman|guest|guests|relative|relatives|friends?|dost|party|visit|aa\s+rahe|aane\s+wale|ghar\s+aa)\b/iu', $message);
-    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|what|which|suggest|recommend|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|serve|khilana|pilana)\b/iu', $message);
+    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|kya|what|which|suggest|recommend|batao|bataiye|batana|order|mangau|mangwaun|mangwao|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|serve|khilana|pilana)\b/iu', $message);
 
     return $mentionsGuest && $asksShopping;
 }
@@ -5025,6 +5050,37 @@ private function assistantAddPreviouslySuggestedRequest(string $message): bool
     return $wantsAdd && ($all || $affirmativeAll) && $refersBack;
 }
 
+private function assistantFlowHasSuggestedProducts(array $flow): bool
+{
+    foreach (['suggestions', 'last_suggestions', 'products'] as $key) {
+        $products = $flow[$key] ?? [];
+        if (is_array($products) && collect($products)->contains(
+            fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot'])
+        )) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+private function assistantConfirmsAddingSuggestedProducts(string $message, array $flow = []): bool
+{
+    if ($this->assistantAddPreviouslySuggestedRequest($message)) return true;
+    if (!$this->assistantFlowHasSuggestedProducts($flow)) return false;
+    if ($this->isAssistantFinishShoppingMessage($message) || $this->assistantRejectsSuggestionsForDelivery($message, 'unknown')) return false;
+
+    $lower = mb_strtolower($this->normalizeAssistantCustomerUtterance($message));
+    $wantsAdd = (bool) preg_match('/\b(?:add|cart|order|daal|dal|dalo|daalo|rakh|rakho|include|kar\s*do|kardo|krdo|de\s*do)\b/iu', $lower);
+    if (!$wantsAdd) return false;
+
+    $hasAffirmative = (bool) preg_match('/^\s*(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|theek|thik|ji)\b/iu', $lower);
+    $refersToShown = (bool) preg_match('/\b(?:ye|yeh|is|in|inko|inka|inke|unko|unhe|woh|wo|wahi|same|them|these|those|this|that|suggestions?|items?|products?)\b/iu', $lower);
+    $all = (bool) preg_match('/\b(?:sab|sub|sabhi|saare|sare|all|everything|jo\s+jo|jo\s+bhi)\b/iu', $lower);
+
+    return $hasAffirmative || $refersToShown || $all;
+}
+
 private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?User $user, ?User $outlet, ?string $conversationId): array
 {
     $products = collect($flow['suggestions'] ?? $flow['last_suggestions'] ?? [])
@@ -5053,12 +5109,110 @@ private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?U
         $products = collect(is_array($message?->product_data) ? $message->product_data : []);
     }
 
-    return $products
+    if ($products->isEmpty()) {
+        $products = collect($this->assistantRecoverProductsFromRecentSuggestionIntent($user, $outlet, $conversationId));
+    }
+
+    $products = $products
         ->filter(fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot']))
         ->unique(fn ($product) => (int) ($product['id'] ?? 0))
         ->take(8)
         ->values()
         ->all();
+
+    return $this->assistantRehydrateSuggestedProducts($products, $user, $outlet, 8);
+}
+
+private function assistantRecoverProductsFromRecentSuggestionIntent(?User $user, ?User $outlet, ?string $conversationId): array
+{
+    if (!$user || !$outlet || !$conversationId) return [];
+
+    $recentUserMessages = AiAssistantMessage::where('user_id', $user->id)
+        ->when($outlet, fn ($query) => $query->where('outlet_id', $outlet->id))
+        ->where('conversation_id', $conversationId)
+        ->where('role', 'user')
+        ->latest('id')
+        ->limit(8)
+        ->pluck('message');
+
+    foreach ($recentUserMessages as $previousMessage) {
+        $previousMessage = (string) $previousMessage;
+        if ($this->isAssistantGuestShoppingRequest($previousMessage)) {
+            $plan = $this->assistantGuestProductPlan($previousMessage, $user, $outlet);
+            return array_values($plan['products'] ?? []);
+        }
+        if ($this->isAssistantWeatherShoppingRequest($previousMessage)) {
+            $plan = $this->assistantWeatherProductPlan($previousMessage, $user, $outlet);
+            return array_values($plan['products'] ?? []);
+        }
+        if ($this->isAssistantRecommendationRequest($previousMessage) || $this->isAssistantZonikCatalogueRequest($previousMessage)) {
+            return $this->assistantSmartSuggestions($user, $outlet, [], 5);
+        }
+    }
+
+    return [];
+}
+
+private function assistantRehydrateSuggestedProducts(array $products, ?User $user, ?User $outlet, int $limit = 8): array
+{
+    $products = collect($products)
+        ->filter(fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot']))
+        ->unique(fn ($product) => (int) ($product['id'] ?? 0))
+        ->take($limit)
+        ->values();
+    if ($products->isEmpty()) return [];
+    if (!$outlet) return $products->all();
+
+    $metadataById = $products->keyBy(fn ($product) => (int) ($product['id'] ?? 0));
+    $freshProducts = collect($this->assistantSuggestionProductsForIds(
+        $products->pluck('id')->map(fn ($id) => (int) $id)->all(),
+        $outlet,
+        $limit,
+        $user
+    ));
+    if ($freshProducts->isEmpty()) return $products->all();
+
+    return $freshProducts->map(function ($product) use ($metadataById) {
+        $metadata = $metadataById->get((int) ($product['id'] ?? 0), []);
+        foreach (['requested_quantity', 'selected_quantity', 'requested_unit', 'recipe_ingredient'] as $key) {
+            if (isset($metadata[$key]) && !isset($product[$key])) {
+                $product[$key] = $metadata[$key];
+            }
+        }
+        return $product;
+    })->values()->all();
+}
+
+private function assistantSuggestedBulkAddResponse(array $suggestedProducts, ?User $user, ?User $outlet): ?array
+{
+    $suggestedProducts = $this->assistantRehydrateSuggestedProducts($suggestedProducts, $user, $outlet, 8);
+    if (empty($suggestedProducts)) return null;
+
+    $added = [];
+    $failed = [];
+    foreach (array_slice($suggestedProducts, 0, 8) as $product) {
+        if (($product['available_in_outlet'] ?? true) === false) {
+            $failed[] = (string) ($product['name'] ?? 'Product');
+            continue;
+        }
+        $quantity = (float) ($product['selected_quantity'] ?? $product['requested_quantity'] ?? 1);
+        if ($quantity <= 0 || floor($quantity) != $quantity) $quantity = 1;
+        $result = $this->addAssistantProductToCart($user, $outlet, $product, $quantity);
+        $result ? $added[] = (string) ($product['name'] ?? 'Product') : $failed[] = (string) ($product['name'] ?? 'Product');
+    }
+
+    $reply = empty($added)
+        ? 'Jo suggestions dikhaye the unme se koi product abhi cart mein add nahi ho paya. Product ka naam bolkar add kar sakte hain.'
+        : count($added) . ' suggested products cart mein add kar diye: ' . implode(', ', array_slice($added, 0, 6)) . '. Aur kuch chahiye?';
+    if (!empty($failed)) $reply .= ' Kuch items add nahi ho paye: ' . implode(', ', array_slice($failed, 0, 4)) . '.';
+
+    return [
+        'reply' => $reply,
+        'products' => [],
+        'workflow' => ['stage' => 'anything_else', 'show_cart' => true],
+        'state' => ['stage' => 'anything_else'],
+        'auto_added' => !empty($added),
+    ];
 }
 
 private function assistantRecipeProductPlan(string $message, ?User $user, ?User $outlet): ?array

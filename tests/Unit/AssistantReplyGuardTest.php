@@ -240,6 +240,33 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertFalse($method->invoke($controller, 'saare products add karo'));
     }
 
+    public function test_active_suggestion_flow_accepts_short_bulk_add_confirmation(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'assistantConfirmsAddingSuggestedProducts');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+        $flow = ['stage' => 'clarify_product', 'suggestions' => [
+            ['id' => 21, 'name' => 'Guest Juice'],
+            ['id' => 22, 'name' => 'Guest Biscuit'],
+        ]];
+
+        $this->assertTrue($method->invoke($controller, 'haan add kar do', $flow));
+        $this->assertTrue($method->invoke($controller, 'yes add them all', $flow));
+        $this->assertFalse($method->invoke($controller, 'haan add kar do', []));
+        $this->assertFalse($method->invoke($controller, 'no thanks', $flow));
+    }
+
+    public function test_guest_order_advice_is_treated_as_a_shopping_suggestion_request(): void
+    {
+        $method = new ReflectionMethod(MobilePriceListController::class, 'isAssistantGuestShoppingRequest');
+        $method->setAccessible(true);
+        $controller = new MobilePriceListController();
+
+        $this->assertTrue($method->invoke($controller, 'aaj ghar pe mahmaan aa rahe toh batao kya order karru'));
+        $this->assertTrue($method->invoke($controller, 'guests aa rahe hain what should I order'));
+        $this->assertFalse($method->invoke($controller, 'aaj ghar pe hoon'));
+    }
+
     public function test_previously_suggested_products_prefer_full_memory_over_visible_cards(): void
     {
         $method = new ReflectionMethod(MobilePriceListController::class, 'assistantProductsFromCurrentOrRecentSuggestions');
