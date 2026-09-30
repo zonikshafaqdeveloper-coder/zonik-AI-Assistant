@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Order;
 use App\Models\OverdueFollowup;
 use App\Models\Payment;
@@ -1178,7 +1179,9 @@ $preShortLogMonth = DB::table('pre_material_short_logs')
 {
     $credentials = $request->only('email', 'password');
 
-    if (Auth::guard('admin')->attempt($credentials, true)) {
+    $remember = Schema::hasColumn('admins', 'remember_token') && $request->boolean('remember', true);
+
+    if (Auth::guard('admin')->attempt($credentials, $remember)) {
         $request->session()->regenerate(); 
         return redirect('dashboardd');
     }
