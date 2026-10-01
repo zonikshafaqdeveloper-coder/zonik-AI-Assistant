@@ -328,6 +328,10 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertTrue($method->invoke($controller, 'garmi ka mosam hai kya order karu'));
         $this->assertTrue($method->invoke($controller, 'maggie banane ke liye kya order karru'));
         $this->assertTrue($method->invoke($controller, 'aaj ghar pe mahmaan aa rahe toh batao kya order karru'));
+        $this->assertTrue($method->invoke($controller, 'mera mood off hai kuch acha khane ke liye suggest karo'));
+        $this->assertTrue($method->invoke($controller, 'movie dekhte time kya snacks order karu'));
+        $this->assertTrue($method->invoke($controller, 'gym ke baad healthy kya lena chahiye'));
+        $this->assertTrue($method->invoke($controller, 'vrat ke liye kya order karu'));
         $this->assertFalse($method->invoke($controller, 'cart dikhao'));
     }
 
@@ -341,6 +345,10 @@ class AssistantReplyGuardTest extends TestCase
         $rain = $method->invoke($controller, 'barish ka mosam hai kya order karu');
         $recipe = $method->invoke($controller, 'maggie banane ke liye kya order karru');
         $guest = $method->invoke($controller, 'ghar pe mahmaan aa rahe kya order karu');
+        $mood = $method->invoke($controller, 'mood off hai kuch acha khane ko suggest karo');
+        $movie = $method->invoke($controller, 'movie dekhte time snacks batao');
+        $healthy = $method->invoke($controller, 'gym ke baad healthy kya lena chahiye');
+        $fasting = $method->invoke($controller, 'vrat ke liye kya order karu');
 
         $this->assertSame('summer', $summer['context_type']);
         $this->assertContains('cold drink', $summer['terms']);
@@ -350,6 +358,14 @@ class AssistantReplyGuardTest extends TestCase
         $this->assertContains('maggi noodle', $recipe['terms']);
         $this->assertSame('guest', $guest['context_type']);
         $this->assertContains('namkeen', $guest['terms']);
+        $this->assertSame('mood', $mood['context_type']);
+        $this->assertContains('chocolate', $mood['terms']);
+        $this->assertSame('entertainment', $movie['context_type']);
+        $this->assertContains('popcorn', $movie['terms']);
+        $this->assertSame('healthy', $healthy['context_type']);
+        $this->assertContains('peanut butter', $healthy['terms']);
+        $this->assertSame('fasting', $fasting['context_type']);
+        $this->assertContains('dates', $fasting['terms']);
     }
 
     public function test_previously_suggested_products_prefer_full_memory_over_visible_cards(): void
