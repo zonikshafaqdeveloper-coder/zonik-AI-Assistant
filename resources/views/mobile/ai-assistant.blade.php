@@ -1765,13 +1765,14 @@ body:has(.ai-page){background:#edf2f5}
             const search = String(query || '').trim().toLowerCase();
             if (!search || search.length < 2) return false;
             if (isCatalogueAdviceQuestion(message)) return false;
-            if (/^(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik|nahi|nahin|nhi|nai|no|thanks|thank|you|kar|karo|kardo|\s)+$/iu.test(message)) return false;
+            if (isSuggestionBulkAddReply(message) || isFlowConfirmationOnly(message) || isFlowOnlyActionReply(message)) return false;
+            if (/^(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik|nahi|nahin|nhi|nai|no|thanks|thank|you|kar|karo|kardo|confirm|confirmed|sab|sub|all|ye|yeh|yah|ya|yahi|yehi|\s)+$/iu.test(message)) return false;
             const stopWords = new Set([
                 'haan', 'han', 'haa', 'ha', 'yes', 'ok', 'okay', 'ji', 'theek', 'thik', 'nahi', 'nahin', 'nhi', 'nai', 'no',
-                'ye', 'yeh', 'yahi', 'yehi', 'wo', 'woh', 'wahi', 'same', 'sab', 'sub', 'all', 'jo', 'bhi', 'inme', 'isme',
+                'ye', 'yeh', 'yah', 'ya', 'yahi', 'yehi', 'wo', 'woh', 'wahi', 'same', 'sab', 'sub', 'sabhi', 'saare', 'sare', 'all', 'jo', 'bhi', 'inme', 'isme',
                 'mujhe', 'muje', 'kya', 'kaunsa', 'kaunsi', 'kaunse', 'batao', 'bataiye', 'suggest', 'recommend', 'mausam',
                 'mosam', 'mosaam', 'mousam', 'mein', 'me', 'mai', 'main', 'khana', 'khaana', 'chahie', 'chahiye', 'chaiye',
-                'kar', 'karo', 'kardu', 'kardo', 'add', 'daal', 'dal', 'rakh', 'rakho'
+                'kar', 'karo', 'kardu', 'kardo', 'add', 'daal', 'dal', 'rakh', 'rakho', 'confirm', 'confirmed'
             ]);
             const usefulWords = search.split(/\s+/).filter(function (word) {
                 return word && !stopWords.has(word);
@@ -1785,6 +1786,8 @@ body:has(.ai-page){background:#edf2f5}
             if (!cataloguePanelIsOpen()) return;
             const query = catalogueSearchQueryFromUtterance(spokenText);
             const useSpokenQuery = shouldUseCatalogueUtteranceSearch(spokenText, query);
+            const resetSearch = !useSpokenQuery && (isCatalogueAdviceQuestion(spokenText) || isSuggestionBulkAddReply(spokenText) || isFlowConfirmationOnly(spokenText) || isFlowOnlyActionReply(spokenText));
+            if (catalogueSearch && resetSearch) catalogueSearch.value = '';
             if (catalogueSearch && useSpokenQuery) catalogueSearch.value = query;
             if (products && products.length) {
                 renderCatalogueProducts(products);
@@ -2217,10 +2220,40 @@ body:has(.ai-page){background:#edf2f5}
                 || /(?:\u0915\u094d\u092f\u093e|\u0915\u094d\u092f\u094b\u0902|\u0915\u0948\u0938\u0947|\u0915\u092c|\u0915\u0939\u093e\u0901|\u0915\u094c\u0928|\u092c\u0924\u093e\u0913|\u092c\u0924\u093e\u0907\u090f)/u.test(message);
         }
 
+        function isSuggestionBulkAddReply(value) {
+            const message = String(value || '').trim();
+            if (!message) return false;
+            const affirmative = /\b(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik)\b/iu.test(message);
+            const allReference = /\b(?:ye|yeh|yah|ya|yahi|yehi|wo|woh|wahi|inme|isme|suggest(?:ed|ion)?s?|jo\s+(?:tumne|aapne)?\s*(?:bataya|suggest|dikhaya)|sab|sub|sabhi|saare|sare|all|everything)\b/iu.test(message);
+            const addAction = /\b(?:add|daal|dal|dalo|daalo|rakh|rakho|rakh\s*do|cart\s+mein|cart\s+me|kar\s*do|kardo|karke\s*do)\b/iu.test(message);
+            return (affirmative || allReference) && allReference && addAction;
+        }
+
+        function isFlowConfirmationOnly(value) {
+            const message = String(value || '').trim();
+            if (!message) return false;
+            return /^(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik|confirm|confirmed|done|final|sahi|right|kar\s*do|kardo|place\s+order|\s)+$/iu.test(message);
+        }
+
+        function isFlowOnlyActionReply(value) {
+            const stage = String(activeOrderingStage || '');
+            if (!stage || stage === 'anything_else') return false;
+            const message = String(value || '').trim();
+            if (!message) return false;
+            if (!/\b(?:add|daal|dal|dalo|daalo|rakh|rakho|rakh\s*do|cart\s+mein|cart\s+me|kar\s*do|kardo|confirm|confirmed|done|final|place\s+order)\b/iu.test(message)) return false;
+            const remainder = message
+                .replace(/\b(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik|confirm|confirmed|done|final|sahi|right|add|daal|dal|dalo|daalo|rakh|rakho|rakh\s*do|cart|mein|me|kar|karo|kar\s*do|kardo|karke\s*do|place|order|ye|yeh|yah|ya|yahi|yehi|wo|woh|wahi|same|sab|sub|sabhi|saare|sare|all|everything|jo|bhi|suggestions?|items?|products?)\b/giu, ' ')
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return remainder === '';
+        }
+
         function isFreshProductCommand(value) {
             const message = String(value || '').trim();
             if (!message) return false;
             if (isCatalogueAdviceQuestion(message)) return false;
+            if (isSuggestionBulkAddReply(message) || isFlowConfirmationOnly(message) || isFlowOnlyActionReply(message)) return false;
             if (/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu.test(message)) return false;
             if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
             if (/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)\b|\b(?:aur|or|more|extra)\s+(?:ek|one|do|two|teen|three|\d+)\b/iu.test(message)) return false;
@@ -3429,7 +3462,7 @@ function appendTyping() {
                     const productCardStages = ['clarify_product', 'top_selling', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
-                        html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 3).map(suggestionCard).join('') + '</div>'
+                        html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 8).map(suggestionCard).join('') + '</div>'
                             + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
                     } else if (productCardStages.includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
                         const productQuantity = Number(product.requested_quantity || quantity || 1);
