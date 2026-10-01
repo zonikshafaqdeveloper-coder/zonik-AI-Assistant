@@ -2311,10 +2311,10 @@ body:has(.ai-page){background:#edf2f5}
             previousOrdersVisible = false;
             // Only clear the idle state. We never discard the cart or an
             // in-progress checkout merely because the customer said "new".
-            if (!activeOrderingStage || activeOrderingStage === 'anything_else') activeOrderingStage = null;
+            if (!activeOrderingStage || activeOrderingStage === 'anything_else') activeOrderingStage = 'anything_else';
             const reply = 'Theek hai, product ka naam aur quantity saath mein boliye.';
             appendMessage('assistant', escapeHtml(reply));
-            loadVoiceAsync(reply);
+            loadVoiceAsync(reply, scheduleResponseReminder);
             input.focus();
         }
 
@@ -2929,8 +2929,10 @@ function appendTyping() {
             applyDetectedLanguage('', text);
         }
 
-        function scheduleResponseReminder() {
-            cancelResponseReminder();
+        function scheduleResponseReminder(options) {
+            const keepExisting = Boolean(options && options.keepExisting);
+            if (keepExisting && responseReminderTimer) return;
+            if (!keepExisting) cancelResponseReminder();
             if (!activeOrderingStage || responseReminderCount >= maximumResponseReminders) return;
             responseReminderTimer = window.setTimeout(function () {
                 responseReminderTimer = null;
@@ -3462,8 +3464,9 @@ function appendTyping() {
                     const productCardStages = ['clarify_product', 'top_selling', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
+                        const skipLabel = workflow.contextual_suggestions ? 'No thanks' : 'No thanks, continue delivery';
                         html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.map(suggestionCard).join('') + '</div>'
-                            + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
+                            + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">' + escapeHtml(skipLabel) + '</button></div>';
                     } else if (productCardStages.includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
                         const productQuantity = Number(product.requested_quantity || quantity || 1);
                         const label = workflow.stage === 'choose_cart_item' ? ('Set ' + productQuantity) : (workflow.stage === 'choose_cart_remove' ? 'Remove' : 'Add to Cart');
@@ -3777,9 +3780,8 @@ function appendTyping() {
             recognition.onstart = function () {
                 micBtn.classList.add('listening');
                 setMicStatus('Listening…', 'listening');
-                scheduleResponseReminder();
+                scheduleResponseReminder({keepExisting: true});
             };
-            recognition.addEventListener('start', cancelResponseReminder, {once: true});
             recognition.onresult = function (event) {
                 if (activeAssistantAudio || window.speechSynthesis?.speaking || Date.now() - assistantSpeechEndedAt < 900) return;
                 finalTranscript = '';
@@ -3809,6 +3811,7 @@ function appendTyping() {
                 if (!heardText) return;
                 bestHeardTranscript = bestVoiceTranscript(bestHeardTranscript, heardText);
                 receivedSpeech = true;
+                cancelResponseReminder();
                 setMicStatus('Listening…', 'listening');
                 aiDebug('Voice utterance updated', {final: finalTranscript, interim: latestInterimTranscript, best: bestHeardTranscript});
                 finishCurrentUtterance(voiceCompletionDelay(bestHeardTranscript, !!finalTranscript, !!latestInterimTranscript));
@@ -4458,11 +4461,11 @@ function appendTyping() {
                     if (nextStage === 'delivery_details') {
                         const reply = next.reply || 'Delivery selected outlet ke saved address par jayegi. Slot confirm kijiye.';
                         renderAssistantDeliveryOptions(next);
-                        loadVoiceAsync(reply);
+                        loadVoiceAsync(reply, scheduleResponseReminder);
                     } else {
                         loadVoiceAsync(next.reply || selection.message || (isOrderSuggestion
                             ? 'Suggested product add ho gaya. Updated order summary confirm kijiye.'
-                            : 'Product add ho gaya. Aur kuch chahiye?'));
+                            : 'Product add ho gaya. Aur kuch chahiye?'), scheduleResponseReminder);
                     }
                     if (keepCartOpen) openCartPanel();
                 })

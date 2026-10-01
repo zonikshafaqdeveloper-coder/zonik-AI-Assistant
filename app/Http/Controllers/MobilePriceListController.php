@@ -1367,10 +1367,10 @@ public function assistantChat(Request $request)
             $request->session()->put($resumeDeliveryKey, true);
         }
         $contextualProducts = array_values($contextualPlan['products'] ?? []);
-        $contextualStage = count($contextualProducts) > 1 ? 'clarify_product' : 'anything_else';
-        $contextualState = count($contextualProducts) > 1
-            ? ['stage' => 'clarify_product', 'products' => $contextualProducts, 'suggestions' => $contextualProducts]
-            : ['stage' => 'anything_else', 'suggestions' => $contextualProducts];
+        $contextualStage = !empty($contextualProducts) ? 'order_suggestions' : 'anything_else';
+        $contextualState = !empty($contextualProducts)
+            ? ['stage' => 'order_suggestions', 'products' => $contextualProducts, 'suggestions' => $contextualProducts, 'contextual_suggestions' => true]
+            : ['stage' => 'anything_else', 'suggestions' => $contextualProducts, 'contextual_suggestions' => true];
         $request->session()->put($flowKey, $contextualState);
         $contextualPlan['workflow'] = [
             'stage' => $contextualStage,
@@ -3170,6 +3170,9 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
     }
     if ($stage === 'order_suggestions') {
         if ($this->assistantRejectsSuggestionsForDelivery($message, (string) $action)) {
+            if (!empty($flow['contextual_suggestions'])) {
+                return ['reply' => 'Theek hai ji, suggestions skip kar diye. Jo product chahiye uska naam bol dijiye.', 'products' => [], 'workflow' => ['stage' => 'anything_else'], 'state' => ['stage' => 'anything_else']];
+            }
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
@@ -3190,6 +3193,9 @@ private function continueAssistantOrderFlow(string $message, array $flow, ?User 
             return ['reply' => $added ? ($this->assistantCartMutationReply($added, $suggestedProduct['name'] ?? 'Product') . ' Updated order summary confirm kijiye.') : 'Product add nahi ho paya. Dobara try karein.', 'products' => [], 'auto_added' => $added, 'workflow' => ['stage' => $added ? 'confirm_order' : 'order_suggestions', 'show_cart' => (bool) $added], 'state' => $added ? ['stage' => 'confirm_order', 'skip_suggestions' => true] : $flow];
         }
         if ($no || $action === 'finish') {
+            if (!empty($flow['contextual_suggestions'])) {
+                return ['reply' => 'Theek hai ji, suggestions skip kar diye. Aap jo lena chahen product ka naam bol dijiye.', 'products' => [], 'workflow' => ['stage' => 'anything_else'], 'state' => ['stage' => 'anything_else']];
+            }
             $delivery = $this->assistantDeliveryChoices($outlet);
             return ['reply' => $delivery['reply'], 'products' => [], 'workflow' => ['stage' => 'delivery_details', 'locations' => $delivery['locations'], 'slots' => $delivery['slots']], 'state' => ['stage' => 'delivery_details']];
         }
@@ -4910,10 +4916,10 @@ private function isAssistantContextualShoppingRequest(string $message): bool
         return true;
     }
 
-    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|kya|what|which|suggest|recommend|batao|bataiye|batana|order|mangau|mangwaun|mangwao|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|shopping|list|karu|karun|karru)\b/iu', $normalized);
+    $asksShopping = (bool) preg_match('/\b(?:kya\s+kya|kya|what|which|suggest|recommend|batao|bataiye|batana|order|mangau|mangwaun|mangwao|lena|chahiye|chaiye|need|items?|products?|snacks?|nashta|shopping|list|karu|karun|karru|khana|khaana|peena|drink|meal|craving|kuch)\b/iu', $normalized);
     if (!$asksShopping) return false;
 
-    return (bool) preg_match('/\b(?:garmi|garami|summer|hot|heat|dhoop|loo|hydration|barish|baarish|barsaat|rain|rainy|monsoon|mausam|mousam|mosaam|mosam|weather|thand|thandi|cold|sardi|mehmaan|mehman|guests?|party|birthday|function|festival|office|school|college|travel|safar|trip|movie|match|kids?|bachche|bache|children|breakfast|lunch|dinner|recipe|banane|banana|cook|make|prepare)\b/iu', $normalized);
+    return (bool) preg_match('/\b(?:garmi|garami|summer|hot|heat|dhoop|loo|hydration|barish|baarish|barsaat|rain|rainy|monsoon|mausam|mousam|mosaam|mosam|weather|thand|thandi|cold|sardi|mehmaan|mehman|guests?|party|birthday|function|festival|office|school|college|study|padhai|exam|travel|safar|trip|movie|series|netflix|cinema|match|game|gaming|picnic|outing|date|meeting|kids?|bachche|bache|children|breakfast|lunch|dinner|snack|nashta|recipe|banane|banana|cook|make|prepare|mood|mann|man|dil|craving|bhookh|hungry|sweet|meetha|spicy|chatpata|teekha|healthy|diet|light|energy|tired|thaka|fresh|refresh|gym|workout|protein|vrat|fast|fasting|upwas|roza|iftar|sehri|pooja|puja)\b/iu', $normalized);
 }
 
 private function assistantContextualShoppingFallback(string $message): array
@@ -4977,6 +4983,78 @@ private function assistantContextualShoppingFallback(string $message): array
             'intro' => 'Thand ke time chai/coffee, soup, ginger-honey type items aur biscuits useful rahenge.',
         ];
     }
+    if (preg_match('/\b(?:movie|series|netflix|cinema|match|game|gaming)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'entertainment',
+            'label' => 'movie/match time',
+            'terms' => ['popcorn', 'chips', 'namkeen', 'biscuits', 'cold drink', 'soft drink', 'juice', 'chocolate'],
+            'intro' => 'Movie ya match time ke liye crunchy snacks aur drinks best rahenge.',
+        ];
+    }
+    if (preg_match('/\b(?:mood|mann|man|dil|craving|bhookh|hungry|bored|boring|sad|tired|thaka|fresh|refresh)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'mood',
+            'label' => 'mood ke hisaab se',
+            'terms' => ['chocolate', 'cookies', 'biscuits', 'chips', 'namkeen', 'cold drink', 'juice', 'coffee', 'tea'],
+            'intro' => 'Mood ke hisaab se kuch sweet, kuch crunchy aur ek drink option achha rahega.',
+        ];
+    }
+    if (preg_match('/\b(?:chatpata|spicy|teekha|masaledar|namkeen)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'spicy_craving',
+            'label' => 'chatpata mood',
+            'terms' => ['chips', 'namkeen', 'instant noodles', 'chilli sauce', 'soft drink', 'cold drink', 'biscuits'],
+            'intro' => 'Chatpata mood ke liye spicy snacks ke saath ek drink useful rahega.',
+        ];
+    }
+    if (preg_match('/\b(?:sweet|meetha|chocolate|dessert)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'sweet_craving',
+            'label' => 'meetha mood',
+            'terms' => ['chocolate', 'cookies', 'biscuits', 'cake', 'juice', 'milk'],
+            'intro' => 'Meetha mood ke liye chocolate, cookies/biscuits aur drink options match kar raha hoon.',
+        ];
+    }
+    if (preg_match('/\b(?:healthy|diet|light|gym|workout|protein|energy)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'healthy',
+            'label' => 'healthy/light need',
+            'terms' => ['water', 'oats', 'peanut butter', 'milk', 'juice', 'glucose', 'protein', 'biscuits'],
+            'intro' => 'Healthy ya light need ke liye hydration, oats/peanut butter, milk/juice type options useful rahenge.',
+        ];
+    }
+    if (preg_match('/\b(?:study|padhai|exam|office|meeting|work)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'work_study',
+            'label' => 'study/office time',
+            'terms' => ['coffee', 'tea', 'biscuits', 'water', 'chocolate', 'namkeen', 'juice'],
+            'intro' => 'Study ya office ke liye easy snacks, water aur tea/coffee practical rahenge.',
+        ];
+    }
+    if (preg_match('/\b(?:vrat|fast|fasting|upwas|roza|iftar|sehri|pooja|puja)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'fasting',
+            'label' => 'fasting/vrat need',
+            'terms' => ['water', 'juice', 'dates', 'milk', 'peanut', 'sugar', 'tea'],
+            'intro' => 'Fasting/vrat ke liye simple hydration aur light energy items useful rahenge.',
+        ];
+    }
+    if (preg_match('/\b(?:breakfast|nashta|subah)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'breakfast',
+            'label' => 'breakfast',
+            'terms' => ['tea', 'coffee', 'milk', 'bread', 'butter', 'biscuits', 'oats', 'corn flakes'],
+            'intro' => 'Breakfast ke liye tea/coffee, milk, bread-butter aur quick options match kar raha hoon.',
+        ];
+    }
+    if (preg_match('/\b(?:lunch|dinner|khana|meal)\b/iu', $normalized)) {
+        return [
+            'context_type' => 'meal',
+            'label' => 'meal planning',
+            'terms' => ['rice', 'atta', 'cooking oil', 'salt', 'masala', 'dal', 'sauce', 'pickle'],
+            'intro' => 'Meal ke liye basic cooking staples aur side items useful rahenge.',
+        ];
+    }
     if ($this->isAssistantGuestShoppingRequest($normalized)) {
         return [
             'context_type' => 'guest',
@@ -5025,9 +5103,12 @@ private function assistantContextualShoppingPlan(string $message, ?User $user, ?
         $priceListHintText = empty($priceListHints)
             ? 'No price-list hints supplied; backend search will validate terms.'
             : json_encode($priceListHints, JSON_UNESCAPED_UNICODE);
-        $prompt = "You are Zonik's contextual grocery-planning brain. Classify ONLY the customer's latest message and do not reuse older guest/weather/recipe context when the latest message changes topic. Distinguish recipe requests (for example Maggi ingredients), weather/season requests (garmi/summer, barish/rain, thand/cold), guest/party requests, travel/office/kids/occasion requests, and unrelated questions. If it is not shopping advice, set is_shopping_advice false.\n\nReturn 6 to 12 grocery catalogue search terms that can be searched in a price list. Use practical orderable products or ingredients, not long sentences. For garmi/summer prefer water, cold drink, soft drink, juice, soda, lassi, buttermilk, glucose, ORS, ice cream, lemon. For barish/rain prefer tea, coffee, soup, Maggi/noodles, biscuits, besan, oil, ginger, chilli. For recipe, include the main packaged food and important ingredients. Never claim availability, price, or that anything was added. Keep intro in natural Roman Hinglish, short and not repetitive. Structured output only.\n\nSelected price-list hints for spelling only:\n{$priceListHintText}\nLatest customer message: {$message}";
+        $prompt = "You are Zonik's contextual grocery-planning brain. Classify ONLY the customer's latest message and do not reuse older guest/weather/recipe context when the latest message changes topic. Understand any shopping-advice context: mood, craving, sweet/spicy mood, movie/match/game, study/office, kids, travel, picnic, party, festival, fasting/vrat/roza, healthy/light/gym, breakfast/lunch/dinner, recipe, weather/season, guests, or any other occasion. If it is not shopping advice, set is_shopping_advice false.\n\nReturn 6 to 12 grocery catalogue search terms that can be searched in a price list. Use practical orderable products or ingredients, not long sentences. For mood/craving include snacks, sweets, drinks, tea/coffee as suitable. For healthy/light include water, oats, peanut butter, milk, juice, simple snacks. For movie/match include popcorn, chips, namkeen, cold drink. For garmi/summer prefer water, cold drink, soft drink, juice, soda, lassi, buttermilk, glucose, ORS, ice cream, lemon. For barish/rain prefer tea, coffee, soup, Maggi/noodles, biscuits, besan, oil, ginger, chilli. For recipe, include the main packaged food and important ingredients. Never claim availability, price, medical benefit, or that anything was added. Keep intro in natural Roman Hinglish, short and not repetitive. Structured output only.\n\nSelected price-list hints for spelling only:\n{$priceListHintText}\nLatest customer message: {$message}";
         $decoded = $this->assistantDecodeJsonObject($this->callGemini($prompt, 0.2, 420, $schema));
         if (is_array($decoded)) {
+            if (array_key_exists('is_shopping_advice', $decoded) && !filter_var($decoded['is_shopping_advice'], FILTER_VALIDATE_BOOLEAN)) {
+                return null;
+            }
             $aiTerms = collect($decoded['shopping_terms'] ?? [])
                 ->filter(fn ($term) => is_string($term) && trim($term) !== '')
                 ->map(fn ($term) => trim($term))
@@ -5048,7 +5129,7 @@ private function assistantContextualShoppingPlan(string $message, ?User $user, ?
 
     $matched = collect();
     $missing = [];
-    foreach (array_slice($terms, 0, 16) as $term) {
+    foreach ($terms as $term) {
         $matches = array_values(array_filter(
             $this->findAssistantProducts($term, $outlet),
             fn ($product) => ($product['available_in_outlet'] ?? true) === true
