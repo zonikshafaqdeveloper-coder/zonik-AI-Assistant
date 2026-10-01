@@ -1740,12 +1740,43 @@ body:has(.ai-page){background:#edf2f5}
                 .then(function (data) { renderCatalogueProducts(data.products || []); })
                 .catch(function () { catalogueList.innerHTML = '<div class="ai-catalogue-empty">Price list load nahi hui. Dobara try kijiye.</div>'; });
         }
+        function collapseRepeatedCatalogueWords(text) {
+            const words = String(text || '').split(/\s+/).filter(Boolean);
+            return words.filter(function (word, index) {
+                return index === 0 || word.toLowerCase() !== words[index - 1].toLowerCase();
+            }).join(' ');
+        }
         function catalogueSearchQueryFromUtterance(text) {
-            return String(text || '')
+            return collapseRepeatedCatalogueWords(String(text || '')
                 .replace(/\b(?:add|added|buy|order|take|cart|please|plz|mujhe|muje|chahiye|chaiye|do|de|dena|karo|karna|kar\s*do|kardo|rakh|rakho|daal|dal|dalo|daalo|flavour|flavor|variant|brand|wala|wali|wale|valar|walar|waller|wallah|walaa|waala)\b/giu, ' ')
                 .replace(/[^\p{L}\p{N}\s]/gu, ' ')
                 .replace(/\s+/g, ' ')
-                .trim();
+                .trim());
+        }
+        function isCatalogueAdviceQuestion(text) {
+            const message = String(text || '').toLowerCase();
+            const directCartAction = /\b(?:add|cart\s+mein|cart\s+me|cart|daal|dal|dalo|daalo|rakh|rakho|rakh\s*do|de\s*do|order\s+(?:kar|karo|kar\s*do))\b/iu.test(message);
+            const contextualTopic = /\b(?:mausam|mosam|mosaam|mousam|weather|barish|baarish|rain|rainy|garmi|summer|thand|cold|sardi|winter|mehmaan|mehman|guest|party|recipe|banane|banana|banaun|banaau|khana|khaana|snack|nashta)\b/iu.test(message);
+            const adviceAsk = /\b(?:kya|kaunsa|kaunsi|kaunse|what|which|suggest|recommend|batao|bataiye|khana|khaana|order\s+karu|order\s+karun|lena\s+chahiye|khana\s+chahiye|chahie)\b/iu.test(message);
+            return (contextualTopic || adviceAsk) && !directCartAction;
+        }
+        function shouldUseCatalogueUtteranceSearch(spokenText, query) {
+            const message = String(spokenText || '').trim().toLowerCase();
+            const search = String(query || '').trim().toLowerCase();
+            if (!search || search.length < 2) return false;
+            if (isCatalogueAdviceQuestion(message)) return false;
+            if (/^(?:haan|han|haa|ha|yes|yeah|yep|ok|okay|ji|theek|thik|nahi|nahin|nhi|nai|no|thanks|thank|you|kar|karo|kardo|\s)+$/iu.test(message)) return false;
+            const stopWords = new Set([
+                'haan', 'han', 'haa', 'ha', 'yes', 'ok', 'okay', 'ji', 'theek', 'thik', 'nahi', 'nahin', 'nhi', 'nai', 'no',
+                'ye', 'yeh', 'yahi', 'yehi', 'wo', 'woh', 'wahi', 'same', 'sab', 'sub', 'all', 'jo', 'bhi', 'inme', 'isme',
+                'mujhe', 'muje', 'kya', 'kaunsa', 'kaunsi', 'kaunse', 'batao', 'bataiye', 'suggest', 'recommend', 'mausam',
+                'mosam', 'mosaam', 'mousam', 'mein', 'me', 'mai', 'main', 'khana', 'khaana', 'chahie', 'chahiye', 'chaiye',
+                'kar', 'karo', 'kardu', 'kardo', 'add', 'daal', 'dal', 'rakh', 'rakho'
+            ]);
+            const usefulWords = search.split(/\s+/).filter(function (word) {
+                return word && !stopWords.has(word);
+            });
+            return usefulWords.length > 0;
         }
         function cataloguePanelIsOpen() {
             return Boolean(cataloguePanel?.classList.contains('open'));
@@ -1753,9 +1784,16 @@ body:has(.ai-page){background:#edf2f5}
         function syncCatalogueFromAssistantProducts(products, spokenText) {
             if (!cataloguePanelIsOpen()) return;
             const query = catalogueSearchQueryFromUtterance(spokenText);
-            if (catalogueSearch && query) catalogueSearch.value = query;
-            if (products && products.length) renderCatalogueProducts(products);
-            else loadCatalogueProducts(query || spokenText || '');
+            const useSpokenQuery = shouldUseCatalogueUtteranceSearch(spokenText, query);
+            if (catalogueSearch && useSpokenQuery) catalogueSearch.value = query;
+            if (products && products.length) {
+                renderCatalogueProducts(products);
+            } else if (useSpokenQuery) {
+                loadCatalogueProducts(query);
+            } else if (!catalogueList?.querySelector('.ai-catalogue-item')) {
+                if (catalogueSearch && !query) catalogueSearch.value = '';
+                loadCatalogueProducts('');
+            }
         }
         function openCataloguePanel() {
             openAccessiblePanel(cataloguePanel);
@@ -2182,6 +2220,7 @@ body:has(.ai-page){background:#edf2f5}
         function isFreshProductCommand(value) {
             const message = String(value || '').trim();
             if (!message) return false;
+            if (isCatalogueAdviceQuestion(message)) return false;
             if (/\b(?:same|same\s+wala|wahi|wohi|woh\s+wala|wo\s+wala|yehi|yahi|jo\s+abhi|jo\s+pehle|last\s+wala|previous\s+wala|uska|iska)\b/iu.test(message)) return false;
             if (/^\s*(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)(?:\s+(?:kar\s*do|kardo|add|daal|dal|rakh|rakho))?\s*$/iu.test(message)) return false;
             if (/\b(?:ek|one|do|two|teen|three|\d+)\s+(?:aur|or|more|extra)\b|\b(?:aur|or|more|extra)\s+(?:ek|one|do|two|teen|three|\d+)\b/iu.test(message)) return false;
