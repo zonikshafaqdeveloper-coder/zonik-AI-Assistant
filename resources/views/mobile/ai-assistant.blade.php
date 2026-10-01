@@ -3462,7 +3462,7 @@ function appendTyping() {
                     const productCardStages = ['clarify_product', 'top_selling', 'choose_product', 'choose_brand', 'confirm_product', 'choose_cart_item', 'choose_cart_remove'];
                     let html = '';
                     if (workflow.stage === 'order_suggestions') {
-                        html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.slice(0, 8).map(suggestionCard).join('') + '</div>'
+                        html = '<div class="ai-suggestion-line" data-order-suggestions="true">' + products.map(suggestionCard).join('') + '</div>'
                             + '<div class="ai-product-actions"><button type="button" class="ai-product-btn" data-skip-order-suggestions="true">No thanks, continue delivery</button></div>';
                     } else if (productCardStages.includes(workflow.stage)) products.slice(0, 3).forEach(function (product) {
                         const productQuantity = Number(product.requested_quantity || quantity || 1);

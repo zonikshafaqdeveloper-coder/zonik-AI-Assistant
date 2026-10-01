@@ -5063,7 +5063,6 @@ private function assistantContextualShoppingPlan(string $message, ?User $user, ?
             if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
                 $matched->push($product);
             }
-            if ($matched->count() >= 8) break 2;
         }
     }
 
@@ -5075,7 +5074,7 @@ private function assistantContextualShoppingPlan(string $message, ?User $user, ?
         ];
     }
 
-    $names = $matched->pluck('name')->filter()->take(6)->implode(', ');
+    $names = $matched->pluck('name')->filter()->implode(', ');
     $reply = $intro . ' Aapki selected price list se matching items mile: ' . $names . '. Neeche cards dikhaye hain; chahiye to "haan ye sab add kardo" bol dijiye, main verified items cart mein add kar dunga.';
     if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice(array_unique($missing), 0, 4)) . '.';
 
@@ -5163,12 +5162,11 @@ private function assistantWeatherProductPlan(string $message, ?User $user, ?User
         if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
             $matched->push($product);
         }
-        if ($matched->count() >= 8) break;
     }
 
     if ($matched->isEmpty()) return null;
 
-    $names = $matched->pluck('name')->filter()->take(5)->implode(', ');
+    $names = $matched->pluck('name')->filter()->implode(', ');
     $reply = ($aiSuggestion !== '' ? $aiSuggestion : 'Barish ke mausam mein garma garam chai/coffee, soup ya Maggi, biscuits aur pakode ke ingredients mast rahenge.')
         . ' Aapki selected price list se matching items mile: ' . $names . '. Neeche cards dikhaye hain; chahiye to "haan ye sab add kardo" bol dijiye, main verified items cart mein add kar dunga.';
     if (!empty($missing)) $reply .= ' Kuch terms ka exact match nahi mila: ' . implode(', ', array_slice($missing, 0, 3)) . '.';
@@ -5214,7 +5212,6 @@ private function assistantGuestProductPlan(string $message, ?User $user, ?User $
         if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
             $matched->push($product);
         }
-        if ($matched->count() >= 8) break;
     }
 
     if ($matched->isEmpty()) return null;
@@ -5304,11 +5301,10 @@ private function assistantProductsFromCurrentOrRecentSuggestions(array $flow, ?U
     $products = $products
         ->filter(fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot']))
         ->unique(fn ($product) => (int) ($product['id'] ?? 0))
-        ->take(8)
         ->values()
         ->all();
 
-    return $this->assistantRehydrateSuggestedProducts($products, $user, $outlet, 8);
+    return $this->assistantRehydrateSuggestedProducts($products, $user, $outlet, null);
 }
 
 private function assistantRecoverProductsFromRecentSuggestionIntent(?User $user, ?User $outlet, ?string $conversationId): array
@@ -5345,21 +5341,24 @@ private function assistantRecoverProductsFromRecentSuggestionIntent(?User $user,
     return [];
 }
 
-private function assistantRehydrateSuggestedProducts(array $products, ?User $user, ?User $outlet, int $limit = 8): array
+private function assistantRehydrateSuggestedProducts(array $products, ?User $user, ?User $outlet, ?int $limit = null): array
 {
     $products = collect($products)
         ->filter(fn ($product) => is_array($product) && !empty($product['id']) && empty($product['order_snapshot']))
         ->unique(fn ($product) => (int) ($product['id'] ?? 0))
-        ->take($limit)
         ->values();
+    if ($limit !== null && $limit > 0) {
+        $products = $products->take($limit)->values();
+    }
     if ($products->isEmpty()) return [];
     if (!$outlet) return $products->all();
 
     $metadataById = $products->keyBy(fn ($product) => (int) ($product['id'] ?? 0));
+    $rehydrateLimit = $limit !== null && $limit > 0 ? $limit : max(1, $products->count());
     $freshProducts = collect($this->assistantSuggestionProductsForIds(
         $products->pluck('id')->map(fn ($id) => (int) $id)->all(),
         $outlet,
-        $limit,
+        $rehydrateLimit,
         $user
     ));
     if ($freshProducts->isEmpty()) return $products->all();
@@ -5377,12 +5376,12 @@ private function assistantRehydrateSuggestedProducts(array $products, ?User $use
 
 private function assistantSuggestedBulkAddResponse(array $suggestedProducts, ?User $user, ?User $outlet): ?array
 {
-    $suggestedProducts = $this->assistantRehydrateSuggestedProducts($suggestedProducts, $user, $outlet, 8);
+    $suggestedProducts = $this->assistantRehydrateSuggestedProducts($suggestedProducts, $user, $outlet, null);
     if (empty($suggestedProducts)) return null;
 
     $added = [];
     $failed = [];
-    foreach (array_slice($suggestedProducts, 0, 8) as $product) {
+    foreach ($suggestedProducts as $product) {
         if (($product['available_in_outlet'] ?? true) === false) {
             $failed[] = (string) ($product['name'] ?? 'Product');
             continue;
@@ -5420,11 +5419,11 @@ private function assistantRecipeProductPlan(string $message, ?User $user, ?User 
             'ingredients' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
             'tip' => ['type' => 'STRING'],
         ], 'required' => ['dish', 'ingredients', 'tip']];
-        $prompt = "The customer is planning a meal and wants a grocery shopping list. Identify the dish and return 3 to 8 practical grocery catalogue search terms in English. Include the main packaged food when relevant. Keep brand names only when the customer said one. Exclude water and kitchen equipment. Do not claim anything is in stock. Return structured data only. Customer: {$message}";
+        $prompt = "The customer is planning a meal and wants a grocery shopping list. Identify the dish and return 3 to 12 practical grocery catalogue search terms in English. Include the main packaged food when relevant. Keep brand names only when the customer said one. Exclude water and kitchen equipment. Do not claim anything is in stock. Return structured data only. Customer: {$message}";
         $decoded = $this->assistantDecodeJsonObject($this->callGemini($prompt, 0.15, 300, $schema));
         $dish = trim((string) ($decoded['dish'] ?? ''));
         $ingredients = collect($decoded['ingredients'] ?? [])->filter(fn ($item) => is_string($item) && trim($item) !== '')
-            ->map(fn ($item) => trim($item))->take(8)->values()->all();
+            ->map(fn ($item) => trim($item))->take(12)->values()->all();
         $tip = trim((string) ($decoded['tip'] ?? ''));
     }
 
@@ -5436,7 +5435,7 @@ private function assistantRecipeProductPlan(string $message, ?User $user, ?User 
             ['maggi noodle'],
             $ingredients ?: ['onion', 'tomato', 'green chilli', 'cooking oil']
         )));
-        $ingredients = array_slice($ingredients, 0, 8);
+        $ingredients = array_slice($ingredients, 0, 12);
         if ($tip === '') $tip = 'Onion aur tomato optional hain; plain Maggi ke liye noodles pack hi kaafi hai.';
     }
     if (empty($ingredients) && preg_match('/\bfried\s*rice\b/iu', $message)) {
@@ -5474,7 +5473,6 @@ private function assistantRecipeProductPlan(string $message, ?User $user, ?User 
             if (!$matched->contains(fn ($row) => (int) ($row['id'] ?? 0) === (int) ($product['id'] ?? 0))) {
                 $matched->push($product);
             }
-            if ($matched->count() >= 8) break 2;
         }
     }
 
@@ -5487,7 +5485,7 @@ private function assistantRecipeProductPlan(string $message, ?User $user, ?User 
     if ($matched->isNotEmpty()) $reply .= ' Bas chef hat optional hai—bhookh compulsory! Aur kya lena chahenge Zonik se?';
     if (!empty($missing)) $reply .= ' Price list mein abhi match nahi mila: ' . implode(', ', array_slice($missing, 0, 4)) . '.';
 
-    return ['reply' => $reply, 'products' => $matched->take(8)->values()->all()];
+    return ['reply' => $reply, 'products' => $matched->values()->all()];
 }
 
 private function assistantVerifiedProductQuestion(string $message, ?User $user, ?User $outlet, array $cartItems): ?array
